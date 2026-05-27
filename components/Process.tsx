@@ -2,6 +2,8 @@
 
 import { RevealCard } from "./motion/RevealCard";
 import { StaggerGrid, StaggerItem } from "./motion/StaggerGrid";
+import { AnimatedSection } from "./AnimatedSection";
+import { ContactInlineCTA } from "./contact/ContactInlineCTA";
 import { SectionHeader } from "./ui/SectionHeader";
 
 const steps = [
@@ -77,6 +79,13 @@ export function Process() {
             ))}
           </StaggerGrid>
         </div>
+
+        <AnimatedSection delay={0.1} className="section-stack-lg">
+          <ContactInlineCTA
+            title="Vom Erstgespräch bis zum Go-live — wir begleiten Sie"
+            description="Buchen Sie ein kostenloses Strategiegespräch und erhalten Sie eine klare Empfehlung für Ihr nächstes digitales Projekt."
+          />
+        </AnimatedSection>
       </div>
     </section>
   );

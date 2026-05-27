@@ -1,11 +1,15 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { ArrowUpRight, Mail, Sparkles } from "lucide-react";
+import { ArrowUpRight, Calendar, Sparkles } from "lucide-react";
+import { BookingAnchor } from "./ui/BookingAnchor";
 import { AnimatedSection } from "./AnimatedSection";
 import { StaggerGrid, StaggerItem } from "./motion/StaggerGrid";
 
-const CONTACT_EMAIL = "hello@nexagency.com";
+const footerChannels = [
+  { label: "Erstgespräch buchen", icon: Calendar },
+  { label: "Termin buchen", icon: Calendar },
+] as const;
 
 const navigationLinks = [
   { label: "Leistungen", href: "#services" },
@@ -13,8 +17,7 @@ const navigationLinks = [
   { label: "Projekte", href: "#portfolio" },
   { label: "Ergebnisse", href: "#ergebnisse" },
   { label: "Prozess", href: "#process" },
-  { label: "Kontakt", href: "#contact" },
-];
+] as const;
 
 const serviceLinks = [
   { label: "Premium-Webdesign", href: "#services" },
@@ -32,10 +35,21 @@ const legalLinks = [
 function FooterLink({
   href,
   children,
+  booking = false,
 }: {
   href: string;
   children: ReactNode;
+  booking?: boolean;
 }) {
+  if (booking) {
+    return (
+      <BookingAnchor className="footer-link group">
+        <span className="footer-link-text">{children}</span>
+        <span className="footer-link-line" aria-hidden />
+      </BookingAnchor>
+    );
+  }
+
   return (
     <a href={href} className="footer-link group">
       <span className="footer-link-text">{children}</span>
@@ -87,19 +101,27 @@ export function Footer() {
               Premium-Digitalagentur für lokale Marken und moderne SaaS — mit
               KI, Design und Wachstum auf Enterprise-Niveau.
             </p>
-            <a
-              href={`mailto:${CONTACT_EMAIL}`}
-              className="footer-email-pill group"
-            >
+            <BookingAnchor className="footer-email-pill group">
               <span className="footer-email-icon" aria-hidden>
-                <Mail className="h-4 w-4" strokeWidth={2} />
+                <Calendar className="h-4 w-4" strokeWidth={2} />
               </span>
               <span className="footer-email-copy">
-                <span className="footer-email-label">Schreiben Sie uns</span>
-                <span className="footer-email-address">{CONTACT_EMAIL}</span>
+                <span className="footer-email-label">Erstgespräch buchen</span>
+                <span className="footer-email-address">30 Min · Cal.com</span>
               </span>
               <ArrowUpRight className="footer-email-arrow h-4 w-4 shrink-0 opacity-60 transition-all duration-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:opacity-100" />
-            </a>
+            </BookingAnchor>
+            <div className="footer-contact-channels">
+              {footerChannels.map((channel) => (
+                <BookingAnchor
+                  key={channel.label}
+                  className="footer-contact-chip group"
+                >
+                  <channel.icon className="h-3.5 w-3.5 opacity-70 transition-opacity group-hover:opacity-100" strokeWidth={2} />
+                  {channel.label}
+                </BookingAnchor>
+              ))}
+            </div>
           </StaggerItem>
 
           <StaggerItem>
@@ -110,6 +132,11 @@ export function Footer() {
                     <FooterLink href={link.href}>{link.label}</FooterLink>
                   </li>
                 ))}
+                <li>
+                  <FooterLink href="" booking>
+                    Termin buchen
+                  </FooterLink>
+                </li>
               </ul>
             </FooterColumn>
           </StaggerItem>

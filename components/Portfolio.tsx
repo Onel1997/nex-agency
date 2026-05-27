@@ -465,7 +465,7 @@ export function Portfolio() {
                   liefern.
                 </p>
               </div>
-              <Button href="#contact" variant="primary" icon className="shrink-0">
+              <Button variant="primary" icon glow className="shrink-0">
                 Projekt besprechen
               </Button>
             </div>

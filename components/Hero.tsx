@@ -61,11 +61,11 @@ export function Hero() {
               transition={heroTransition(0.3)}
               className="mt-9 flex flex-col gap-3.5 sm:mt-10 sm:flex-row sm:items-center sm:gap-4"
             >
-              <Button href="#contact" variant="primary" icon className="hero-cta-primary">
+              <Button variant="primary" icon glow className="hero-cta-primary">
                 Strategiegespräch buchen
               </Button>
-              <Button href="#portfolio" variant="ghost" className="hero-cta-ghost">
-                Referenzen ansehen
+              <Button variant="ghost" className="hero-cta-ghost">
+                Erstgespräch buchen
               </Button>
             </motion.div>
 

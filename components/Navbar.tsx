@@ -47,15 +47,11 @@ export function Navbar() {
 
         <div className="hidden items-center gap-9 md:flex">
           {links.map((link) => (
-            <a
-              key={link.href}
-              href={link.href}
-              className="nav-link"
-            >
+            <a key={link.href} href={link.href} className="nav-link">
               {link.label}
             </a>
           ))}
-          <Button href="#contact" variant="primary" className="px-5 py-2 text-[13px]">
+          <Button variant="primary" glow className="px-5 py-2 text-[13px]">
             Erstgespräch buchen
           </Button>
         </div>
@@ -89,8 +85,8 @@ export function Navbar() {
               </a>
             ))}
             <Button
-              href="#contact"
               variant="primary"
+              glow
               className="mt-2 w-full py-2.5 text-sm"
             >
               Erstgespräch buchen

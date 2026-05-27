@@ -5,38 +5,23 @@ import {
   motion,
   useReducedMotion,
 } from "framer-motion";
-import { Calendar, Mail, MessageCircle, X } from "lucide-react";
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { Calendar, X } from "lucide-react";
+import { useCallback, useEffect, useId, useRef, useState, type MouseEvent } from "react";
+import { handleBookingClick } from "@/lib/openBooking";
 import { easePremium } from "@/lib/motion";
-
-const CONTACT_EMAIL = "hello@nexagency.com";
-const WHATSAPP_URL = "https://wa.me/491701234567";
-const CALENDLY_URL = "https://calendly.com/nexagency/erstgespraech";
 
 const actions = [
   {
-    id: "email",
-    label: "E-Mail",
-    description: CONTACT_EMAIL,
-    href: `mailto:${CONTACT_EMAIL}`,
-    icon: Mail,
-    external: false,
-  },
-  {
-    id: "whatsapp",
-    label: "WhatsApp",
-    description: "Direkt chatten",
-    href: WHATSAPP_URL,
-    icon: MessageCircle,
-    external: true,
-  },
-  {
-    id: "calendly",
-    label: "Termin buchen",
-    description: "Calendly · Erstgespräch",
-    href: CALENDLY_URL,
+    id: "booking-primary",
+    label: "Erstgespräch buchen",
+    description: "Cal.com · 30 Min.",
     icon: Calendar,
-    external: true,
+  },
+  {
+    id: "booking-secondary",
+    label: "Termin buchen",
+    description: "Strategiegespräch",
+    icon: Calendar,
   },
 ] as const;
 
@@ -77,6 +62,13 @@ export function StickyContactCTA() {
   const close = useCallback(() => setOpen(false), []);
   const toggle = useCallback(() => setOpen((prev) => !prev), []);
 
+  const onBook = useCallback(
+    (e: MouseEvent<HTMLButtonElement>) => {
+      handleBookingClick(e, close);
+    },
+    [close]
+  );
+
   useEffect(() => {
     if (!open) return;
 
@@ -104,7 +96,7 @@ export function StickyContactCTA() {
           <motion.div
             id={menuId}
             role="menu"
-            aria-label="Kontaktoptionen"
+            aria-label="Termin buchen"
             className="contact-fab-menu"
             variants={reduced ? undefined : menuVariants}
             initial="hidden"
@@ -112,15 +104,14 @@ export function StickyContactCTA() {
             exit="exit"
           >
             {actions.map((action) => (
-              <motion.a
+              <motion.button
                 key={action.id}
+                type="button"
                 role="menuitem"
-                href={action.href}
-                target={action.external ? "_blank" : undefined}
-                rel={action.external ? "noopener noreferrer" : undefined}
+                data-booking-cta
                 className="contact-fab-action group"
                 variants={reduced ? undefined : itemVariants}
-                onClick={close}
+                onClick={onBook}
                 whileTap={reduced ? undefined : { scale: 0.97 }}
               >
                 <span className="contact-fab-action-icon" aria-hidden>
@@ -130,7 +121,7 @@ export function StickyContactCTA() {
                   <span className="contact-fab-action-label">{action.label}</span>
                   <span className="contact-fab-action-desc">{action.description}</span>
                 </span>
-              </motion.a>
+              </motion.button>
             ))}
           </motion.div>
         )}
@@ -138,12 +129,19 @@ export function StickyContactCTA() {
 
       <motion.button
         type="button"
+        data-booking-cta
         className="contact-fab-trigger"
         aria-expanded={open}
         aria-controls={menuId}
         aria-haspopup="menu"
-        aria-label={open ? "Kontaktmenü schließen" : "Kontakt öffnen"}
-        onClick={toggle}
+        aria-label={open ? "Menü schließen" : "Erstgespräch buchen"}
+        onClick={(e) => {
+          if (open) {
+            toggle();
+            return;
+          }
+          handleBookingClick(e);
+        }}
         initial={reduced ? false : { opacity: 0, scale: 0.85 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ delay: 1.1, duration: 0.5, ease: easePremium }}
@@ -172,7 +170,7 @@ export function StickyContactCTA() {
                 transition={{ duration: 0.2, ease: easePremium }}
                 className="flex"
               >
-                <MessageCircle className="h-5 w-5" strokeWidth={2} />
+                <Calendar className="h-5 w-5" strokeWidth={2} />
               </motion.span>
             )}
           </AnimatePresence>

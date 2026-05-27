@@ -3,7 +3,9 @@
 import { ArrowUpRight, Bot, Globe, HeadphonesIcon, Palette } from "lucide-react";
 import { RevealCard } from "./motion/RevealCard";
 import { StaggerGrid, StaggerItem } from "./motion/StaggerGrid";
+import { ContactInlineCTA } from "./contact/ContactInlineCTA";
 import { SectionHeader } from "./ui/SectionHeader";
+import { AnimatedSection } from "./AnimatedSection";
 
 const services = [
   {
@@ -95,6 +97,10 @@ export function Services() {
             </StaggerItem>
           ))}
         </StaggerGrid>
+
+        <AnimatedSection delay={0.12} className="section-stack-lg">
+          <ContactInlineCTA />
+        </AnimatedSection>
       </div>
     </section>
   );

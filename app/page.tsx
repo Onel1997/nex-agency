@@ -9,6 +9,7 @@ import { TrustProofSection } from "@/components/TrustProofSection";
 import { Process } from "@/components/Process";
 import { CTASection } from "@/components/CTASection";
 import { Footer } from "@/components/Footer";
+import { MobileContactBar } from "@/components/MobileContactBar";
 import { StickyContactCTA } from "@/components/StickyContactCTA";
 import { AnimatedSectionDivider } from "@/components/motion/SectionDivider";
 
@@ -36,6 +37,7 @@ export default function Home() {
       <AnimatedSectionDivider />
       <CTASection />
       <Footer />
+      <MobileContactBar />
       <StickyContactCTA />
     </main>
   );

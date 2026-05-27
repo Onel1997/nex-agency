@@ -1,12 +1,10 @@
 "use client";
 
 import { motion, useReducedMotion } from "framer-motion";
-import { ArrowUpRight, CalendarDays } from "lucide-react";
+import { CalendarDays } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { BOOKING_EMBED_URL } from "@/lib/contact";
 import { easePremium, viewport } from "@/lib/motion";
-import { BookingAnchor } from "../ui/BookingAnchor";
-
 const EMBED_TITLE = "NexAgency — Kostenloses Strategiegespräch buchen";
 
 export function CalBookingEmbed() {
@@ -66,21 +64,6 @@ export function CalBookingEmbed() {
             sprechen.
           </p>
         </div>
-
-        <motion.div
-          whileHover={reduced ? undefined : { scale: 1.02 }}
-          whileTap={reduced ? undefined : { scale: 0.98 }}
-        >
-          <BookingAnchor className="cal-embed-open-link group">
-            <span className="cal-embed-open-link-glow" aria-hidden />
-            <span>Erstgespräch buchen</span>
-            <ArrowUpRight
-              className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
-              strokeWidth={2}
-              aria-hidden
-            />
-          </BookingAnchor>
-        </motion.div>
       </div>
 
       <div ref={shellRef} className="cal-embed-shell glass-card">

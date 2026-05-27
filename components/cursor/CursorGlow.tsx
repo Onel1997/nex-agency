@@ -6,9 +6,10 @@ import { useEffect, useRef, useState } from "react";
 const LERP = 0.14;
 const IDLE_THRESHOLD = 0.75;
 
+/** Desktop-only cursor effect — never mounts on touch / mobile viewports. */
 export function CursorGlow() {
   const { full } = useMotionProfile();
-  const [active, setActive] = useState(false);
+  const [ready, setReady] = useState(false);
   const glowRef = useRef<HTMLDivElement>(null);
   const target = useRef({ x: -9999, y: -9999 });
   const current = useRef({ x: -9999, y: -9999 });
@@ -16,9 +17,11 @@ export function CursorGlow() {
   const visible = useRef(false);
 
   useEffect(() => {
-    if (!full) return;
+    setReady(true);
+  }, []);
 
-    setActive(true);
+  useEffect(() => {
+    if (!ready || !full) return;
 
     const onMove = (e: MouseEvent) => {
       target.current = { x: e.clientX, y: e.clientY };
@@ -65,9 +68,9 @@ export function CursorGlow() {
       document.documentElement.removeEventListener("mouseleave", onLeave);
       if (rafId.current !== null) cancelAnimationFrame(rafId.current);
     };
-  }, [full]);
+  }, [ready, full]);
 
-  if (!active) return null;
+  if (!ready || !full) return null;
 
   return (
     <div className="cursor-glow-layer" aria-hidden>

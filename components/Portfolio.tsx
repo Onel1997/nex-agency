@@ -9,7 +9,6 @@ import { RevealCard } from "./motion/RevealCard";
 import { setSpotlightPosition } from "./motion/SpotlightSurface";
 import { StaggerGrid, StaggerItem } from "./motion/StaggerGrid";
 import { SectionHeader } from "./ui/SectionHeader";
-import { Button } from "./ui/Button";
 import { ProjectTags } from "./ProjectTags";
 
 type Project = {
@@ -465,9 +464,6 @@ export function Portfolio() {
                   liefern.
                 </p>
               </div>
-              <Button variant="primary" icon glow className="shrink-0">
-                Projekt besprechen
-              </Button>
             </div>
           </RevealCard>
         </AnimatedSection>

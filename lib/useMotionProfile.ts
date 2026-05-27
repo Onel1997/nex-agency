@@ -3,6 +3,16 @@
 import { useReducedMotion } from "framer-motion";
 import { useEffect, useState } from "react";
 
+function readCoarsePointer() {
+  if (typeof window === "undefined") return true;
+  return window.matchMedia("(pointer: coarse)").matches;
+}
+
+function readNarrowViewport() {
+  if (typeof window === "undefined") return true;
+  return window.matchMedia("(max-width: 1023px)").matches;
+}
+
 /**
  * Unified motion tier for performance:
  * - full: desktop pointer, motion allowed
@@ -11,8 +21,8 @@ import { useEffect, useState } from "react";
  */
 export function useMotionProfile() {
   const reduced = useReducedMotion();
-  const [coarsePointer, setCoarsePointer] = useState(false);
-  const [narrowViewport, setNarrowViewport] = useState(false);
+  const [coarsePointer, setCoarsePointer] = useState(readCoarsePointer);
+  const [narrowViewport, setNarrowViewport] = useState(readNarrowViewport);
 
   useEffect(() => {
     const coarse = window.matchMedia("(pointer: coarse)");

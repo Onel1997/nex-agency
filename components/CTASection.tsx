@@ -1,21 +1,15 @@
 "use client";
 
 import { motion, useReducedMotion } from "framer-motion";
-import { ArrowRight, Sparkles } from "lucide-react";
+import { Sparkles } from "lucide-react";
 import { AnimatedSection } from "./AnimatedSection";
 import { CalBookingEmbed } from "./contact/CalBookingEmbed";
 import { GradientGlow } from "./motion/GradientGlow";
 import { RevealCard } from "./motion/RevealCard";
 import { StaggerGrid, StaggerItem } from "./motion/StaggerGrid";
 import { TrustBar } from "./TrustBar";
-import { BOOKING_SECTION_ID, bookingLink } from "@/lib/contact";
+import { BOOKING_SECTION_ID } from "@/lib/contact";
 import { easePremium, viewport } from "@/lib/motion";
-
-const bookingCtaPrimaryClass =
-  "magnetic-btn group relative z-20 inline-flex cursor-pointer items-center justify-center gap-2 rounded-full border-0 text-[14px] font-medium tracking-[-0.01em] btn-primary btn-primary-glow px-6 py-3.5 text-white sm:px-7 sm:py-3.5";
-
-const bookingCtaSecondaryClass =
-  "magnetic-btn relative z-20 inline-flex cursor-pointer items-center justify-center gap-2 rounded-full border-0 text-[14px] font-medium tracking-[-0.01em] btn-secondary px-6 py-3.5 text-foreground/90 sm:px-7 sm:py-3.5";
 
 const processSteps = [
   {
@@ -106,27 +100,7 @@ export function CTASection() {
                 digitales Projekt.
               </p>
 
-              <div className="booking-copy-actions contact-cta-row mt-6">
-                <a
-                  href={bookingLink}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className={bookingCtaPrimaryClass}
-                >
-                  Jetzt Erstgespräch sichern
-                  <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-0.5" />
-                </a>
-                <a
-                  href={bookingLink}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className={bookingCtaSecondaryClass}
-                >
-                  Termin buchen
-                </a>
-              </div>
-
-              <p className="cta-note mt-4">
+              <p className="cta-note mt-6">
                 Kostenlos · Unverbindlich · Antwort innerhalb von 24 Stunden
               </p>
 

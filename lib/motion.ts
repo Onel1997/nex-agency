@@ -9,8 +9,8 @@ export const REVEAL_DURATION = 0.75;
 
 export const viewport = {
   once: true,
-  margin: "-8% 0px -4% 0px",
-  amount: 0.15,
+  margin: "0px 0px -6% 0px",
+  amount: 0.12,
 } as const;
 
 /** Scroll reveal: opacity + y only (GPU-friendly, no blur) */

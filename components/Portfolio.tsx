@@ -1,9 +1,13 @@
 "use client";
 
-import type { ReactNode } from "react";
+import type { MouseEvent, ReactNode } from "react";
 import Image from "next/image";
 import { ArrowUpRight } from "lucide-react";
 import { AnimatedSection } from "./AnimatedSection";
+import { GradientGlow } from "./motion/GradientGlow";
+import { RevealCard } from "./motion/RevealCard";
+import { setSpotlightPosition } from "./motion/SpotlightSurface";
+import { StaggerGrid, StaggerItem } from "./motion/StaggerGrid";
 import { SectionHeader } from "./ui/SectionHeader";
 import { Button } from "./ui/Button";
 import { ProjectTags } from "./ProjectTags";
@@ -179,6 +183,15 @@ const nexTrendsProjects: Project[] = [
   },
 ];
 
+function handleSpotlightMove(e: MouseEvent<HTMLElement>) {
+  setSpotlightPosition(e.currentTarget, e.clientX, e.clientY);
+}
+
+function handleSpotlightLeave(e: MouseEvent<HTMLElement>) {
+  e.currentTarget.style.setProperty("--spot-x", "50%");
+  e.currentTarget.style.setProperty("--spot-y", "50%");
+}
+
 function ProjectCard({
   project,
   featured = false,
@@ -188,10 +201,15 @@ function ProjectCard({
 }) {
   return (
     <article
-      className={`portfolio-card group rounded-2xl border border-border/80 ${
+      className={`portfolio-card spotlight-surface premium-hover-card group rounded-2xl border border-border/80 ${
         project.wide ? "lg:col-span-2" : ""
       }`}
+      onMouseMove={handleSpotlightMove}
+      onMouseLeave={handleSpotlightLeave}
     >
+      <span className="spotlight-surface-border" aria-hidden />
+      <span className="spotlight-surface-glow" aria-hidden />
+      <span className="premium-hover-glow" aria-hidden />
       <div className="portfolio-border-glow" aria-hidden />
       <div className="portfolio-glow" aria-hidden />
       <div className="portfolio-reflection" aria-hidden />
@@ -235,7 +253,7 @@ function ProjectCard({
         </div>
 
         <div
-          className={`border-t border-border/60 bg-surface-elevated/85 backdrop-blur-md ${
+          className={`border-t border-border/60 bg-surface-elevated/90 ${
             featured ? "p-7 sm:p-9" : "p-6 sm:p-7"
           }`}
         >
@@ -283,14 +301,12 @@ function PortfolioBlock({
   description,
   featured,
   projects,
-  delayOffset = 0,
 }: {
   label: string;
   title: ReactNode;
   description: string;
   featured: Project;
   projects: Project[];
-  delayOffset?: number;
 }) {
   return (
     <div className="space-y-6 sm:space-y-7">
@@ -302,17 +318,19 @@ function PortfolioBlock({
         className="max-w-3xl"
       />
 
-      <AnimatedSection delay={delayOffset}>
-        <ProjectCard project={featured} featured />
-      </AnimatedSection>
-
-      <div className="grid gap-6 sm:gap-7 lg:grid-cols-2">
-        {projects.map((project, i) => (
-          <AnimatedSection key={project.id} delay={delayOffset + (i + 1) * 0.07}>
+      <StaggerGrid className="grid gap-6 sm:gap-7 lg:grid-cols-2">
+        <StaggerItem className="lg:col-span-2">
+          <ProjectCard project={featured} featured />
+        </StaggerItem>
+        {projects.map((project) => (
+          <StaggerItem
+            key={project.id}
+            className={project.wide ? "lg:col-span-2" : ""}
+          >
             <ProjectCard project={project} />
-          </AnimatedSection>
+          </StaggerItem>
         ))}
-      </div>
+      </StaggerGrid>
     </div>
   );
 }
@@ -320,8 +338,14 @@ function PortfolioBlock({
 export function Portfolio() {
   return (
     <section id="portfolio" className="section-shell">
-      <div className="glow-orb right-0 top-1/4 h-[28rem] w-[28rem] bg-cyan-400/7" />
-      <div className="glow-orb -left-24 bottom-0 h-80 w-80 bg-violet-600/8" />
+      <GradientGlow
+        variant="cyan"
+        className="right-0 top-1/4 h-[28rem] w-[28rem]"
+      />
+      <GradientGlow
+        variant="violet"
+        className="-left-24 bottom-0 h-80 w-80 opacity-80"
+      />
 
       <div className="section-inner">
         <SectionHeader
@@ -362,11 +386,11 @@ export function Portfolio() {
             description="AI Creator SaaS für Trendanalyse, KI-Video-Erstellung und Marketing Automation — von Dashboard und Content-Tools bis zu Pricing, Checkout und Admin-Bereich."
             featured={featuredNexTrends}
             projects={nexTrendsProjects}
-            delayOffset={0.1}
           />
         </div>
 
-        <AnimatedSection delay={0.25} className="mt-20">
+        <AnimatedSection delay={0.15} className="mt-20">
+          <RevealCard lift={false}>
           <div className="glass-card flex flex-col items-center justify-between gap-6 rounded-2xl px-6 py-8 text-center sm:flex-row sm:px-10 sm:text-left">
             <div>
               <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-violet-300/65">
@@ -384,6 +408,7 @@ export function Portfolio() {
               Projekt besprechen
             </Button>
           </div>
+          </RevealCard>
         </AnimatedSection>
       </div>
     </section>

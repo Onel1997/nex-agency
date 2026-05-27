@@ -1,7 +1,13 @@
 "use client";
 
+import { motion, useReducedMotion } from "framer-motion";
 import { type ReactNode } from "react";
-import { AnimatedSection } from "../AnimatedSection";
+import {
+  headerItem,
+  headerStagger,
+  reducedStaggerItem,
+  viewport,
+} from "@/lib/motion";
 
 interface SectionHeaderProps {
   label: string;
@@ -18,16 +24,38 @@ export function SectionHeader({
   align = "center",
   className = "",
 }: SectionHeaderProps) {
+  const reduced = useReducedMotion();
   const alignClass =
     align === "center" ? "text-center mx-auto" : "text-left";
 
   return (
-    <AnimatedSection className={`max-w-3xl ${alignClass} ${className}`}>
-      <p className="section-label">{label}</p>
-      <h2 className="section-title mt-4">{title}</h2>
+    <motion.header
+      initial="hidden"
+      whileInView="visible"
+      viewport={viewport}
+      variants={headerStagger}
+      className={`max-w-3xl ${alignClass} ${className}`}
+    >
+      <motion.p
+        variants={reduced ? reducedStaggerItem : headerItem}
+        className="section-label"
+      >
+        {label}
+      </motion.p>
+      <motion.h2
+        variants={reduced ? reducedStaggerItem : headerItem}
+        className="section-title mt-4"
+      >
+        {title}
+      </motion.h2>
       {description && (
-        <p className="section-description mt-5">{description}</p>
+        <motion.p
+          variants={reduced ? reducedStaggerItem : headerItem}
+          className="section-description mt-5"
+        >
+          {description}
+        </motion.p>
       )}
-    </AnimatedSection>
+    </motion.header>
   );
 }

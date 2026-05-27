@@ -1,8 +1,9 @@
 "use client";
 
-import { motion } from "framer-motion";
 import { ArrowUpRight, Bot, Globe, HeadphonesIcon, Palette } from "lucide-react";
-import { AnimatedSection } from "./AnimatedSection";
+import { GradientGlow } from "./motion/GradientGlow";
+import { RevealCard } from "./motion/RevealCard";
+import { StaggerGrid, StaggerItem } from "./motion/StaggerGrid";
 import { SectionHeader } from "./ui/SectionHeader";
 
 const services = [
@@ -47,7 +48,10 @@ const services = [
 export function Services() {
   return (
     <section id="services" className="section-shell">
-      <div className="glow-orb left-1/2 top-0 h-80 w-80 -translate-x-1/2 bg-violet-600/8" />
+      <GradientGlow
+        variant="violet"
+        className="left-1/2 top-0 h-80 w-80 -translate-x-1/2"
+      />
 
       <div className="section-inner">
         <SectionHeader
@@ -61,44 +65,42 @@ export function Services() {
           description="Webdesign, KI und Strategie als zusammenhängendes System — damit lokale Unternehmen online premium wirken und planbar Anfragen erhalten."
         />
 
-        <div className="mt-20 grid gap-5 lg:grid-cols-2 lg:gap-6">
-          {services.map((service, i) => (
-            <AnimatedSection key={service.title} delay={i * 0.08}>
-              <motion.article
-                whileHover={{ y: -6 }}
-                transition={{ duration: 0.25, ease: "easeOut" }}
-                className="card-shine group glass-card h-full rounded-2xl p-8 transition-shadow duration-300 hover:shadow-[0_28px_64px_-28px_rgba(139,92,246,0.32)] sm:p-9"
-              >
-                <div className="flex items-start justify-between gap-4">
-                  <div
-                    className={`inline-flex rounded-xl bg-gradient-to-br ${service.accent} p-3 ring-1 ring-white/[0.05]`}
-                  >
-                    <service.icon className={`h-5 w-5 ${service.iconColor}`} />
-                  </div>
-                  <ArrowUpRight className="h-4 w-4 text-muted-soft transition-all duration-300 group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-violet-300" />
-                </div>
-
-                <h3 className="mt-7 text-xl font-semibold tracking-[-0.025em]">
-                  {service.title}
-                </h3>
-                <p className="mt-3.5 text-[15px] leading-[1.75] text-muted">
-                  {service.description}
-                </p>
-
-                <div className="mt-7 flex flex-wrap gap-2">
-                  {service.tags.map((tag) => (
-                    <span
-                      key={tag}
-                      className="rounded-full border border-border/80 bg-white/[0.02] px-2.5 py-1 text-[11px] text-muted-soft"
+        <StaggerGrid className="mt-20 grid gap-5 lg:grid-cols-2 lg:gap-6">
+          {services.map((service) => (
+            <StaggerItem key={service.title}>
+              <RevealCard as="article" className="card-shine h-full">
+                <div className="group glass-card h-full rounded-2xl p-8 sm:p-9">
+                  <div className="flex items-start justify-between gap-4">
+                    <div
+                      className={`inline-flex rounded-xl bg-gradient-to-br ${service.accent} p-3 ring-1 ring-white/[0.05]`}
                     >
-                      {tag}
-                    </span>
-                  ))}
+                      <service.icon className={`h-5 w-5 ${service.iconColor}`} />
+                    </div>
+                    <ArrowUpRight className="h-4 w-4 text-muted-soft transition-all duration-300 group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-violet-300" />
+                  </div>
+
+                  <h3 className="mt-7 text-xl font-semibold tracking-[-0.025em]">
+                    {service.title}
+                  </h3>
+                  <p className="mt-3.5 text-[15px] leading-[1.75] text-muted">
+                    {service.description}
+                  </p>
+
+                  <div className="mt-7 flex flex-wrap gap-2">
+                    {service.tags.map((tag) => (
+                      <span
+                        key={tag}
+                        className="rounded-full border border-border/80 bg-white/[0.02] px-2.5 py-1 text-[11px] text-muted-soft transition-colors duration-300 group-hover:border-violet-500/15"
+                      >
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
                 </div>
-              </motion.article>
-            </AnimatedSection>
+              </RevealCard>
+            </StaggerItem>
           ))}
-        </div>
+        </StaggerGrid>
       </div>
     </section>
   );

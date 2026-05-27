@@ -1,7 +1,8 @@
 "use client";
 
-import { motion, useInView } from "framer-motion";
-import { useRef, type ReactNode } from "react";
+import { motion, useReducedMotion } from "framer-motion";
+import { fadeUp, reducedFadeUp, revealTransition, viewport } from "@/lib/motion";
+import type { ReactNode } from "react";
 
 interface AnimatedSectionProps {
   children: ReactNode;
@@ -14,19 +15,15 @@ export function AnimatedSection({
   className = "",
   delay = 0,
 }: AnimatedSectionProps) {
-  const ref = useRef(null);
-  const isInView = useInView(ref, { once: true, margin: "-10% 0px" });
+  const reduced = useReducedMotion();
 
   return (
     <motion.div
-      ref={ref}
-      initial={{ opacity: 0, y: 32 }}
-      animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 32 }}
-      transition={{
-        duration: 0.75,
-        delay,
-        ease: [0.21, 0.47, 0.32, 0.98],
-      }}
+      initial="hidden"
+      whileInView="visible"
+      viewport={viewport}
+      variants={reduced ? reducedFadeUp : fadeUp}
+      transition={revealTransition(delay)}
       className={className}
     >
       {children}

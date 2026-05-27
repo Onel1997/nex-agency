@@ -4,7 +4,7 @@ import { motion, useScroll, useMotionValueEvent } from "framer-motion";
 import { easePremium } from "@/lib/motion";
 import { Sparkles, Menu, X } from "lucide-react";
 import { useState } from "react";
-import { Button } from "./ui/Button";
+import { bookingLink } from "@/lib/contact";
 
 const links = [
   { label: "Leistungen", href: "#services" },
@@ -51,9 +51,14 @@ export function Navbar() {
               {link.label}
             </a>
           ))}
-          <Button variant="primary" glow className="px-5 py-2 text-[13px]">
+          <a
+            href={bookingLink}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="magnetic-btn inline-flex cursor-pointer items-center justify-center gap-2 rounded-full border-0 text-[13px] font-medium tracking-[-0.01em] btn-primary btn-primary-glow px-5 py-2 text-white"
+          >
             Erstgespräch buchen
-          </Button>
+          </a>
         </div>
 
         <button
@@ -84,13 +89,14 @@ export function Navbar() {
                 {link.label}
               </a>
             ))}
-            <Button
-              variant="primary"
-              glow
-              className="mt-2 w-full py-2.5 text-sm"
+            <a
+              href={bookingLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="magnetic-btn mt-2 inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-full border-0 py-2.5 text-sm font-medium tracking-[-0.01em] btn-primary btn-primary-glow text-white"
             >
               Erstgespräch buchen
-            </Button>
+            </a>
           </div>
         </motion.div>
       )}

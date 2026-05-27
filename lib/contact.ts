@@ -5,10 +5,8 @@ export const bookingLink =
 /** @alias bookingLink */
 export const BOOKING_URL = bookingLink;
 
-/** Section anchor for the booking embed (not #contact) */
+/** Section anchor for the Cal.com booking embed */
 export const BOOKING_SECTION_ID = "booking";
-
-export const CONTACT_EMAIL = "hello@nexagency.com";
 
 /** Cal.com iframe embed (dark theme) */
 export const BOOKING_EMBED_URL =

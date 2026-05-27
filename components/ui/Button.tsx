@@ -1,6 +1,6 @@
 "use client";
 
-import { handleBookingClick } from "@/lib/openBooking";
+import { bookingLink } from "@/lib/contact";
 import { useMotionProfile } from "@/lib/useMotionProfile";
 import { ArrowRight } from "lucide-react";
 import { useRef, type MouseEvent } from "react";
@@ -16,7 +16,6 @@ interface ButtonProps {
 const MAGNETIC_STRENGTH = 0.18;
 const MAX_OFFSET = 6;
 
-/** CTA button — always opens Cal.com via window.open (never mailto) */
 export function Button({
   children,
   variant = "primary",
@@ -25,7 +24,7 @@ export function Button({
   className = "",
 }: ButtonProps) {
   const { full } = useMotionProfile();
-  const ref = useRef<HTMLButtonElement>(null);
+  const ref = useRef<HTMLAnchorElement>(null);
 
   const base =
     "magnetic-btn inline-flex cursor-pointer items-center justify-center gap-2 rounded-full border-0 text-[14px] font-medium tracking-[-0.01em]";
@@ -37,7 +36,7 @@ export function Button({
     ghost: "btn-ghost px-6 py-3.5 text-foreground/85 sm:px-7 sm:py-3.5",
   };
 
-  const onMove = (e: MouseEvent<HTMLButtonElement>) => {
+  const onMove = (e: MouseEvent<HTMLAnchorElement>) => {
     if (!full || !ref.current) return;
     const rect = ref.current.getBoundingClientRect();
     const x = (e.clientX - rect.left - rect.width / 2) * MAGNETIC_STRENGTH;
@@ -53,11 +52,11 @@ export function Button({
   };
 
   return (
-    <button
+    <a
       ref={ref}
-      type="button"
-      data-booking-cta
-      onClick={handleBookingClick}
+      href={bookingLink}
+      target="_blank"
+      rel="noopener noreferrer"
       onMouseMove={full ? onMove : undefined}
       onMouseLeave={full ? onLeave : undefined}
       className={`group ${base} ${variants[variant]} ${glow ? "btn-primary-glow" : ""} ${className}`}
@@ -66,6 +65,6 @@ export function Button({
       {icon && (
         <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-0.5" />
       )}
-    </button>
+    </a>
   );
 }

@@ -2326,6 +2326,8 @@ body {
 }
 
 .booking-copy-actions {
+  position: relative;
+  isolation: isolate;
   display: flex;
   flex-direction: column;
   gap: 0.625rem;
@@ -2336,6 +2338,7 @@ body {
   .booking-copy-actions {
     flex-direction: row;
     flex-wrap: wrap;
+    align-items: center;
   }
 }
 

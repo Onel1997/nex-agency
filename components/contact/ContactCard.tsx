@@ -2,7 +2,7 @@
 
 import { ArrowUpRight } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { handleBookingClick } from "@/lib/openBooking";
+import { bookingLink } from "@/lib/contact";
 
 export type ContactCardProps = {
   icon: LucideIcon;
@@ -30,10 +30,10 @@ export function ContactCard({
   accent = "violet",
 }: ContactCardProps) {
   return (
-    <button
-      type="button"
-      data-booking-cta
-      onClick={handleBookingClick}
+    <a
+      href={bookingLink}
+      target="_blank"
+      rel="noopener noreferrer"
       className={`contact-card glass-card glass-card--hover group w-full text-left ${accentMap[accent]}`}
     >
       <span className="contact-card-shine" aria-hidden />
@@ -59,6 +59,6 @@ export function ContactCard({
         <span>{cta}</span>
         <ArrowUpRight className="h-3.5 w-3.5" strokeWidth={2.25} aria-hidden />
       </span>
-    </button>
+    </a>
   );
 }

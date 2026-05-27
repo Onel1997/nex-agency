@@ -6,8 +6,8 @@ import {
   useReducedMotion,
 } from "framer-motion";
 import { Calendar, X } from "lucide-react";
-import { useCallback, useEffect, useId, useRef, useState, type MouseEvent } from "react";
-import { handleBookingClick } from "@/lib/openBooking";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { bookingLink } from "@/lib/contact";
 import { easePremium } from "@/lib/motion";
 
 const actions = [
@@ -62,13 +62,6 @@ export function StickyContactCTA() {
   const close = useCallback(() => setOpen(false), []);
   const toggle = useCallback(() => setOpen((prev) => !prev), []);
 
-  const onBook = useCallback(
-    (e: MouseEvent<HTMLButtonElement>) => {
-      handleBookingClick(e, close);
-    },
-    [close]
-  );
-
   useEffect(() => {
     if (!open) return;
 
@@ -104,14 +97,15 @@ export function StickyContactCTA() {
             exit="exit"
           >
             {actions.map((action) => (
-              <motion.button
+              <motion.a
                 key={action.id}
-                type="button"
+                href={bookingLink}
+                target="_blank"
+                rel="noopener noreferrer"
                 role="menuitem"
-                data-booking-cta
                 className="contact-fab-action group"
                 variants={reduced ? undefined : itemVariants}
-                onClick={onBook}
+                onClick={close}
                 whileTap={reduced ? undefined : { scale: 0.97 }}
               >
                 <span className="contact-fab-action-icon" aria-hidden>
@@ -121,61 +115,49 @@ export function StickyContactCTA() {
                   <span className="contact-fab-action-label">{action.label}</span>
                   <span className="contact-fab-action-desc">{action.description}</span>
                 </span>
-              </motion.button>
+              </motion.a>
             ))}
           </motion.div>
         )}
       </AnimatePresence>
 
-      <motion.button
-        type="button"
-        data-booking-cta
-        className="contact-fab-trigger"
-        aria-expanded={open}
-        aria-controls={menuId}
-        aria-haspopup="menu"
-        aria-label={open ? "Menü schließen" : "Erstgespräch buchen"}
-        onClick={(e) => {
-          if (open) {
-            toggle();
-            return;
-          }
-          handleBookingClick(e);
-        }}
-        initial={reduced ? false : { opacity: 0, scale: 0.85 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ delay: 1.1, duration: 0.5, ease: easePremium }}
-        whileTap={reduced ? undefined : { scale: 0.94 }}
-      >
-        <span className="contact-fab-trigger-glow" aria-hidden />
-        <span className="contact-fab-trigger-inner">
-          <AnimatePresence mode="wait" initial={false}>
-            {open ? (
-              <motion.span
-                key="close"
-                initial={{ opacity: 0, rotate: -45, scale: 0.8 }}
-                animate={{ opacity: 1, rotate: 0, scale: 1 }}
-                exit={{ opacity: 0, rotate: 45, scale: 0.8 }}
-                transition={{ duration: 0.2, ease: easePremium }}
-                className="flex"
-              >
-                <X className="h-5 w-5" strokeWidth={2.25} />
-              </motion.span>
-            ) : (
-              <motion.span
-                key="open"
-                initial={{ opacity: 0, rotate: 45, scale: 0.8 }}
-                animate={{ opacity: 1, rotate: 0, scale: 1 }}
-                exit={{ opacity: 0, rotate: -45, scale: 0.8 }}
-                transition={{ duration: 0.2, ease: easePremium }}
-                className="flex"
-              >
-                <Calendar className="h-5 w-5" strokeWidth={2} />
-              </motion.span>
-            )}
-          </AnimatePresence>
-        </span>
-      </motion.button>
+      {open ? (
+        <motion.button
+          type="button"
+          className="contact-fab-trigger"
+          aria-expanded={open}
+          aria-controls={menuId}
+          aria-haspopup="menu"
+          aria-label="Menü schließen"
+          onClick={toggle}
+          initial={reduced ? false : { opacity: 0, scale: 0.85 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ delay: 1.1, duration: 0.5, ease: easePremium }}
+          whileTap={reduced ? undefined : { scale: 0.94 }}
+        >
+          <span className="contact-fab-trigger-glow" aria-hidden />
+          <span className="contact-fab-trigger-inner">
+            <X className="h-5 w-5" strokeWidth={2.25} />
+          </span>
+        </motion.button>
+      ) : (
+        <motion.a
+          href={bookingLink}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="contact-fab-trigger"
+          aria-label="Erstgespräch buchen"
+          initial={reduced ? false : { opacity: 0, scale: 0.85 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ delay: 1.1, duration: 0.5, ease: easePremium }}
+          whileTap={reduced ? undefined : { scale: 0.94 }}
+        >
+          <span className="contact-fab-trigger-glow" aria-hidden />
+          <span className="contact-fab-trigger-inner">
+            <Calendar className="h-5 w-5" strokeWidth={2} />
+          </span>
+        </motion.a>
+      )}
     </div>
   );
 }

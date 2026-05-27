@@ -27,7 +27,7 @@ import {
   MEETING_TIMEZONE,
   type MeetingSlot,
 } from "@/lib/booking";
-import { handleBookingClick } from "@/lib/openBooking";
+import { bookingLink } from "@/lib/contact";
 import { easePremium, viewport } from "@/lib/motion";
 import { useMotionProfile } from "@/lib/useMotionProfile";
 
@@ -251,11 +251,11 @@ export function BookingCalendar({ className = "" }: BookingCalendarProps) {
             </motion.div>
           </AnimatePresence>
 
-          <motion.button
-            type="button"
-            data-booking-cta
+          <motion.a
+            href={bookingLink}
+            target="_blank"
+            rel="noopener noreferrer"
             className="booking-widget-cta group"
-            onClick={handleBookingClick}
             whileHover={reduced ? undefined : { scale: 1.01 }}
             whileTap={slotTap}
           >
@@ -267,7 +267,7 @@ export function BookingCalendar({ className = "" }: BookingCalendarProps) {
               strokeWidth={2}
               aria-hidden
             />
-          </motion.button>
+          </motion.a>
 
           <p className="booking-widget-footnote">
             {selectedSlot && selectedDate

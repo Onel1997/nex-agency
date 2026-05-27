@@ -1,33 +1,24 @@
-"use client";
-
-import { handleBookingClick } from "@/lib/openBooking";
+import { bookingLink } from "@/lib/contact";
 import type { ComponentPropsWithoutRef, ReactNode } from "react";
 
-type BookingAnchorProps = Omit<ComponentPropsWithoutRef<"button">, "type"> & {
+type BookingAnchorProps = Omit<ComponentPropsWithoutRef<"a">, "href" | "target" | "rel"> & {
   children: ReactNode;
-  onAfterOpen?: () => void;
 };
 
-/** CTA control — button element, opens Cal.com via window.open (never mailto) */
 export function BookingAnchor({
   children,
   className = "",
-  onAfterOpen,
-  onClick,
   ...rest
 }: BookingAnchorProps) {
   return (
-    <button
-      type="button"
-      data-booking-cta
+    <a
+      href={bookingLink}
+      target="_blank"
+      rel="noopener noreferrer"
       className={className}
-      onClick={(e) => {
-        handleBookingClick(e, onAfterOpen);
-        onClick?.(e);
-      }}
       {...rest}
     >
       {children}
-    </button>
+    </a>
   );
 }

@@ -2,19 +2,19 @@
 
 import { motion, useReducedMotion } from "framer-motion";
 import { Calendar } from "lucide-react";
-import { handleBookingClick } from "@/lib/openBooking";
+import { bookingLink } from "@/lib/contact";
 
 export function MobileContactBar() {
   const reduced = useReducedMotion();
 
   return (
     <div className="mobile-floating-cta-wrap md:hidden">
-      <motion.button
-        type="button"
-        data-booking-cta
+      <motion.a
+        href={bookingLink}
+        target="_blank"
+        rel="noopener noreferrer"
         className="mobile-floating-cta group"
         aria-label="Erstgespräch buchen — Cal.com öffnen"
-        onClick={handleBookingClick}
         whileHover={reduced ? undefined : { scale: 1.02 }}
         whileTap={reduced ? undefined : { scale: 0.98 }}
       >
@@ -24,7 +24,7 @@ export function MobileContactBar() {
           <Calendar className="mobile-floating-cta-icon h-4 w-4" strokeWidth={2} />
           <span className="mobile-floating-cta-text">Erstgespräch buchen</span>
         </span>
-      </motion.button>
+      </motion.a>
     </div>
   );
 }

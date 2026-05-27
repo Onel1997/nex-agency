@@ -1,6 +1,5 @@
 "use client";
 
-import { GradientGlow } from "./motion/GradientGlow";
 import { RevealCard } from "./motion/RevealCard";
 import { StaggerGrid, StaggerItem } from "./motion/StaggerGrid";
 import { SectionHeader } from "./ui/SectionHeader";
@@ -35,11 +34,6 @@ const steps = [
 export function Process() {
   return (
     <section id="process" className="section-shell">
-      <GradientGlow
-        variant="mixed"
-        className="left-1/2 top-0 h-80 w-80 -translate-x-1/2 opacity-35"
-      />
-
       <div className="section-inner">
         <SectionHeader
           label="Prozess"
@@ -59,7 +53,7 @@ export function Process() {
             {steps.map((step) => (
               <StaggerItem key={step.title}>
                 <RevealCard className="h-full">
-                  <div className="group relative h-full glass-card rounded-2xl p-7 lg:p-8">
+                  <div className="group glass-card glass-card--hover relative h-full rounded-2xl p-7 lg:p-8">
                     <div className="absolute left-6 top-8 hidden h-px w-[calc(100%+1.25rem)] bg-gradient-to-r from-violet-500/25 to-transparent lg:block lg:last:hidden" />
 
                     <div className="flex items-start gap-4 lg:block">

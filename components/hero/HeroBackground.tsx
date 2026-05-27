@@ -38,7 +38,7 @@ export function HeroBackground() {
       )}
 
       <div className={`hero-grid-fine absolute inset-0 ${full ? "hero-grid-drift" : ""}`} />
-      <div className="grid-pattern absolute inset-0 opacity-80" />
+      <div className="grid-pattern absolute inset-0 opacity-55 sm:opacity-70" />
       <div className="hero-vignette absolute inset-0" />
       <div className="noise-overlay absolute inset-0" />
 

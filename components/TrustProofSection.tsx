@@ -2,7 +2,6 @@
 
 import { Quote } from "lucide-react";
 import { AnimatedSection } from "./AnimatedSection";
-import { GradientGlow } from "./motion/GradientGlow";
 import { RevealCard } from "./motion/RevealCard";
 import { StaggerGrid, StaggerItem } from "./motion/StaggerGrid";
 import { SectionHeader } from "./ui/SectionHeader";
@@ -129,10 +128,6 @@ export function TrustProofSection() {
   return (
     <section id="ergebnisse" className="proof-section section-shell" aria-label="Ergebnisse und Vertrauen">
       <div className="proof-section-backdrop" aria-hidden />
-      <GradientGlow
-        variant="mixed"
-        className="left-1/2 top-[18%] h-80 w-[min(100%,36rem)] -translate-x-1/2 opacity-30"
-      />
 
       <div className="section-inner">
         <SectionHeader
@@ -154,7 +149,7 @@ export function TrustProofSection() {
           ))}
         </StaggerGrid>
 
-        <AnimatedSection delay={0.06} className="proof-trust-panel mt-16 sm:mt-20">
+        <AnimatedSection delay={0.06} className="proof-trust-panel section-stack">
           <div className="proof-trust-panel-inner">
             <p className="proof-trust-headline">
               Vertraut von lokalen Marken & modernen Teams
@@ -171,12 +166,14 @@ export function TrustProofSection() {
           </div>
         </AnimatedSection>
 
-        <div className="mt-20 sm:mt-24">
+        <div className="section-stack-lg">
           <AnimatedSection>
-            <p className="proof-testimonials-eyebrow">Stimmen aus der Praxis</p>
+            <p className="proof-testimonials-eyebrow section-label text-center">
+              Stimmen aus der Praxis
+            </p>
           </AnimatedSection>
 
-          <StaggerGrid className="proof-testimonials-grid mt-8 sm:mt-10">
+          <StaggerGrid className="proof-testimonials-grid section-stack-sm">
             {testimonials.map((testimonial) => (
               <StaggerItem key={testimonial.name} className="h-full">
                 <ProofTestimonialCard testimonial={testimonial} />

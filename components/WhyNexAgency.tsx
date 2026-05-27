@@ -2,7 +2,6 @@
 
 import { Brain, Gem, Target, Zap } from "lucide-react";
 import { AnimatedSection } from "./AnimatedSection";
-import { GradientGlow } from "./motion/GradientGlow";
 import { RevealCard } from "./motion/RevealCard";
 import { StaggerGrid, StaggerItem } from "./motion/StaggerGrid";
 import { SectionHeader } from "./ui/SectionHeader";
@@ -44,11 +43,6 @@ const principles = [
 export function WhyNexAgency() {
   return (
     <section id="why" className="section-shell">
-      <GradientGlow
-        variant="cyan"
-        className="right-0 top-1/3 h-64 w-64 opacity-35"
-      />
-
       <div className="section-inner">
         <div className="grid items-start gap-14 sm:gap-16 lg:grid-cols-[0.92fr_1.08fr] lg:gap-20 xl:gap-24">
           <div>
@@ -64,9 +58,9 @@ export function WhyNexAgency() {
               description="NexAgency vereint Design, KI-Systeme und Wachstum — für lokale Unternehmen in Deutschland, die online ernst genommen werden wollen und planbar neue Kunden gewinnen möchten."
             />
 
-            <AnimatedSection delay={0.1} className="mt-10 sm:mt-12">
+            <AnimatedSection delay={0.1} className="section-stack">
               <RevealCard lift={false}>
-                <div className="glass-card rounded-2xl p-7 sm:p-8">
+                <div className="glass-card glass-card--hover rounded-2xl p-7 sm:p-8">
                   <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-violet-300/65">
                     Unser Versprechen
                   </p>
@@ -90,7 +84,7 @@ export function WhyNexAgency() {
             {reasons.map((reason) => (
               <StaggerItem key={reason.title}>
                 <RevealCard className="h-full">
-                  <div className="group h-full glass-card rounded-2xl p-6 sm:p-7">
+                  <div className="group glass-card glass-card--hover h-full rounded-2xl p-6 sm:p-7">
                     <div className="flex gap-4">
                       <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500/15 to-cyan-500/10 ring-1 ring-white/[0.05]">
                         <reason.icon className="h-5 w-5 text-violet-300" />

@@ -373,7 +373,7 @@ function PortfolioBlock({
   projects: Project[];
 }) {
   return (
-    <div className="portfolio-block space-y-10 sm:space-y-11">
+    <div className="portfolio-block flex flex-col gap-10 sm:gap-11">
       <SectionHeader
         align="left"
         label={label}
@@ -403,12 +403,8 @@ export function Portfolio() {
   return (
     <section id="portfolio" className="section-shell">
       <GradientGlow
-        variant="cyan"
-        className="right-0 top-1/4 h-80 w-80 opacity-35"
-      />
-      <GradientGlow
-        variant="violet"
-        className="-left-24 bottom-0 h-72 w-72 opacity-40"
+        variant="mixed"
+        className="pointer-events-none left-1/2 top-[12%] h-72 w-[min(100%,36rem)] -translate-x-1/2 opacity-25"
       />
 
       <div className="section-inner">
@@ -423,7 +419,7 @@ export function Portfolio() {
           description="Ausgewählte Projekte mit echten Screenshots — von Premium-Websites für den deutschen Mittelstand bis zu KI-gestützten SaaS-Plattformen."
         />
 
-        <div className="section-content space-y-28 sm:space-y-32">
+        <div className="section-content flex flex-col gap-24 sm:gap-28 lg:gap-32">
           <PortfolioBlock
             label="Local Business"
             title={
@@ -453,9 +449,9 @@ export function Portfolio() {
           />
         </div>
 
-        <AnimatedSection delay={0.15} className="mt-16 sm:mt-20">
+        <AnimatedSection delay={0.15} className="section-stack-lg">
           <RevealCard lift={false}>
-            <div className="glass-card flex flex-col items-center justify-between gap-6 rounded-2xl px-6 py-8 text-center sm:flex-row sm:px-10 sm:text-left">
+            <div className="glass-card glass-card--hover flex flex-col items-center justify-between gap-6 rounded-2xl px-6 py-8 text-center sm:flex-row sm:px-10 sm:text-left">
               <div>
                 <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-violet-300/65">
                   Ihr Projekt als Nächstes?

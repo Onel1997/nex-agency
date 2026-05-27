@@ -38,12 +38,8 @@ export function CTASection() {
             <div className="relative overflow-hidden rounded-[1.75rem] border border-border-strong">
               <div className="absolute inset-0 bg-gradient-to-br from-violet-600/12 via-surface-elevated to-cyan-500/6" />
               <GradientGlow
-                variant="violet"
-                className="left-[-4rem] top-[-4rem] h-72 w-72 opacity-45"
-              />
-              <GradientGlow
-                variant="cyan"
-                className="right-[-2rem] bottom-[-2rem] h-72 w-72 opacity-35"
+                variant="mixed"
+                className="left-1/2 top-1/2 h-96 w-96 -translate-x-1/2 -translate-y-1/2 opacity-30"
               />
               <div className="grid-pattern absolute inset-0 opacity-35" />
               <div className="noise-overlay absolute inset-0" />
@@ -82,7 +78,7 @@ export function CTASection() {
                   </div>
                 </div>
 
-                <div className="glass-card rounded-2xl p-7 sm:p-8">
+                <div className="glass-card glass-card--hover rounded-2xl p-7 sm:p-8">
                   <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-violet-300/65">
                     Ablauf des Erstgesprächs
                   </p>

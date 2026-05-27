@@ -76,7 +76,7 @@ export function StatsSection() {
       <div className="stats-section-gradient absolute inset-0" aria-hidden />
       <GradientGlow
         variant="violet"
-        className="left-1/2 top-1/2 h-64 w-[min(100%,44rem)] -translate-x-1/2 -translate-y-1/2 opacity-40"
+        className="left-1/2 top-1/2 h-56 w-[min(100%,40rem)] -translate-x-1/2 -translate-y-1/2 opacity-28"
       />
 
       <div className="section-inner relative">

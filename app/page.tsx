@@ -3,11 +3,13 @@ import { Hero } from "@/components/Hero";
 import { StatsSection } from "@/components/StatsSection";
 import { Services } from "@/components/Services";
 import { WhyNexAgency } from "@/components/WhyNexAgency";
+import { TrustedTechnologies } from "@/components/TrustedTechnologies";
 import { Portfolio } from "@/components/Portfolio";
 import { TrustProofSection } from "@/components/TrustProofSection";
 import { Process } from "@/components/Process";
 import { CTASection } from "@/components/CTASection";
 import { Footer } from "@/components/Footer";
+import { StickyContactCTA } from "@/components/StickyContactCTA";
 import { AnimatedSectionDivider } from "@/components/motion/SectionDivider";
 
 export default function Home() {
@@ -24,6 +26,8 @@ export default function Home() {
       <AnimatedSectionDivider />
       <WhyNexAgency />
       <AnimatedSectionDivider />
+      <TrustedTechnologies />
+      <AnimatedSectionDivider />
       <Portfolio />
       <AnimatedSectionDivider />
       <TrustProofSection />
@@ -32,6 +36,7 @@ export default function Home() {
       <AnimatedSectionDivider />
       <CTASection />
       <Footer />
+      <StickyContactCTA />
     </main>
   );
 }

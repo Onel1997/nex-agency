@@ -1,7 +1,6 @@
 "use client";
 
 import { ArrowUpRight, Bot, Globe, HeadphonesIcon, Palette } from "lucide-react";
-import { GradientGlow } from "./motion/GradientGlow";
 import { RevealCard } from "./motion/RevealCard";
 import { StaggerGrid, StaggerItem } from "./motion/StaggerGrid";
 import { SectionHeader } from "./ui/SectionHeader";
@@ -48,11 +47,6 @@ const services = [
 export function Services() {
   return (
     <section id="services" className="section-shell">
-      <GradientGlow
-        variant="violet"
-        className="left-1/2 top-0 h-72 w-72 -translate-x-1/2 opacity-40"
-      />
-
       <div className="section-inner">
         <SectionHeader
           label="Leistungen"

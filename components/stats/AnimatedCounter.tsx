@@ -12,13 +12,18 @@ import { useEffect, useRef } from "react";
 import { easePremium } from "@/lib/motion";
 
 export type CounterFormat =
-  | { kind: "plus"; end: number }
+  | { kind: "plus"; end: number; unit?: string }
   | { kind: "decimal"; end: number; suffix: string }
-  | { kind: "prefix"; prefix: string; end: number; suffix: string };
+  | { kind: "prefix"; prefix: string; end: number; suffix: string }
+  | { kind: "percent"; end: number };
 
 function formatValue(v: number, format: CounterFormat): string {
-  if (format.kind === "plus") return `${Math.round(v)}+`;
+  if (format.kind === "plus") {
+    const n = Math.round(v);
+    return format.unit ? `${n}${format.unit}+` : `${n}+`;
+  }
   if (format.kind === "decimal") return `${v.toFixed(1)}${format.suffix}`;
+  if (format.kind === "percent") return `${Math.round(v)}%`;
   return `${format.prefix}${Math.round(v)}${format.suffix}`;
 }
 

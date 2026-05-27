@@ -46,11 +46,11 @@ export function WhyNexAgency() {
     <section id="why" className="section-shell">
       <GradientGlow
         variant="cyan"
-        className="right-0 top-1/3 h-72 w-72 opacity-70"
+        className="right-0 top-1/3 h-64 w-64 opacity-35"
       />
 
       <div className="section-inner">
-        <div className="grid items-start gap-16 lg:grid-cols-[0.92fr_1.08fr] lg:gap-24">
+        <div className="grid items-start gap-14 sm:gap-16 lg:grid-cols-[0.92fr_1.08fr] lg:gap-20 xl:gap-24">
           <div>
             <SectionHeader
               align="left"
@@ -64,13 +64,13 @@ export function WhyNexAgency() {
               description="NexAgency vereint Design, KI-Systeme und Wachstum — für lokale Unternehmen in Deutschland, die online ernst genommen werden wollen und planbar neue Kunden gewinnen möchten."
             />
 
-            <AnimatedSection delay={0.1} className="mt-12">
+            <AnimatedSection delay={0.1} className="mt-10 sm:mt-12">
               <RevealCard lift={false}>
                 <div className="glass-card rounded-2xl p-7 sm:p-8">
                   <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-violet-300/65">
                     Unser Versprechen
                   </p>
-                  <ul className="mt-6 space-y-4">
+                  <ul className="mt-5 space-y-3.5 sm:mt-6 sm:space-y-4">
                     {principles.map((principle) => (
                       <li
                         key={principle}
@@ -86,7 +86,7 @@ export function WhyNexAgency() {
             </AnimatedSection>
           </div>
 
-          <StaggerGrid className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
+          <StaggerGrid className="grid gap-4 sm:grid-cols-2 sm:gap-5 lg:grid-cols-1">
             {reasons.map((reason) => (
               <StaggerItem key={reason.title}>
                 <RevealCard className="h-full">

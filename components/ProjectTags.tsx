@@ -1,12 +1,33 @@
 interface ProjectTagsProps {
   tags: string[];
+  variant?: "featured" | "compact" | "default";
+  limit?: number;
 }
 
-export function ProjectTags({ tags }: ProjectTagsProps) {
+export function ProjectTags({
+  tags,
+  variant = "default",
+  limit,
+}: ProjectTagsProps) {
+  const visibleTags = limit ? tags.slice(0, limit) : tags;
+
   return (
-    <div className="mt-5 flex flex-wrap gap-2 sm:gap-2.5">
-      {tags.map((tag) => (
-        <span key={tag} className="portfolio-tag">
+    <div
+      className={`portfolio-tags flex flex-wrap ${
+        variant === "featured"
+          ? "portfolio-tags--featured"
+          : variant === "compact"
+            ? "portfolio-tags--compact"
+            : ""
+      }`}
+    >
+      {visibleTags.map((tag) => (
+        <span
+          key={tag}
+          className={`portfolio-tag ${
+            variant === "compact" ? "portfolio-tag--compact" : ""
+          }`}
+        >
           {tag}
         </span>
       ))}

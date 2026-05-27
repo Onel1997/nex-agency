@@ -22,8 +22,8 @@ export function Hero() {
     <section className="hero-section relative overflow-hidden">
       <HeroBackground />
 
-      <div className="section-inner relative px-6 pb-28 sm:px-8 lg:pb-36">
-        <div className="grid items-center gap-14 lg:grid-cols-[1.05fr_0.95fr] lg:gap-16 xl:gap-20">
+      <div className="section-inner relative px-6 pb-32 sm:px-8 sm:pb-36 lg:pb-40">
+        <div className="grid items-center gap-16 lg:grid-cols-[1.05fr_0.95fr] lg:gap-[4.5rem] xl:gap-20">
           <motion.div
             initial="hidden"
             animate="visible"

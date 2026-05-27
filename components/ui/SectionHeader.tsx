@@ -34,7 +34,7 @@ export function SectionHeader({
       whileInView="visible"
       viewport={viewport}
       variants={headerStagger}
-      className={`max-w-3xl ${alignClass} ${className}`}
+      className={`section-header max-w-3xl ${alignClass} ${className}`}
     >
       <motion.p
         variants={reduced ? reducedStaggerItem : headerItem}
@@ -44,14 +44,14 @@ export function SectionHeader({
       </motion.p>
       <motion.h2
         variants={reduced ? reducedStaggerItem : headerItem}
-        className="section-title mt-4"
+        className="section-title"
       >
         {title}
       </motion.h2>
       {description && (
         <motion.p
           variants={reduced ? reducedStaggerItem : headerItem}
-          className="section-description mt-5"
+          className="section-description"
         >
           {description}
         </motion.p>

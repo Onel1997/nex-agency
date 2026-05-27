@@ -72,19 +72,15 @@ function StatCard({ stat }: { stat: Stat }) {
 
 export function StatsSection() {
   return (
-    <section className="stats-section relative" aria-label="Kennzahlen">
+    <section className="stats-section section-bridge relative" aria-label="Kennzahlen">
       <div className="stats-section-gradient absolute inset-0" aria-hidden />
       <GradientGlow
         variant="violet"
-        className="left-1/2 top-1/2 h-72 w-[min(100%,48rem)] -translate-x-1/2 -translate-y-1/2 opacity-60"
-      />
-      <GradientGlow
-        variant="cyan"
-        className="right-[10%] top-0 h-56 w-56 opacity-50"
+        className="left-1/2 top-1/2 h-64 w-[min(100%,44rem)] -translate-x-1/2 -translate-y-1/2 opacity-40"
       />
 
-      <div className="section-inner relative px-6 py-16 sm:px-8 sm:py-20 lg:py-24">
-        <StaggerGrid className="grid gap-4 sm:grid-cols-2 sm:gap-5 lg:grid-cols-4 lg:gap-6">
+      <div className="section-inner relative">
+        <StaggerGrid className="grid gap-4 sm:grid-cols-2 sm:gap-5 lg:grid-cols-4 lg:gap-5">
           {stats.map((stat) => (
             <StaggerItem key={stat.label}>
               <StatCard stat={stat} />

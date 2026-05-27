@@ -50,7 +50,7 @@ export function Services() {
     <section id="services" className="section-shell">
       <GradientGlow
         variant="violet"
-        className="left-1/2 top-0 h-80 w-80 -translate-x-1/2"
+        className="left-1/2 top-0 h-72 w-72 -translate-x-1/2 opacity-40"
       />
 
       <div className="section-inner">
@@ -65,7 +65,7 @@ export function Services() {
           description="Webdesign, KI und Strategie als zusammenhängendes System — damit lokale Unternehmen online premium wirken und planbar Anfragen erhalten."
         />
 
-        <StaggerGrid className="mt-20 grid gap-5 lg:grid-cols-2 lg:gap-6">
+        <StaggerGrid className="section-content grid gap-5 sm:gap-6 lg:grid-cols-2 lg:gap-6">
           {services.map((service) => (
             <StaggerItem key={service.title}>
               <RevealCard as="article" className="card-shine h-full">
@@ -79,14 +79,14 @@ export function Services() {
                     <ArrowUpRight className="h-4 w-4 text-muted-soft transition-all duration-300 group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-violet-300" />
                   </div>
 
-                  <h3 className="mt-7 text-xl font-semibold tracking-[-0.025em]">
+                  <h3 className="mt-6 text-xl font-semibold tracking-[-0.025em] sm:mt-7">
                     {service.title}
                   </h3>
-                  <p className="mt-3.5 text-[15px] leading-[1.75] text-muted">
+                  <p className="mt-3 text-[15px] leading-[1.72] text-muted sm:mt-3.5">
                     {service.description}
                   </p>
 
-                  <div className="mt-7 flex flex-wrap gap-2">
+                  <div className="mt-6 flex flex-wrap gap-2 sm:mt-7">
                     {service.tags.map((tag) => (
                       <span
                         key={tag}

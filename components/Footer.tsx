@@ -33,9 +33,9 @@ const footerLinks = [
 
 export function Footer() {
   return (
-    <footer className="border-t border-border px-6 pb-10 pt-16 sm:px-8">
-      <div className="mx-auto max-w-6xl">
-        <StaggerGrid className="grid gap-12 sm:grid-cols-2 lg:grid-cols-4">
+    <footer className="border-t border-border px-6 pb-12 pt-20 sm:px-8 sm:pt-24">
+      <div className="section-inner">
+        <StaggerGrid className="grid gap-14 sm:grid-cols-2 lg:grid-cols-4 lg:gap-12">
             <StaggerItem className="lg:col-span-2">
               <a href="#" className="flex items-center gap-2.5">
                 <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-violet-500 to-cyan-500 shadow-lg shadow-violet-500/15">

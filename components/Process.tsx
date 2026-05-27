@@ -37,7 +37,7 @@ export function Process() {
     <section id="process" className="section-shell">
       <GradientGlow
         variant="mixed"
-        className="left-1/2 top-0 h-96 w-96 -translate-x-1/2 opacity-50"
+        className="left-1/2 top-0 h-80 w-80 -translate-x-1/2 opacity-35"
       />
 
       <div className="section-inner">
@@ -52,10 +52,10 @@ export function Process() {
           description="Vier klare Phasen, direkte Kommunikation und volle Transparenz — für Unternehmer, die wissen wollen, wohin die Reise geht."
         />
 
-        <div className="relative mt-20 lg:mt-24">
+        <div className="section-content relative">
           <div className="absolute left-6 top-8 hidden h-[calc(100%-4rem)] w-px bg-gradient-to-b from-violet-500/35 via-border to-transparent lg:hidden" />
 
-          <StaggerGrid className="grid gap-5 lg:grid-cols-4 lg:gap-5">
+          <StaggerGrid className="grid gap-5 sm:gap-6 lg:grid-cols-4 lg:gap-5">
             {steps.map((step) => (
               <StaggerItem key={step.title}>
                 <RevealCard className="h-full">

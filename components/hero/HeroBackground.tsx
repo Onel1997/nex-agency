@@ -17,7 +17,7 @@ export function HeroBackground() {
   return (
     <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden>
       <div className="hero-gradient-mesh absolute inset-0" />
-      <div className="aurora absolute inset-0 opacity-90" />
+      <div className="aurora aurora--hero absolute inset-0" />
 
       {full && (
         <>
@@ -26,11 +26,14 @@ export function HeroBackground() {
         </>
       )}
 
-      <GradientGlow variant="violet" className="-left-[20%] top-[-15%] h-[42rem] w-[42rem]" />
+      <GradientGlow
+        variant="violet"
+        className="gradient-glow--hero -left-[20%] top-[-15%] h-[42rem] w-[42rem]"
+      />
       {!reduced && (
         <GradientGlow
           variant="cyan"
-          className="-right-[10%] top-[5%] h-[36rem] w-[36rem] hidden lg:block"
+          className="gradient-glow--hero -right-[10%] top-[5%] hidden h-[36rem] w-[36rem] lg:block"
         />
       )}
 

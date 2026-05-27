@@ -17,10 +17,10 @@ type Project = {
   name: string;
   subtitle: string;
   description: string;
+  summary: string;
   tags: string[];
   image: string;
   location: string;
-  wide?: boolean;
 };
 
 const featuredFriseur: Project = {
@@ -29,6 +29,8 @@ const featuredFriseur: Project = {
   subtitle: "Premium-Friseursalon · München",
   description:
     "Kompletter Website-Relaunch für einen etablierten Friseursalon im Münchner Süden — mit Premium-Hero, Online-Terminbuchung, transparenter Preisgestaltung und vertrauensstarken Bewertungen.",
+  summary:
+    "Kompletter Website-Relaunch mit Premium-Hero, Terminbuchung und vertrauensstarken Bewertungen.",
   tags: ["Webdesign", "Local Business", "Premium UI", "Branding", "Booking", "Conversion"],
   image: "/friseurpartnach/friseurprojekt.png",
   location: "München",
@@ -41,6 +43,7 @@ const friseurProjects: Project[] = [
     subtitle: "Leistungen & Markenauftritt",
     description:
       "Elegante Leistungsseite mit klarer Struktur, Premium-Typografie und Fokus auf Handwerk, Vertrauen und Buchungsabsicht.",
+    summary: "Leistungsseite mit Premium-Typografie und klarer Buchungsabsicht.",
     tags: ["Webdesign", "Premium UI", "Branding", "Conversion"],
     image: "/friseurpartnach/friseurprojekt0.png",
     location: "München",
@@ -51,10 +54,10 @@ const friseurProjects: Project[] = [
     subtitle: "Online-Terminbuchung",
     description:
       "Nahtlose Treatwell-Integration mit Service-Auswahl, Preistransparenz und einem Buchungsflow bis zur Bestätigung.",
+    summary: "Treatwell-Integration mit Service-Auswahl und transparentem Buchungsflow.",
     tags: ["Booking", "Conversion", "Local Business", "Premium UI"],
     image: "/friseurpartnach/friseurprojekt3.png",
     location: "München",
-    wide: true,
   },
   {
     id: "friseur-pricing",
@@ -62,6 +65,7 @@ const friseurProjects: Project[] = [
     subtitle: "Preisliste & Transparenz",
     description:
       "Übersichtliche Preisstruktur für Damen, Herren und Kinder — klar, seriös und ohne Hürden für neue Kundinnen und Kunden.",
+    summary: "Übersichtliche Preisstruktur für Damen, Herren und Kinder.",
     tags: ["Webdesign", "Local Business", "Conversion", "Premium UI"],
     image: "/friseurpartnach/friseurprojekt1.png",
     location: "München",
@@ -72,6 +76,7 @@ const friseurProjects: Project[] = [
     subtitle: "Bewertungen & Social Proof",
     description:
       "Google- und Treatwell-Bewertungen prominent platziert — damit Besucher sofort Vertrauen aufbauen.",
+    summary: "Google- und Treatwell-Bewertungen für sofortiges Vertrauen.",
     tags: ["Conversion", "Local Business", "Branding", "Premium UI"],
     image: "/friseurpartnach/friseurprojekt10.png",
     location: "München",
@@ -82,6 +87,7 @@ const friseurProjects: Project[] = [
     subtitle: "Kontakt & Anfahrt",
     description:
       "Lokale Auffindbarkeit mit Öffnungszeiten, Anruf-CTA und Google Maps — optimiert für Kunden in der Umgebung.",
+    summary: "Öffnungszeiten, Anruf-CTA und Maps für lokale Auffindbarkeit.",
     tags: ["Local Business", "Webdesign", "Conversion", "Premium UI"],
     image: "/friseurpartnach/friseurprojekt11.png",
     location: "München",
@@ -94,6 +100,8 @@ const featuredNexTrends: Project = {
   subtitle: "Creator Dashboard · AI SaaS",
   description:
     "Zentrales Dashboard für Creator und Marketer: Trends, Content-Pipeline und Performance auf einen Blick — gebaut als skalierbare AI SaaS-Plattform mit Premium-UI und klarer Produktlogik.",
+  summary:
+    "Zentrales Creator-Dashboard für Trends, Content-Pipeline und Performance.",
   tags: ["AI SaaS", "Dashboard", "Creator Tools", "Automation", "OpenAI"],
   image: "/nextrends/dashboard.png",
   location: "SaaS",
@@ -106,10 +114,10 @@ const nexTrendsProjects: Project[] = [
     subtitle: "Trend Intelligence",
     description:
       "KI-gestützte Trendanalyse mit Signalen, Relevanz-Scores und Handlungsempfehlungen — damit Creator früh erkennen, was als Nächstes performt.",
+    summary: "KI-Trendanalyse mit Signalen, Scores und Handlungsempfehlungen.",
     tags: ["AI SaaS", "Analytics", "Automation", "OpenAI", "Creator Tools"],
     image: "/nextrends/trend-intelligence.png",
     location: "SaaS",
-    wide: true,
   },
   {
     id: "nextrends-video",
@@ -117,6 +125,7 @@ const nexTrendsProjects: Project[] = [
     subtitle: "AI Video Studio",
     description:
       "Video-Erstellung aus Trends und Briefings: Skript, Schnitt-Vorschläge und Export-Workflows in einer modernen Creator-Oberfläche.",
+    summary: "Video aus Trends und Briefings — Skript, Schnitt und Export.",
     tags: ["AI SaaS", "Creator Tools", "Automation", "OpenAI"],
     image: "/nextrends/video-studio.png",
     location: "SaaS",
@@ -127,6 +136,7 @@ const nexTrendsProjects: Project[] = [
     subtitle: "Landing Page Analyzer",
     description:
       "Automatisierte Analyse von Landingpages mit Conversion-Hinweisen, Struktur-Feedback und Marketing-Optimierungen für schnellere Iteration.",
+    summary: "Automatisierte Landingpage-Analyse mit Conversion-Feedback.",
     tags: ["AI SaaS", "Automation", "Analytics", "Creator Tools"],
     image: "/nextrends/landing-page-analyzer.png",
     location: "SaaS",
@@ -137,6 +147,7 @@ const nexTrendsProjects: Project[] = [
     subtitle: "Hook Generator",
     description:
       "KI-generierte Hooks und Opening-Lines für Short-Form-Content — abgestimmt auf Zielgruppe, Plattform und aktuelle Trend-Signale.",
+    summary: "KI-Hooks für Short-Form — Zielgruppe, Plattform und Trends.",
     tags: ["AI SaaS", "Creator Tools", "OpenAI", "Automation"],
     image: "/nextrends/hook-generator.png",
     location: "SaaS",
@@ -147,6 +158,7 @@ const nexTrendsProjects: Project[] = [
     subtitle: "Pricing & Pläne",
     description:
       "Transparente Preisgestaltung mit klaren Feature-Tiers — designed für Vertrauen, Upgrade-Pfade und eine professionelle SaaS-Conversion.",
+    summary: "Transparente Feature-Tiers für Vertrauen und Upgrades.",
     tags: ["AI SaaS", "Stripe", "Conversion", "Dashboard"],
     image: "/nextrends/pricing.png",
     location: "SaaS",
@@ -157,6 +169,7 @@ const nexTrendsProjects: Project[] = [
     subtitle: "Stripe Checkout",
     description:
       "Sicherer Checkout-Flow mit Stripe-Integration, klaren Zahlungsoptionen und einem reibungslosen Abschluss für Abonnements und Upgrades.",
+    summary: "Stripe-Checkout mit klaren Zahlungsoptionen und Upgrade-Flow.",
     tags: ["Stripe", "AI SaaS", "Conversion", "Automation"],
     image: "/nextrends/stripe-checkout.png",
     location: "SaaS",
@@ -167,6 +180,7 @@ const nexTrendsProjects: Project[] = [
     subtitle: "Admin Analytics",
     description:
       "Admin-Dashboard mit Nutzungsmetriken, Trend-Performance und Plattform-KPIs — für datenbasierte Produkt- und Wachstumsentscheidungen.",
+    summary: "Admin-Metriken, Trend-Performance und Plattform-KPIs.",
     tags: ["Admin Panel", "Analytics", "AI SaaS", "Dashboard"],
     image: "/nextrends/admin-trends.png",
     location: "SaaS",
@@ -177,6 +191,7 @@ const nexTrendsProjects: Project[] = [
     subtitle: "Admin Controls",
     description:
       "Zentrale Steuerung für Nutzer, Features und Systemeinstellungen — übersichtlich, sicher und für den operativen SaaS-Betrieb gebaut.",
+    summary: "Zentrale Steuerung für Nutzer, Features und Systemeinstellungen.",
     tags: ["Admin Panel", "AI SaaS", "Automation", "Analytics"],
     image: "/nextrends/admin-controll.png",
     location: "SaaS",
@@ -192,18 +207,16 @@ function handleSpotlightLeave(e: MouseEvent<HTMLElement>) {
   e.currentTarget.style.setProperty("--spot-y", "50%");
 }
 
-function ProjectCard({
-  project,
-  featured = false,
+function PortfolioCardShell({
+  children,
+  className = "",
 }: {
-  project: Project;
-  featured?: boolean;
+  children: ReactNode;
+  className?: string;
 }) {
   return (
     <article
-      className={`portfolio-card spotlight-surface premium-hover-card group rounded-2xl border border-border/80 ${
-        project.wide ? "lg:col-span-2" : ""
-      }`}
+      className={`portfolio-card spotlight-surface premium-hover-card group rounded-2xl border border-border/80 ${className}`}
       onMouseMove={handleSpotlightMove}
       onMouseLeave={handleSpotlightLeave}
     >
@@ -213,85 +226,136 @@ function ProjectCard({
       <div className="portfolio-border-glow" aria-hidden />
       <div className="portfolio-glow" aria-hidden />
       <div className="portfolio-reflection" aria-hidden />
+      {children}
+    </article>
+  );
+}
 
-      <div className="portfolio-card-inner">
-        <div
-          className={`portfolio-image-wrap relative ${
-            featured ? "aspect-[16/8] sm:aspect-[16/7]" : "aspect-[16/10]"
-          }`}
-        >
-          <div className="browser-chrome absolute inset-x-0 top-0 z-10 flex items-center gap-2 px-3 py-2.5">
-            <div className="flex gap-1">
-              <span className="h-2 w-2 rounded-full bg-[#ff5f57]" />
-              <span className="h-2 w-2 rounded-full bg-[#febc2e]" />
-              <span className="h-2 w-2 rounded-full bg-[#28c840]" />
-            </div>
-            <div className="mx-auto h-4 w-full max-w-[120px] rounded bg-white/[0.06] sm:max-w-[180px]" />
-          </div>
+function ProjectScreenshot({
+  project,
+  variant,
+  priority = false,
+}: {
+  project: Project;
+  variant: "featured" | "compact";
+  priority?: boolean;
+}) {
+  const chromeClass =
+    variant === "featured"
+      ? "portfolio-browser-chrome"
+      : "portfolio-browser-chrome portfolio-browser-chrome--compact";
 
-          <div className="absolute inset-0 top-[34px] bg-[#0a0a0a]">
-            <Image
-              src={project.image}
-              alt={`${project.name} — ${project.subtitle}`}
-              fill
-              className="object-cover object-top"
-              sizes={
-                featured
-                  ? "100vw"
-                  : project.wide
-                    ? "(max-width: 1024px) 100vw, 66vw"
-                    : "(max-width: 1024px) 100vw, 50vw"
-              }
-              priority={featured}
-            />
-            <div
-              className={`pointer-events-none absolute inset-0 bg-gradient-to-t from-surface via-surface/25 to-transparent transition-opacity duration-500 group-hover:via-surface/15 ${
-                featured ? "opacity-95" : "opacity-90"
-              }`}
-            />
-          </div>
+  return (
+    <div
+      className={`portfolio-image-wrap relative ${
+        variant === "featured"
+          ? "portfolio-image-wrap--featured"
+          : "portfolio-image-wrap--compact"
+      }`}
+    >
+      <div className="portfolio-image-frame" aria-hidden />
+      <div
+        className={`browser-chrome ${chromeClass} absolute inset-x-0 top-0 z-10 flex items-center gap-1.5`}
+      >
+        <div className="flex gap-1">
+          <span className="portfolio-browser-dot bg-[#ff5f57]" />
+          <span className="portfolio-browser-dot bg-[#febc2e]" />
+          <span className="portfolio-browser-dot bg-[#28c840]" />
         </div>
+        <div className="portfolio-browser-bar" />
+      </div>
 
+      <div
+        className={`portfolio-screenshot absolute inset-0 bg-[#080808] ${
+          variant === "featured"
+            ? "portfolio-screenshot--featured"
+            : "portfolio-screenshot--compact"
+        }`}
+      >
+        <Image
+          src={project.image}
+          alt={`${project.name} — ${project.subtitle}`}
+          fill
+          className="portfolio-screenshot-img object-cover object-top"
+          sizes={
+            variant === "featured"
+              ? "100vw"
+              : "(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+          }
+          priority={priority}
+        />
         <div
-          className={`border-t border-border/60 bg-surface-elevated/90 ${
-            featured ? "p-7 sm:p-9" : "p-6 sm:p-7"
+          className={`portfolio-screenshot-vignette pointer-events-none absolute inset-0 ${
+            variant === "featured"
+              ? "portfolio-screenshot-vignette--featured"
+              : "portfolio-screenshot-vignette--compact"
           }`}
-        >
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <h3
-                className={`font-semibold tracking-[-0.025em] transition-colors duration-400 group-hover:text-foreground ${
-                  featured ? "text-2xl sm:text-[1.65rem]" : "text-lg"
-                }`}
-              >
+        />
+      </div>
+    </div>
+  );
+}
+
+function FeaturedProjectCard({ project }: { project: Project }) {
+  return (
+    <PortfolioCardShell className="portfolio-card--featured">
+      <div className="portfolio-card-inner">
+        <ProjectScreenshot project={project} variant="featured" priority />
+        <div className="portfolio-card-body portfolio-card-body--featured">
+          <div className="portfolio-card-header min-w-0">
+            <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
+              <h3 className="portfolio-card-title portfolio-card-title--featured transition-colors duration-400 group-hover:text-foreground">
                 {project.name}
               </h3>
-              <span className="rounded-full border border-border/80 bg-white/[0.03] px-2.5 py-0.5 text-[10px] text-muted-soft transition-colors duration-400 group-hover:border-violet-500/25 group-hover:text-muted">
+              <span className="portfolio-location-badge">
                 {project.location}
               </span>
             </div>
-            <p className="mt-1.5 text-[13px] font-medium text-violet-300/75 transition-colors duration-400 group-hover:text-violet-300/90">
+            <p className="portfolio-card-subtitle portfolio-card-subtitle--featured">
               {project.subtitle}
             </p>
           </div>
 
-          <p
-            className={`mt-4 leading-[1.75] text-muted transition-colors duration-400 group-hover:text-muted/95 ${
-              featured ? "max-w-3xl text-base sm:text-[17px]" : "text-[14px]"
-            }`}
-          >
+          <p className="portfolio-card-description portfolio-card-description--featured">
             {project.description}
           </p>
 
-          <ProjectTags tags={project.tags} />
+          <ProjectTags tags={project.tags} variant="featured" />
 
-          <span className="portfolio-case-study">
+          <span className="portfolio-case-study portfolio-case-study--featured">
             View Case Study
-            <ArrowUpRight className="portfolio-case-study-icon h-3.5 w-3.5" />
+            <ArrowUpRight className="portfolio-case-study-icon h-4 w-4" />
           </span>
         </div>
       </div>
-    </article>
+    </PortfolioCardShell>
+  );
+}
+
+function CompactProjectCard({ project }: { project: Project }) {
+  return (
+    <PortfolioCardShell className="portfolio-card--compact h-full">
+      <div className="portfolio-card-inner portfolio-card-inner--compact">
+        <ProjectScreenshot project={project} variant="compact" />
+        <div className="portfolio-card-body portfolio-card-body--compact">
+          <div className="portfolio-compact-header">
+            <span className="portfolio-compact-eyebrow">{project.location}</span>
+            <h3 className="portfolio-compact-title transition-colors duration-400 group-hover:text-foreground">
+              {project.subtitle}
+            </h3>
+          </div>
+
+          <p className="portfolio-compact-description">{project.summary}</p>
+
+          <ProjectTags tags={project.tags} variant="compact" limit={3} />
+
+          <span className="portfolio-case-study portfolio-case-study--compact">
+            Case Study
+            <ArrowUpRight className="portfolio-case-study-icon h-3 w-3" />
+          </span>
+        </div>
+      </div>
+    </PortfolioCardShell>
   );
 }
 
@@ -309,7 +373,7 @@ function PortfolioBlock({
   projects: Project[];
 }) {
   return (
-    <div className="space-y-6 sm:space-y-7">
+    <div className="portfolio-block space-y-10 sm:space-y-11">
       <SectionHeader
         align="left"
         label={label}
@@ -318,19 +382,19 @@ function PortfolioBlock({
         className="max-w-3xl"
       />
 
-      <StaggerGrid className="grid gap-6 sm:gap-7 lg:grid-cols-2">
-        <StaggerItem className="lg:col-span-2">
-          <ProjectCard project={featured} featured />
-        </StaggerItem>
-        {projects.map((project) => (
-          <StaggerItem
-            key={project.id}
-            className={project.wide ? "lg:col-span-2" : ""}
-          >
-            <ProjectCard project={project} />
-          </StaggerItem>
-        ))}
-      </StaggerGrid>
+      <div className="portfolio-block-layout space-y-5 sm:space-y-6">
+        <AnimatedSection>
+          <FeaturedProjectCard project={featured} />
+        </AnimatedSection>
+
+        <StaggerGrid className="portfolio-showcase-grid grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-4 lg:gap-4">
+          {projects.map((project) => (
+            <StaggerItem key={project.id} className="h-full">
+              <CompactProjectCard project={project} />
+            </StaggerItem>
+          ))}
+        </StaggerGrid>
+      </div>
     </div>
   );
 }
@@ -340,11 +404,11 @@ export function Portfolio() {
     <section id="portfolio" className="section-shell">
       <GradientGlow
         variant="cyan"
-        className="right-0 top-1/4 h-[28rem] w-[28rem]"
+        className="right-0 top-1/4 h-80 w-80 opacity-35"
       />
       <GradientGlow
         variant="violet"
-        className="-left-24 bottom-0 h-80 w-80 opacity-80"
+        className="-left-24 bottom-0 h-72 w-72 opacity-40"
       />
 
       <div className="section-inner">
@@ -359,7 +423,7 @@ export function Portfolio() {
           description="Ausgewählte Projekte mit echten Screenshots — von Premium-Websites für den deutschen Mittelstand bis zu KI-gestützten SaaS-Plattformen."
         />
 
-        <div className="mt-20 space-y-24 sm:space-y-28">
+        <div className="section-content space-y-28 sm:space-y-32">
           <PortfolioBlock
             label="Local Business"
             title={
@@ -389,25 +453,26 @@ export function Portfolio() {
           />
         </div>
 
-        <AnimatedSection delay={0.15} className="mt-20">
+        <AnimatedSection delay={0.15} className="mt-16 sm:mt-20">
           <RevealCard lift={false}>
-          <div className="glass-card flex flex-col items-center justify-between gap-6 rounded-2xl px-6 py-8 text-center sm:flex-row sm:px-10 sm:text-left">
-            <div>
-              <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-violet-300/65">
-                Ihr Projekt als Nächstes?
-              </p>
-              <p className="mt-2 text-lg font-semibold tracking-[-0.02em] sm:text-xl">
-                Lokal stark auftreten — oder SaaS skalierbar bauen.
-              </p>
-              <p className="mt-2 max-w-xl text-[14px] leading-relaxed text-muted">
-                Ob Friseursalon, Praxis oder KI-Produkt: Wir entwickeln digitale
-                Erlebnisse, die vertrauenswürdig wirken und messbar Ergebnisse liefern.
-              </p>
+            <div className="glass-card flex flex-col items-center justify-between gap-6 rounded-2xl px-6 py-8 text-center sm:flex-row sm:px-10 sm:text-left">
+              <div>
+                <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-violet-300/65">
+                  Ihr Projekt als Nächstes?
+                </p>
+                <p className="mt-2 text-lg font-semibold tracking-[-0.02em] sm:text-xl">
+                  Lokal stark auftreten — oder SaaS skalierbar bauen.
+                </p>
+                <p className="mt-2 max-w-xl text-[14px] leading-relaxed text-muted">
+                  Ob Friseursalon, Praxis oder KI-Produkt: Wir entwickeln digitale
+                  Erlebnisse, die vertrauenswürdig wirken und messbar Ergebnisse
+                  liefern.
+                </p>
+              </div>
+              <Button href="#contact" variant="primary" icon className="shrink-0">
+                Projekt besprechen
+              </Button>
             </div>
-            <Button href="#contact" variant="primary" icon className="shrink-0">
-              Projekt besprechen
-            </Button>
-          </div>
           </RevealCard>
         </AnimatedSection>
       </div>

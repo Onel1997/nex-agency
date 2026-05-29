@@ -1,4 +1,4 @@
-/** Central Cal.com booking URL — hero CTA only */
+/** Single Cal.com booking URL for all CTAs — never use mailto */
 export const bookingLink = "https://cal.eu/nex-agency/30min";
 
 /** @alias bookingLink */

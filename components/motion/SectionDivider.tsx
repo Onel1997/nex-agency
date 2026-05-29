@@ -2,16 +2,18 @@
 
 import { motion, useReducedMotion } from "framer-motion";
 import { fadeIn, revealTransition, viewport } from "@/lib/motion";
+import { useMotionProfile } from "@/lib/useMotionProfile";
 
 export function AnimatedSectionDivider() {
   const reduced = useReducedMotion();
+  const { skipEntrance } = useMotionProfile();
 
   return (
     <div className="section-transition" aria-hidden>
       <div className="section-inner">
         <motion.div
           className="section-divider-wrap"
-          initial="hidden"
+          initial={skipEntrance ? false : "hidden"}
           whileInView="visible"
           viewport={viewport}
           variants={

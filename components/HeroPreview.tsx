@@ -3,6 +3,7 @@
 import { motion, useReducedMotion } from "framer-motion";
 import { easePremium, scaleIn } from "@/lib/motion";
 import { useMotionProfile } from "@/lib/useMotionProfile";
+import type { ReactNode } from "react";
 import { FloatingCard } from "./motion/FloatingCard";
 
 const automations = [
@@ -17,18 +18,22 @@ const metrics = [
   { label: "Uptime", value: "99.9%", delta: "stable" },
 ];
 
+function PreviewShell({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="relative mx-auto w-full max-w-xl lg:max-w-none lg:pt-4">
+      {children}
+    </div>
+  );
+}
+
 export function HeroPreview() {
   const reduced = useReducedMotion();
-  const { full, lite } = useMotionProfile();
+  const { full, skipEntrance } = useMotionProfile();
 
-  return (
-    <motion.div
-      initial="hidden"
-      animate="visible"
-      variants={scaleIn}
-      transition={{ duration: lite ? 0.5 : 0.85, delay: lite ? 0.2 : 0.4, ease: easePremium }}
-      className="relative mx-auto w-full max-w-xl lg:max-w-none lg:pt-4"
-    >
+  const shellClass = "relative mx-auto w-full max-w-xl lg:max-w-none lg:pt-4";
+
+  const preview = (
+    <>
       <FloatingCard>
         <div className="hero-preview-shell glass-card overflow-hidden rounded-2xl border border-white/[0.08]">
           <div className="flex items-center justify-between border-b border-white/[0.06] bg-white/[0.02] px-4 py-3">
@@ -139,6 +144,22 @@ export function HeroPreview() {
           </motion.div>
         </>
       )}
+    </>
+  );
+
+  if (skipEntrance) {
+    return <PreviewShell>{preview}</PreviewShell>;
+  }
+
+  return (
+    <motion.div
+      initial="hidden"
+      animate="visible"
+      variants={scaleIn}
+      transition={{ duration: 0.85, delay: 0.4, ease: easePremium }}
+      className={shellClass}
+    >
+      {preview}
     </motion.div>
   );
 }

@@ -8,6 +8,7 @@ import {
   staggerItem,
   viewport,
 } from "@/lib/motion";
+import { useMotionProfile } from "@/lib/useMotionProfile";
 import type { ReactNode } from "react";
 
 interface StaggerGridProps {
@@ -21,9 +22,11 @@ export function StaggerGrid({
   className = "",
   fast = false,
 }: StaggerGridProps) {
+  const { skipEntrance } = useMotionProfile();
+
   return (
     <motion.div
-      initial="hidden"
+      initial={skipEntrance ? false : "hidden"}
       whileInView="visible"
       viewport={viewport}
       variants={fast ? staggerContainerFast : staggerContainer}

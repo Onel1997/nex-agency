@@ -2,6 +2,7 @@
 
 import { motion, useReducedMotion } from "framer-motion";
 import { fadeUp, reducedFadeUp, revealTransition, viewport } from "@/lib/motion";
+import { useMotionProfile } from "@/lib/useMotionProfile";
 import type { ReactNode } from "react";
 
 interface AnimatedSectionProps {
@@ -16,10 +17,11 @@ export function AnimatedSection({
   delay = 0,
 }: AnimatedSectionProps) {
   const reduced = useReducedMotion();
+  const { skipEntrance } = useMotionProfile();
 
   return (
     <motion.div
-      initial="hidden"
+      initial={skipEntrance ? false : "hidden"}
       whileInView="visible"
       viewport={viewport}
       variants={reduced ? reducedFadeUp : fadeUp}

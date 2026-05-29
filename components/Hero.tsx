@@ -22,7 +22,6 @@ const HERO_BOOKING_URL = bookingLink;
 const MAGNETIC_STRENGTH = 0.18;
 const MAX_OFFSET = 6;
 
-/** Hero-only primary CTA — always opens Cal.com (never mailto). */
 function HeroBookingButton() {
   const { full } = useMotionProfile();
   const ref = useRef<HTMLAnchorElement>(null);
@@ -58,9 +57,107 @@ function HeroBookingButton() {
   );
 }
 
-export function Hero() {
+function HeroEyebrow({ staticMode = false }: { staticMode?: boolean }) {
+  const inner = (
+    <>
+      <span className="relative flex h-1.5 w-1.5">
+        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-cyan-400/60 opacity-40" />
+        <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-gradient-to-r from-violet-400 to-cyan-400" />
+      </span>
+      <span>KI-Automation · SaaS · Premium Web</span>
+    </>
+  );
+
+  if (staticMode) {
+    return <div className="hero-eyebrow">{inner}</div>;
+  }
+
+  return <motion.div className="hero-eyebrow">{inner}</motion.div>;
+}
+
+function HeroColumnStatic() {
+  return (
+    <div className="relative z-10 max-w-2xl lg:max-w-none xl:max-w-2xl">
+      <HeroEyebrow staticMode />
+      <div className="mt-7 sm:mt-8">
+        <HeroHeadline />
+      </div>
+      <p className="hero-lead-premium mt-7 max-w-xl sm:mt-8">
+        NexAgency entwickelt KI-Automationen, SaaS-Plattformen und conversion-starke
+        Web-Erlebnisse — mit der Präzision einer Tech-Produktfirma und der Ästhetik
+        einer Premium-Marke.
+      </p>
+      <div className="mt-9 sm:mt-10">
+        <HeroBookingButton />
+      </div>
+      <p className="cta-note mt-4">Kostenlos · 30 Minuten · Unverbindlich</p>
+      <HeroTrust />
+      <HeroPillars />
+    </div>
+  );
+}
+
+function HeroColumnAnimated() {
   const reduced = useReducedMotion();
   const itemVariants = reduced ? reducedStaggerItem : staggerItem;
+
+  return (
+    <motion.div
+      initial="hidden"
+      animate="visible"
+      variants={headerStagger}
+      className="relative z-10 max-w-2xl lg:max-w-none xl:max-w-2xl"
+    >
+      <motion.div
+        variants={itemVariants}
+        transition={heroTransition(0)}
+        className="hero-eyebrow"
+      >
+        <span className="relative flex h-1.5 w-1.5">
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-cyan-400/60 opacity-40" />
+          <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-gradient-to-r from-violet-400 to-cyan-400" />
+        </span>
+        <span>KI-Automation · SaaS · Premium Web</span>
+      </motion.div>
+
+      <div className="mt-7 sm:mt-8">
+        <HeroHeadline />
+      </div>
+
+      <motion.p
+        variants={itemVariants}
+        transition={heroTransition(0.22)}
+        className="hero-lead-premium mt-7 max-w-xl sm:mt-8"
+      >
+        NexAgency entwickelt KI-Automationen, SaaS-Plattformen und conversion-starke
+        Web-Erlebnisse — mit der Präzision einer Tech-Produktfirma und der Ästhetik
+        einer Premium-Marke.
+      </motion.p>
+
+      <motion.div
+        variants={itemVariants}
+        transition={heroTransition(0.3)}
+        className="mt-9 sm:mt-10"
+      >
+        <HeroBookingButton />
+      </motion.div>
+
+      <motion.p
+        variants={itemVariants}
+        transition={heroTransition(0.36)}
+        className="cta-note mt-4"
+      >
+        Kostenlos · 30 Minuten · Unverbindlich
+      </motion.p>
+
+      <HeroTrust />
+      <HeroPillars />
+    </motion.div>
+  );
+}
+
+export function Hero() {
+  const { skipEntrance } = useMotionProfile();
 
   return (
     <section className="hero-section relative overflow-hidden">
@@ -68,58 +165,7 @@ export function Hero() {
 
       <div className="section-inner relative px-6 pb-32 sm:px-8 sm:pb-36 lg:pb-40">
         <div className="grid items-center gap-16 lg:grid-cols-[1.05fr_0.95fr] lg:gap-[4.5rem] xl:gap-20">
-          <motion.div
-            initial="hidden"
-            animate="visible"
-            variants={headerStagger}
-            className="relative z-10 max-w-2xl lg:max-w-none xl:max-w-2xl"
-          >
-            <motion.div
-              variants={itemVariants}
-              transition={heroTransition(0)}
-              className="hero-eyebrow"
-            >
-              <span className="relative flex h-1.5 w-1.5">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-cyan-400/60 opacity-40" />
-                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-gradient-to-r from-violet-400 to-cyan-400" />
-              </span>
-              <span>KI-Automation · SaaS · Premium Web</span>
-            </motion.div>
-
-            <div className="mt-7 sm:mt-8">
-              <HeroHeadline />
-            </div>
-
-            <motion.p
-              variants={itemVariants}
-              transition={heroTransition(0.22)}
-              className="hero-lead-premium mt-7 max-w-xl sm:mt-8"
-            >
-              NexAgency entwickelt KI-Automationen, SaaS-Plattformen und
-              conversion-starke Web-Erlebnisse — mit der Präzision einer
-              Tech-Produktfirma und der Ästhetik einer Premium-Marke.
-            </motion.p>
-
-            <motion.div
-              variants={itemVariants}
-              transition={heroTransition(0.3)}
-              className="mt-9 sm:mt-10"
-            >
-              <HeroBookingButton />
-            </motion.div>
-
-            <motion.p
-              variants={itemVariants}
-              transition={heroTransition(0.36)}
-              className="cta-note mt-4"
-            >
-              Kostenlos · 30 Minuten · Unverbindlich
-            </motion.p>
-
-            <HeroTrust />
-            <HeroPillars />
-          </motion.div>
-
+          {skipEntrance ? <HeroColumnStatic /> : <HeroColumnAnimated />}
           <HeroPreview />
         </div>
       </div>

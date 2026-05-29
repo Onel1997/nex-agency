@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { CursorGlow } from "@/components/cursor/CursorGlow";
 import { ScrollBehavior } from "@/components/ScrollBehavior";
+import { TouchScrollRoot } from "@/components/TouchScrollRoot";
+import { SCROLL_UNLOCK_INLINE_SCRIPT } from "@/lib/scrollUnlockScript";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -30,10 +32,15 @@ export default function RootLayout({
       lang="de"
       className={`${geistSans.variable} ${geistMono.variable} antialiased`}
     >
-      <body className="min-h-screen bg-background text-foreground">
+      <body className="min-h-screen overflow-x-hidden bg-background text-foreground">
+        <script
+          dangerouslySetInnerHTML={{ __html: SCROLL_UNLOCK_INLINE_SCRIPT }}
+        />
         <ScrollBehavior />
-        <CursorGlow />
-        {children}
+        <TouchScrollRoot>
+          <CursorGlow />
+          {children}
+        </TouchScrollRoot>
       </body>
     </html>
   );

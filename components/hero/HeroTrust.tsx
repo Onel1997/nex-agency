@@ -3,6 +3,7 @@
 import { motion, useReducedMotion } from "framer-motion";
 import { Check, Shield } from "lucide-react";
 import { heroTransition, staggerItem, reducedStaggerItem } from "@/lib/motion";
+import { useMotionProfile } from "@/lib/useMotionProfile";
 
 const badges = [
   "DSGVO-konform",
@@ -15,16 +16,11 @@ const avatars = ["MK", "SR", "JL", "AP"];
 
 export function HeroTrust() {
   const reduced = useReducedMotion();
+  const { skipEntrance } = useMotionProfile();
   const item = reduced ? reducedStaggerItem : staggerItem;
 
-  return (
-    <motion.div
-      initial="hidden"
-      animate="visible"
-      variants={item}
-      transition={heroTransition(0.42)}
-      className="mt-8 space-y-5"
-    >
+  const content = (
+    <>
       <div className="flex flex-wrap items-center gap-x-5 gap-y-2.5">
         {badges.map((badge) => (
           <span key={badge} className="hero-trust-badge">
@@ -54,6 +50,22 @@ export function HeroTrust() {
           </span>
         </div>
       </div>
+    </>
+  );
+
+  if (skipEntrance) {
+    return <div className="mt-8 space-y-5">{content}</div>;
+  }
+
+  return (
+    <motion.div
+      initial="hidden"
+      animate="visible"
+      variants={item}
+      transition={heroTransition(0.42)}
+      className="mt-8 space-y-5"
+    >
+      {content}
     </motion.div>
   );
 }

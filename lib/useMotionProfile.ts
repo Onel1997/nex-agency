@@ -49,5 +49,7 @@ export function useMotionProfile() {
     lite,
     /** Full effects: desktop + motion OK */
     full: !reduced && !lite,
+    /** Skip mount / whileInView entrance work — mobile touch performance */
+    skipEntrance: !!reduced || lite,
   };
 }

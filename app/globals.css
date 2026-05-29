@@ -34,13 +34,16 @@
   --font-mono: var(--font-geist-mono);
 }
 
+:root {
+  /* pt-4 + nav shell — keep in sync with .site-nav-spacer */
+  --site-nav-offset: 4.5rem;
+}
+
 html {
   scroll-behavior: auto;
-  scroll-padding-top: 5.75rem;
+  scroll-padding-top: calc(var(--site-nav-offset) + 1.25rem);
   overflow-x: hidden;
-  overflow-y: auto;
-  touch-action: pan-y;
-  -webkit-overflow-scrolling: touch;
+  overflow-y: visible;
   height: auto;
   overscroll-behavior-y: auto;
 }
@@ -80,13 +83,36 @@ html {
   }
 }
 
-/* Mobile / touch: lighter effects, fewer concurrent animations */
+/* Mobile / touch: instant scroll + lighter GPU work */
 @media (max-width: 1023px), (pointer: coarse) {
+  html {
+    scroll-behavior: auto !important;
+    overflow-x: hidden;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    height: 100%;
+  }
+
+  body {
+    overflow-x: hidden;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    min-height: 100%;
+    min-height: 100dvh;
+    touch-action: pan-y;
+  }
+
+  .page-flow {
+    isolation: auto;
+    overflow: visible;
+  }
+
   .cursor-glow-layer,
   .hero-particle,
   .stat-card-blur,
   .spotlight-surface-border,
-  .spotlight-surface-glow {
+  .spotlight-surface-glow,
+  .hero-light-beam {
     display: none;
   }
 
@@ -95,36 +121,178 @@ html {
   .hero-blob-drift-a,
   .hero-blob-drift-b,
   .hero-particle-drift,
-  .gradient-glow-pulse {
+  .gradient-glow-pulse,
+  .gradient-glow-ambient,
+  .animate-ping {
     animation: none !important;
   }
 
+  /* Light glass — softer blur + denser fill (premium, iOS-friendly) */
   .glass-card,
-  .hero-eyebrow {
-    backdrop-filter: blur(8px);
+  .hero-eyebrow,
+  .hero-preview-shell.glass-card,
+  .contact-panel.glass-card,
+  .btn-ghost,
+  .hero-pillar,
+  .tech-pill-inner,
+  .testimonial-trust-badge,
+  .proof-trust-panel-inner,
+  .btn-secondary,
+  .portfolio-browser-chrome,
+  .site-footer-glass {
+    -webkit-backdrop-filter: blur(6px) saturate(145%);
+    backdrop-filter: blur(6px) saturate(145%);
+    background: linear-gradient(
+      165deg,
+      rgba(255, 255, 255, 0.07) 0%,
+      rgba(255, 255, 255, 0.028) 48%,
+      rgba(10, 15, 26, 0.9) 100%
+    );
+  }
+
+  .portfolio-browser-chrome {
+    background: rgba(0, 0, 0, 0.72);
+  }
+
+  .site-footer-glass {
+    background: linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.05) 0%,
+      rgba(255, 255, 255, 0.02) 12%,
+      rgba(8, 12, 22, 0.94) 100%
+    );
+  }
+
+  .glass-card {
+    box-shadow:
+      0 0 0 1px rgba(255, 255, 255, 0.03) inset,
+      0 20px 40px -28px rgba(0, 0, 0, 0.55);
+  }
+
+  .hero-preview-shell {
+    box-shadow:
+      0 0 0 1px rgba(255, 255, 255, 0.04) inset,
+      0 24px 48px -28px rgba(0, 0, 0, 0.6),
+      0 0 48px -32px rgba(139, 92, 246, 0.2);
+  }
+
+  /* Fixed navbar — light glass, no full-screen GPU layer */
+  .site-nav-header {
+    pointer-events: auto;
+    touch-action: pan-y;
+    transform: none;
+    -webkit-transform: none;
+    contain: layout style;
+    backface-visibility: hidden;
+  }
+
+  .site-nav-header > nav,
+  .site-nav-header > div {
+    touch-action: pan-y;
+  }
+
+  .site-nav-header nav.nav-blur,
+  .site-nav-header nav.nav-blur-strong,
+  .site-nav-header .nav-blur-strong {
+    -webkit-backdrop-filter: blur(8px) saturate(150%);
+    backdrop-filter: blur(8px) saturate(150%);
+    background: rgba(10, 15, 26, 0.9) !important;
+    box-shadow: 0 4px 28px -10px rgba(0, 0, 0, 0.5);
+  }
+
+  .site-nav-header nav.nav-blur-strong {
+    -webkit-backdrop-filter: blur(10px) saturate(155%);
+    backdrop-filter: blur(10px) saturate(155%);
+    background: rgba(10, 15, 26, 0.93) !important;
   }
 
   .portfolio-card:hover .portfolio-border-glow {
     animation: none;
   }
 
-  .glow-orb,
+  /* Simpler ambient layers */
+  .hero-ambient-blob {
+    filter: blur(52px);
+    opacity: 0.5;
+  }
+
+  .hero-ambient-blob-cyan {
+    opacity: 0.35;
+  }
+
+  .hero-gradient-mesh {
+    opacity: 0.88;
+  }
+
+  .page-ambient {
+    opacity: 0.32;
+  }
+
+  .aurora--page {
+    opacity: 0.28;
+  }
+
+  .aurora--hero {
+    opacity: 0.48;
+  }
+
+  .glow-orb {
+    filter: blur(56px);
+    opacity: 0.45;
+  }
+
+  .glow-orb-sm {
+    filter: blur(40px);
+    opacity: 0.4;
+  }
+
   .gradient-glow {
-    filter: blur(48px);
+    filter: blur(40px);
+    opacity: 0.38;
+    contain: layout style;
+  }
+
+  .gradient-glow--hero {
+    opacity: 0.32;
+  }
+
+  .section-divider-glow {
+    filter: blur(10px);
+    opacity: 0.55;
+  }
+
+  .proof-metric-glow,
+  .proof-section-backdrop {
+    display: none;
+  }
+
+  .noise-overlay {
+    display: none;
   }
 }
 
 body {
   overflow-x: hidden;
-  overflow-y: auto;
-  touch-action: pan-y;
-  -webkit-overflow-scrolling: touch;
+  overflow-y: visible;
+  min-height: 100%;
+  min-height: 100dvh;
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-geist-sans), system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
+}
+
+@media (min-width: 1024px) and (pointer: fine) {
+  html {
+    overflow-y: visible;
+  }
+
+  body {
+    overflow-y: visible;
+    touch-action: auto;
+  }
 }
 
 /* Decorative layers: in-flow only — never viewport-fixed (iOS Safari scroll freeze) */
@@ -348,7 +516,14 @@ body {
 }
 
 .hero-section {
-  @apply min-h-[92vh] pt-28 sm:pt-32 lg:min-h-[94vh] lg:pt-36;
+  @apply pt-28 sm:pt-32 lg:pt-36;
+  min-height: 92dvh;
+}
+
+@media (min-width: 1024px) and (pointer: fine) {
+  .hero-section {
+    min-height: 94vh;
+  }
 }
 
 .hero-display {
@@ -538,20 +713,34 @@ body {
   }
 }
 
+.site-nav-header {
+  pointer-events: auto;
+}
+
+@media (min-width: 1024px) and (pointer: fine) {
+  .site-nav-header {
+    pointer-events: none;
+  }
+
+  .site-nav-header > nav,
+  .site-nav-header > div {
+    pointer-events: auto;
+  }
+}
+
+.site-nav-spacer {
+  height: var(--site-nav-offset);
+  flex-shrink: 0;
+}
+
 .nav-blur {
+  -webkit-backdrop-filter: blur(10px);
   backdrop-filter: blur(10px);
 }
 
 .nav-blur-strong {
+  -webkit-backdrop-filter: blur(14px);
   backdrop-filter: blur(14px);
-}
-
-@media (max-width: 1023px), (pointer: coarse) {
-  .nav-blur,
-  .nav-blur-strong {
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
-  }
 }
 
 .hero-float-chip {

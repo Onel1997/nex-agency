@@ -8,6 +8,7 @@ import {
   reducedStaggerItem,
   viewport,
 } from "@/lib/motion";
+import { useMotionProfile } from "@/lib/useMotionProfile";
 
 interface SectionHeaderProps {
   label: string;
@@ -25,12 +26,13 @@ export function SectionHeader({
   className = "",
 }: SectionHeaderProps) {
   const reduced = useReducedMotion();
+  const { skipEntrance } = useMotionProfile();
   const alignClass =
     align === "center" ? "text-center mx-auto" : "text-left";
 
   return (
     <motion.header
-      initial="hidden"
+      initial={skipEntrance ? false : "hidden"}
       whileInView="visible"
       viewport={viewport}
       variants={headerStagger}

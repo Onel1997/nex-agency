@@ -133,11 +133,11 @@ export function Navbar() {
 
   useEffect(() => {
     unlockDocumentScroll();
-  }, [open]);
+  }, []);
 
   useEffect(() => {
-    return () => unlockDocumentScroll();
-  }, []);
+    if (!open) unlockDocumentScroll();
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -159,32 +159,34 @@ export function Navbar() {
       : "border-border/50 bg-surface/55 nav-blur"
   }`;
 
-  if (full) {
-    return (
-      <motion.header
-        initial={{ y: -16, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        transition={{ duration: 0.6, ease: easePremium }}
-        className="sticky top-0 z-50 px-4 pt-4 sm:px-6"
-      >
-        <NavbarContent
-          navShellClass={navShellClass}
-          open={open}
-          toggleMenu={toggleMenu}
-          closeMenu={closeMenu}
-        />
-      </motion.header>
-    );
-  }
+  /** Matches pt-4 + nav row (py-3, h-8) — reserves layout space for fixed header */
+  const headerClass =
+    "site-nav-header fixed inset-x-0 top-0 z-[100] px-4 pt-4 sm:px-6";
+
+  const content = (
+    <NavbarContent
+      navShellClass={navShellClass}
+      open={open}
+      toggleMenu={toggleMenu}
+      closeMenu={closeMenu}
+    />
+  );
 
   return (
-    <header className="sticky top-0 z-50 px-4 pt-4 sm:px-6">
-      <NavbarContent
-        navShellClass={navShellClass}
-        open={open}
-        toggleMenu={toggleMenu}
-        closeMenu={closeMenu}
-      />
-    </header>
+    <>
+      {full ? (
+        <motion.header
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.6, ease: easePremium }}
+          className={headerClass}
+        >
+          {content}
+        </motion.header>
+      ) : (
+        <header className={headerClass}>{content}</header>
+      )}
+      <div className="site-nav-spacer" aria-hidden />
+    </>
   );
 }

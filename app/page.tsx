@@ -13,7 +13,7 @@ import { AnimatedSectionDivider } from "@/components/motion/SectionDivider";
 
 export default function Home() {
   return (
-    <main className="page-flow relative">
+    <main className="page-flow relative overflow-visible">
       <div className="page-ambient aurora aurora--page" aria-hidden />
       <div
         className="page-ambient bg-[radial-gradient(ellipse_at_bottom_left,_rgba(34,211,238,0.025)_0%,_transparent_52%)]"

@@ -1,21 +1,32 @@
 "use client";
 
-import { unlockDocumentScroll } from "@/lib/scrollUnlock";
-import { useEffect } from "react";
+import {
+  ensureTouchScrollStyles,
+  isTouchLikeDevice,
+  unlockDocumentScroll,
+} from "@/lib/scrollUnlock";
+import { useLayoutEffect } from "react";
 
 /**
- * Native scroll on load/refresh, smooth in-page anchors on desktop click only,
- * and clearing accidental document scroll locks on mount.
+ * Native scroll on load/refresh, smooth in-page anchors on desktop only,
+ * and clearing accidental document scroll locks before paint + on hydrate.
  */
 export function ScrollBehavior() {
-  useEffect(() => {
+  useLayoutEffect(() => {
     if ("scrollRestoration" in history) {
       history.scrollRestoration = "auto";
     }
 
     unlockDocumentScroll();
+    ensureTouchScrollStyles();
+
+    const onPageShow = (event: PageTransitionEvent) => {
+      if (event.persisted) unlockDocumentScroll();
+    };
 
     const onAnchorClick = (event: MouseEvent) => {
+      if (isTouchLikeDevice()) return;
+
       if (
         event.defaultPrevented ||
         event.button !== 0 ||
@@ -24,12 +35,6 @@ export function ScrollBehavior() {
         event.shiftKey ||
         event.altKey
       ) {
-        return;
-      }
-
-      // Let mobile Safari handle hash navigation natively — no preventDefault.
-      if (window.matchMedia("(pointer: coarse)").matches) {
-        unlockDocumentScroll();
         return;
       }
 
@@ -61,9 +66,14 @@ export function ScrollBehavior() {
       unlockDocumentScroll();
     };
 
-    document.addEventListener("click", onAnchorClick);
+    window.addEventListener("pageshow", onPageShow);
+
+    if (!isTouchLikeDevice()) {
+      document.addEventListener("click", onAnchorClick);
+    }
 
     return () => {
+      window.removeEventListener("pageshow", onPageShow);
       document.removeEventListener("click", onAnchorClick);
     };
   }, []);

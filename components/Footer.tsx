@@ -11,7 +11,7 @@ const navigationLinks = [
   { label: "Projekte", href: "#portfolio" },
   { label: "Ergebnisse", href: "#ergebnisse" },
   { label: "Prozess", href: "#process" },
-  { label: "Buchung", href: "#booking" },
+  { label: "Kontakt", href: "#contact" },
 ] as const;
 
 const serviceLinks = [

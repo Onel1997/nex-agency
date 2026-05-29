@@ -4,8 +4,8 @@ import { unlockDocumentScroll } from "@/lib/scrollUnlock";
 import { useEffect } from "react";
 
 /**
- * Native scroll on load/refresh, smooth in-page anchors on click only,
- * and continuous clearing of accidental document scroll locks.
+ * Native scroll on load/refresh, smooth in-page anchors on desktop click only,
+ * and clearing accidental document scroll locks on mount.
  */
 export function ScrollBehavior() {
   useEffect(() => {
@@ -14,13 +14,6 @@ export function ScrollBehavior() {
     }
 
     unlockDocumentScroll();
-
-    const onUnlock = () => unlockDocumentScroll();
-
-    window.addEventListener("touchstart", onUnlock, { passive: true });
-    window.addEventListener("touchend", onUnlock, { passive: true });
-    window.addEventListener("orientationchange", onUnlock, { passive: true });
-    document.addEventListener("visibilitychange", onUnlock);
 
     const onAnchorClick = (event: MouseEvent) => {
       if (
@@ -31,6 +24,12 @@ export function ScrollBehavior() {
         event.shiftKey ||
         event.altKey
       ) {
+        return;
+      }
+
+      // Let mobile Safari handle hash navigation natively — no preventDefault.
+      if (window.matchMedia("(pointer: coarse)").matches) {
+        unlockDocumentScroll();
         return;
       }
 
@@ -65,10 +64,6 @@ export function ScrollBehavior() {
     document.addEventListener("click", onAnchorClick);
 
     return () => {
-      window.removeEventListener("touchstart", onUnlock);
-      window.removeEventListener("touchend", onUnlock);
-      window.removeEventListener("orientationchange", onUnlock);
-      document.removeEventListener("visibilitychange", onUnlock);
       document.removeEventListener("click", onAnchorClick);
     };
   }, []);

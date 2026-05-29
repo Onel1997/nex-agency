@@ -1,18 +1,62 @@
 "use client";
 
+import { bookingLink } from "@/lib/contact";
+import { useMotionProfile } from "@/lib/useMotionProfile";
 import { motion, useReducedMotion } from "framer-motion";
+import { ArrowRight } from "lucide-react";
 import {
   headerStagger,
   heroTransition,
   reducedStaggerItem,
   staggerItem,
 } from "@/lib/motion";
-import { Button } from "./ui/Button";
+import { useRef, type MouseEvent } from "react";
 import { HeroPreview } from "./HeroPreview";
 import { HeroBackground } from "./hero/HeroBackground";
 import { HeroHeadline } from "./hero/HeroHeadline";
 import { HeroPillars } from "./hero/HeroPillars";
 import { HeroTrust } from "./hero/HeroTrust";
+
+const HERO_BOOKING_URL = bookingLink;
+
+const MAGNETIC_STRENGTH = 0.18;
+const MAX_OFFSET = 6;
+
+/** Hero-only primary CTA — always opens Cal.com (never mailto). */
+function HeroBookingButton() {
+  const { full } = useMotionProfile();
+  const ref = useRef<HTMLAnchorElement>(null);
+
+  const onMove = (e: MouseEvent<HTMLAnchorElement>) => {
+    if (!full || !ref.current) return;
+    const rect = ref.current.getBoundingClientRect();
+    const x = (e.clientX - rect.left - rect.width / 2) * MAGNETIC_STRENGTH;
+    const y = (e.clientY - rect.top - rect.height / 2) * MAGNETIC_STRENGTH;
+    const clampedX = Math.max(-MAX_OFFSET, Math.min(MAX_OFFSET, x));
+    const clampedY = Math.max(-MAX_OFFSET, Math.min(MAX_OFFSET, y));
+    ref.current.style.transform = `translate3d(${clampedX}px, ${clampedY}px, 0) scale(1.02)`;
+  };
+
+  const onLeave = () => {
+    if (!ref.current) return;
+    ref.current.style.transform = "";
+  };
+
+  return (
+    <a
+      ref={ref}
+      href={HERO_BOOKING_URL}
+      target="_blank"
+      rel="noopener noreferrer"
+      onMouseMove={full ? onMove : undefined}
+      onMouseLeave={full ? onLeave : undefined}
+      className="group magnetic-btn hero-cta-primary inline-flex cursor-pointer items-center justify-center gap-2 rounded-full border-0 btn-primary btn-primary-glow px-6 py-3.5 text-[14px] font-medium tracking-[-0.01em] text-white sm:px-7 sm:py-3.5"
+    >
+      Jetzt Erstgespräch sichern
+      <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-0.5" />
+    </a>
+  );
+}
 
 export function Hero() {
   const reduced = useReducedMotion();
@@ -61,9 +105,7 @@ export function Hero() {
               transition={heroTransition(0.3)}
               className="mt-9 sm:mt-10"
             >
-              <Button variant="primary" icon glow className="hero-cta-primary">
-                Strategiegespräch buchen
-              </Button>
+              <HeroBookingButton />
             </motion.div>
 
             <motion.p

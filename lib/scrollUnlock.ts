@@ -10,8 +10,11 @@ export function unlockDocumentScroll() {
     el.style.removeProperty("height");
     el.style.removeProperty("width");
     el.style.removeProperty("top");
+    el.style.removeProperty("left");
+    el.style.removeProperty("right");
+    el.style.removeProperty("padding-right");
     el.style.removeProperty("touch-action");
-    el.classList.remove("overflow-hidden");
+    el.classList.remove("overflow-hidden", "modal-open", "menu-open", "nav-open");
   }
 }
 

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Pencil, Trash2 } from "lucide-react";
+import { CalendarDays, Pencil, Trash2 } from "lucide-react";
 import {
   APPOINTMENT_STATUSES,
   APPOINTMENT_STATUS_LABELS,

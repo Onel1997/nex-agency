@@ -3,9 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import type { UserRole } from "@/lib/auth/types";
-import { getAuthUser, getProfile, requireAdmin } from "@/lib/auth/session";
-import { logActivity } from "@/lib/dashboard/activity";
 import { ROLE_LABELS } from "@/lib/auth/types";
+import { requireAdmin } from "@/lib/auth/session";
+import { logActivity } from "@/lib/dashboard/activity";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
@@ -51,7 +51,12 @@ export async function inviteTeamMember(formData: FormData) {
     const supabase = await createClient();
     await supabase
       .from("profiles")
-      .update({ role, full_name: email.split("@")[0] })
+      .update({
+        role,
+        full_name: email.split("@")[0],
+        status: "pending",
+        is_active: false,
+      })
       .eq("id", userId);
   }
 
@@ -77,7 +82,7 @@ export async function updateMemberRole(memberId: string, role: UserRole) {
   const supabase = await createClient();
   const { data: member, error: fetchError } = await supabase
     .from("profiles")
-    .select("email, full_name, role")
+    .select("email, full_name, role, status")
     .eq("id", memberId)
     .single();
 
@@ -112,15 +117,23 @@ export async function setMemberActive(memberId: string, isActive: boolean) {
   const supabase = await createClient();
   const { data: member, error: fetchError } = await supabase
     .from("profiles")
-    .select("email, full_name")
+    .select("email, full_name, status")
     .eq("id", memberId)
     .single();
 
   if (fetchError) throw new Error(fetchError.message);
 
+  if (member.status === "pending" && isActive) {
+    throw new Error(
+      "Ausstehende Einladungen werden erst nach Annahme automatisch aktiviert",
+    );
+  }
+
+  const nextStatus = isActive ? "active" : "deactivated";
+
   const { error } = await supabase
     .from("profiles")
-    .update({ is_active: isActive })
+    .update({ status: nextStatus, is_active: isActive })
     .eq("id", memberId);
 
   if (error) throw new Error(error.message);
@@ -131,11 +144,45 @@ export async function setMemberActive(memberId: string, isActive: boolean) {
     action: isActive ? "member_reactivated" : "member_deactivated",
     entityType: "profile",
     entityId: memberId,
-    metadata: { email: member.email, is_active: isActive },
+    metadata: { email: member.email, status: nextStatus },
     message: isActive
       ? `${formatActorName(admin)} hat ${memberName} reaktiviert`
       : `${formatActorName(admin)} hat ${memberName} deaktiviert`,
   });
+
+  revalidateTeam();
+}
+
+export async function deleteMember(memberId: string) {
+  const admin = await requireAdmin();
+  if (memberId === admin.id) {
+    throw new Error("Sie können Ihr eigenes Konto nicht löschen");
+  }
+
+  const supabase = await createClient();
+  const { data: member, error: fetchError } = await supabase
+    .from("profiles")
+    .select("email, full_name, status")
+    .eq("id", memberId)
+    .single();
+
+  if (fetchError) throw new Error(fetchError.message);
+
+  const memberName = member.full_name?.trim() || member.email.split("@")[0];
+
+  await logActivity({
+    actorId: admin.id,
+    action: "member_deleted",
+    entityType: "profile",
+    entityId: memberId,
+    metadata: { email: member.email, status: member.status },
+    message: `${formatActorName(admin)} hat ${memberName} gelöscht`,
+  });
+
+  const adminClient = createAdminClient();
+  const { error: deleteError } = await adminClient.auth.admin.deleteUser(memberId);
+
+  if (deleteError) throw new Error(deleteError.message);
 
   revalidateTeam();
 }

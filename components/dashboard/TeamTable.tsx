@@ -4,12 +4,14 @@ import { formatDate } from "@/lib/dashboard/format";
 import { ROLE_LABELS, type UserRole } from "@/lib/auth/types";
 import type { TeamMember } from "@/lib/dashboard/types";
 import { DataTable } from "./DataTable";
+import { TeamMemberStatusBadge } from "./TeamMemberStatusBadge";
 
 interface TeamTableProps {
   members: TeamMember[];
   currentUserId: string;
   onRoleChange: (memberId: string, role: UserRole) => Promise<void>;
   onToggleActive: (memberId: string, isActive: boolean) => Promise<void>;
+  onDelete: (memberId: string) => Promise<void>;
 }
 
 export function TeamTable({
@@ -17,6 +19,7 @@ export function TeamTable({
   currentUserId,
   onRoleChange,
   onToggleActive,
+  onDelete,
 }: TeamTableProps) {
   return (
     <DataTable
@@ -59,17 +62,7 @@ export function TeamTable({
           key: "status",
           header: "Status",
           hideOnMobile: true,
-          render: (member) => (
-            <span
-              className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset ${
-                member.is_active
-                  ? "bg-emerald-500/15 text-emerald-300 ring-emerald-500/25"
-                  : "bg-red-500/15 text-red-300 ring-red-500/25"
-              }`}
-            >
-              {member.is_active ? "Aktiv" : "Deaktiviert"}
-            </span>
-          ),
+          render: (member) => <TeamMemberStatusBadge status={member.status} />,
         },
         {
           key: "created",
@@ -80,18 +73,38 @@ export function TeamTable({
         {
           key: "actions",
           header: "Aktionen",
-          className: "w-[140px]",
+          className: "w-[220px]",
           render: (member) =>
             member.id === currentUserId ? (
               <span className="text-xs text-muted-soft">—</span>
             ) : (
-              <button
-                type="button"
-                onClick={() => onToggleActive(member.id, !member.is_active)}
-                className="dashboard-btn-secondary px-3 py-1.5 text-xs"
-              >
-                {member.is_active ? "Deaktivieren" : "Reaktivieren"}
-              </button>
+              <div className="flex flex-wrap gap-2">
+                {member.status === "active" && (
+                  <button
+                    type="button"
+                    onClick={() => onToggleActive(member.id, false)}
+                    className="dashboard-btn-secondary px-3 py-1.5 text-xs"
+                  >
+                    Deaktivieren
+                  </button>
+                )}
+                {member.status === "deactivated" && (
+                  <button
+                    type="button"
+                    onClick={() => onToggleActive(member.id, true)}
+                    className="dashboard-btn-secondary px-3 py-1.5 text-xs"
+                  >
+                    Reaktivieren
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => onDelete(member.id)}
+                  className="dashboard-btn-secondary px-3 py-1.5 text-xs text-red-300 hover:border-red-500/35 hover:bg-red-500/10"
+                >
+                  Löschen
+                </button>
+              </div>
             ),
         },
       ]}

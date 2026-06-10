@@ -30,7 +30,12 @@ export async function getProfile(): Promise<Profile | null> {
 export async function requireProfile(): Promise<Profile> {
   const profile = await getProfile();
   if (!profile) redirect("/login");
-  if (!profile.is_active) redirect("/login?error=account_deactivated");
+  if (profile.status === "pending") {
+    redirect("/login?error=invitation_pending");
+  }
+  if (profile.status === "deactivated" || !profile.is_active) {
+    redirect("/login?error=account_deactivated");
+  }
   return profile;
 }
 

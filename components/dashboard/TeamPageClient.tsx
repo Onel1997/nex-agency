@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { UserPlus, Users } from "lucide-react";
 import {
+  deleteMember,
   inviteTeamMember,
   setMemberActive,
   updateMemberRole,
@@ -41,6 +42,12 @@ export function TeamPageClient({ members, currentUserId }: TeamPageClientProps) 
     refresh();
   };
 
+  const handleDelete = async (memberId: string) => {
+    if (!confirm("Benutzer wirklich löschen?")) return;
+    await deleteMember(memberId);
+    refresh();
+  };
+
   return (
     <div className="space-y-6">
       <DashboardHeader
@@ -72,6 +79,7 @@ export function TeamPageClient({ members, currentUserId }: TeamPageClientProps) 
           currentUserId={currentUserId}
           onRoleChange={handleRoleChange}
           onToggleActive={handleToggleActive}
+          onDelete={handleDelete}
         />
       )}
 

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { activateProfile } from "@/lib/auth/activate-profile";
 import { createClient } from "@/lib/supabase/server";
 
 export async function GET(request: Request) {
@@ -8,9 +9,10 @@ export async function GET(request: Request) {
 
   if (code) {
     const supabase = await createClient();
-    const { error } = await supabase.auth.exchangeCodeForSession(code);
+    const { data, error } = await supabase.auth.exchangeCodeForSession(code);
 
-    if (!error) {
+    if (!error && data.user) {
+      await activateProfile(data.user.id);
       return NextResponse.redirect(`${origin}${next}`);
     }
   }

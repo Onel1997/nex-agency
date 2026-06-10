@@ -1,10 +1,12 @@
 export type UserRole = "admin" | "employee";
+export type TeamMemberStatus = "pending" | "active" | "deactivated";
 
 export interface Profile {
   id: string;
   email: string;
   full_name: string | null;
   role: UserRole;
+  status: TeamMemberStatus;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -13,4 +15,10 @@ export interface Profile {
 export const ROLE_LABELS: Record<UserRole, string> = {
   admin: "Administrator",
   employee: "Mitarbeiter",
+};
+
+export const STATUS_LABELS: Record<TeamMemberStatus, string> = {
+  pending: "Ausstehend",
+  active: "Aktiv",
+  deactivated: "Deaktiviert",
 };

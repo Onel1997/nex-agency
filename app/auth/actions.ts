@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { activateProfile } from "@/lib/auth/activate-profile";
 import { createClient } from "@/lib/supabase/server";
 
 export async function loginAction(
@@ -16,10 +17,14 @@ export async function loginAction(
   }
 
   const supabase = await createClient();
-  const { error } = await supabase.auth.signInWithPassword({ email, password });
+  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
   if (error) {
     return { error: "Anmeldung fehlgeschlagen. Bitte Zugangsdaten prüfen." };
+  }
+
+  if (data.user) {
+    await activateProfile(data.user.id);
   }
 
   redirect(redirectTo.startsWith("/dashboard") ? redirectTo : "/dashboard");

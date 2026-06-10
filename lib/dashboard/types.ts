@@ -1,4 +1,4 @@
-import type { UserRole } from "@/lib/auth/types";
+import type { TeamMemberStatus, UserRole } from "@/lib/auth/types";
 import type { AcquiredBy, LeadStatus } from "./constants";
 
 export interface Lead {
@@ -42,6 +42,7 @@ export interface TeamMember {
   email: string;
   full_name: string | null;
   role: UserRole;
+  status: TeamMemberStatus;
   created_at: string;
   is_active: boolean;
 }

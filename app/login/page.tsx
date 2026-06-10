@@ -55,6 +55,12 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
             </div>
           )}
 
+          {params.error === "invitation_pending" && (
+            <div className="mb-5 rounded-xl bg-amber-500/10 px-4 py-3 text-sm text-amber-200 ring-1 ring-amber-500/20">
+              Bitte nehmen Sie zuerst die Einladung per E-Mail an und setzen Sie Ihr Passwort.
+            </div>
+          )}
+
           <LoginForm redirectTo={redirectTo} />
         </div>
 

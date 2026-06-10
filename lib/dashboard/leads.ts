@@ -94,7 +94,7 @@ export async function getTeamStats(): Promise<TeamMemberStats[] | null> {
       supabase
         .from("profiles")
         .select("id, full_name, email, role")
-        .eq("is_active", true)
+        .eq("status", "active")
         .order("full_name"),
       supabase.from("leads").select("assigned_to, status"),
     ]);

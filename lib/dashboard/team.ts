@@ -11,7 +11,7 @@ export async function getTeamMembers(): Promise<TeamMember[]> {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("profiles")
-    .select("id, email, full_name, role, created_at, is_active")
+    .select("id, email, full_name, role, created_at, is_active, status")
     .order("created_at", { ascending: false });
 
   if (error) throw new Error(error.message);
@@ -27,8 +27,8 @@ export async function getAssignableTeamMembers(): Promise<TeamMember[]> {
   if (isAdmin(profile)) {
     const { data, error } = await supabase
       .from("profiles")
-      .select("id, email, full_name, role, created_at, is_active")
-      .eq("is_active", true)
+      .select("id, email, full_name, role, created_at, is_active, status")
+      .eq("status", "active")
       .order("full_name");
 
     if (error) throw new Error(error.message);
@@ -41,8 +41,9 @@ export async function getAssignableTeamMembers(): Promise<TeamMember[]> {
       email: profile.email,
       full_name: profile.full_name,
       role: profile.role,
+      status: profile.status,
       created_at: profile.created_at,
-      is_active: true,
+      is_active: profile.is_active,
     },
   ];
 }
@@ -55,7 +56,7 @@ export async function getActiveTeamCount(): Promise<number> {
   const { count, error } = await supabase
     .from("profiles")
     .select("*", { count: "exact", head: true })
-    .eq("is_active", true);
+    .eq("status", "active");
 
   if (error) throw new Error(error.message);
   return count ?? 0;

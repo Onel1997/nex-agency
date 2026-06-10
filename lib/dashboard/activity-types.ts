@@ -7,7 +7,8 @@ export type ActivityAction =
   | "member_invited"
   | "role_changed"
   | "member_deactivated"
-  | "member_reactivated";
+  | "member_reactivated"
+  | "member_deleted";
 
 export type ActivityEntityType =
   | "lead"

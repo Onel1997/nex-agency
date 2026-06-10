@@ -10,8 +10,11 @@ import { Process } from "@/components/Process";
 import { CTASection } from "@/components/CTASection";
 import { Footer } from "@/components/Footer";
 import { AnimatedSectionDivider } from "@/components/motion/SectionDivider";
+import { getAuthUser } from "@/lib/auth/session";
 
-export default function Home() {
+export default async function Home() {
+  const user = await getAuthUser();
+
   return (
     <main className="page-flow relative overflow-visible">
       <div className="page-ambient aurora aurora--page" aria-hidden />
@@ -20,7 +23,7 @@ export default function Home() {
         aria-hidden
       />
 
-      <Navbar />
+      <Navbar isAuthenticated={!!user} />
       <Hero />
       <StatsSection />
       <AnimatedSectionDivider />

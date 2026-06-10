@@ -6,6 +6,7 @@ import { bookingLink } from "@/lib/contact";
 import { unlockDocumentScroll } from "@/lib/scrollUnlock";
 import { useMotionProfile } from "@/lib/useMotionProfile";
 import { Sparkles, Menu, X } from "lucide-react";
+import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
 const links = [
@@ -14,6 +15,31 @@ const links = [
   { label: "Projekte", href: "#portfolio" },
   { label: "Prozess", href: "#process" },
 ];
+
+function NavAuthCTA({
+  isAuthenticated,
+  className = "",
+  onNavigate,
+  menu = false,
+}: {
+  isAuthenticated: boolean;
+  className?: string;
+  onNavigate?: () => void;
+  menu?: boolean;
+}) {
+  const href = isAuthenticated ? "/dashboard" : "/login";
+  const label = isAuthenticated ? "Dashboard" : "Login";
+
+  return (
+    <Link
+      href={href}
+      onClick={onNavigate}
+      className={`nav-booking-cta ${menu ? "nav-booking-cta--menu" : ""} ${className}`.trim()}
+    >
+      {label}
+    </Link>
+  );
+}
 
 function NavBookingCTA({
   className = "",
@@ -42,11 +68,13 @@ function NavbarContent({
   open,
   toggleMenu,
   closeMenu,
+  isAuthenticated,
 }: {
   navShellClass: string;
   open: boolean;
   toggleMenu: () => void;
   closeMenu: () => void;
+  isAuthenticated: boolean;
 }) {
   return (
     <>
@@ -70,6 +98,10 @@ function NavbarContent({
 
         <div className="flex items-center gap-2">
           <NavBookingCTA className="hidden shrink-0 md:inline-flex" />
+          <NavAuthCTA
+            isAuthenticated={isAuthenticated}
+            className="hidden shrink-0 md:inline-flex"
+          />
           <button
             type="button"
             onClick={toggleMenu}
@@ -95,7 +127,14 @@ function NavbarContent({
                 {link.label}
               </a>
             ))}
-            <NavBookingCTA menu onNavigate={closeMenu} />
+            <div className="mt-2 flex flex-col gap-2">
+              <NavBookingCTA menu onNavigate={closeMenu} />
+              <NavAuthCTA
+                isAuthenticated={isAuthenticated}
+                menu
+                onNavigate={closeMenu}
+              />
+            </div>
           </div>
         </div>
       ) : null}
@@ -103,7 +142,7 @@ function NavbarContent({
   );
 }
 
-export function Navbar() {
+export function Navbar({ isAuthenticated = false }: { isAuthenticated?: boolean }) {
   const { full } = useMotionProfile();
   const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
@@ -169,6 +208,7 @@ export function Navbar() {
       open={open}
       toggleMenu={toggleMenu}
       closeMenu={closeMenu}
+      isAuthenticated={isAuthenticated}
     />
   );
 

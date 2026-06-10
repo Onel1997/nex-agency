@@ -1,8 +1,5 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import { CursorGlow } from "@/components/cursor/CursorGlow";
-import { ScrollBehavior } from "@/components/ScrollBehavior";
-import { TouchScrollRoot } from "@/components/TouchScrollRoot";
 import { SCROLL_UNLOCK_INLINE_SCRIPT } from "@/lib/scrollUnlockScript";
 import "./globals.css";
 
@@ -36,11 +33,7 @@ export default function RootLayout({
         <script
           dangerouslySetInnerHTML={{ __html: SCROLL_UNLOCK_INLINE_SCRIPT }}
         />
-        <ScrollBehavior />
-        <TouchScrollRoot>
-          <CursorGlow />
-          {children}
-        </TouchScrollRoot>
+        {children}
       </body>
     </html>
   );

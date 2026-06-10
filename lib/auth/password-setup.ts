@@ -1,4 +1,5 @@
 import type { EmailOtpType, SupabaseClient } from "@supabase/supabase-js";
+import { hasCompletedInvitation } from "@/lib/auth/member-status";
 
 export const SET_PASSWORD_PATH = "/auth/set-password";
 
@@ -17,9 +18,18 @@ export async function resolvePostAuthRedirect(
 
   const { data: profile } = await supabase.rpc("get_current_profile");
 
-  if (profile && typeof profile === "object" && "status" in profile) {
-    const status = (profile as { status: string }).status;
-    if (status === "pending") {
+  if (
+    profile &&
+    typeof profile === "object" &&
+    "activated_at" in profile &&
+    "status" in profile
+  ) {
+    const member = profile as {
+      status: "pending" | "active" | "deactivated";
+      activated_at: string | null;
+    };
+
+    if (!hasCompletedInvitation(member)) {
       return SET_PASSWORD_PATH;
     }
   }

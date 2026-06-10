@@ -1,6 +1,5 @@
 import { type EmailOtpType } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
-import { activateProfile } from "@/lib/auth/activate-profile";
 import { resolvePostAuthRedirect } from "@/lib/auth/password-setup";
 import { createClient } from "@/lib/supabase/server";
 
@@ -30,15 +29,5 @@ export async function GET(request: Request) {
   }
 
   const redirectPath = await resolvePostAuthRedirect(supabase, type, next);
-
-  if (redirectPath !== "/auth/set-password") {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (user) {
-      await activateProfile(user.id);
-    }
-  }
-
   return NextResponse.redirect(`${origin}${redirectPath}`);
 }

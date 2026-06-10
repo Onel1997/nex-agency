@@ -2,14 +2,23 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { SET_PASSWORD_PATH } from "@/lib/auth/password-setup";
 
-async function getProfileStatus(
+async function getProfileActivation(
   supabase: ReturnType<typeof createServerClient>,
 ) {
   const { data, error } = await supabase.rpc("get_current_profile");
-  if (error || !data || typeof data !== "object" || !("status" in data)) {
+  if (error || !data || typeof data !== "object") {
     return null;
   }
-  return (data as { status: string }).status;
+
+  const profile = data as {
+    status: string;
+    activated_at: string | null;
+  };
+
+  return {
+    status: profile.status,
+    completed: profile.activated_at !== null,
+  };
 }
 
 export async function updateSession(request: NextRequest) {
@@ -60,16 +69,16 @@ export async function updateSession(request: NextRequest) {
   }
 
   if (user && (isLogin || isSetPassword)) {
-    const status = await getProfileStatus(supabase);
+    const profile = await getProfileActivation(supabase);
 
-    if (isLogin && status === "pending") {
+    if (isLogin && profile && !profile.completed) {
       const url = request.nextUrl.clone();
       url.pathname = SET_PASSWORD_PATH;
       url.search = "";
       return NextResponse.redirect(url);
     }
 
-    if (isSetPassword && status === "active") {
+    if (isSetPassword && profile?.completed) {
       const url = request.nextUrl.clone();
       url.pathname = "/dashboard";
       url.search = "";

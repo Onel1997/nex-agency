@@ -8,6 +8,7 @@ export interface Profile {
   role: UserRole;
   status: TeamMemberStatus;
   is_active: boolean;
+  activated_at: string | null;
   created_at: string;
   updated_at: string;
 }

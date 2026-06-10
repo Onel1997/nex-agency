@@ -3,6 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { SetPasswordForm } from "@/components/auth/SetPasswordForm";
 import { getAuthUser, getProfile } from "@/lib/auth/session";
+import { hasCompletedInvitation } from "@/lib/auth/member-status";
 
 export const metadata: Metadata = {
   title: "Passwort festlegen — NexAgency CRM",
@@ -19,7 +20,7 @@ export default async function SetPasswordPage() {
 
   const profile = await getProfile();
 
-  if (profile?.status === "active") {
+  if (profile && hasCompletedInvitation(profile)) {
     redirect("/dashboard");
   }
 

@@ -48,14 +48,14 @@ export async function inviteTeamMember(formData: FormData) {
 
   const userId = data.user?.id;
   if (userId) {
-    const supabase = await createClient();
-    await supabase
+    await adminClient
       .from("profiles")
       .update({
         role,
         full_name: email.split("@")[0],
         status: "pending",
         is_active: false,
+        activated_at: null,
       })
       .eq("id", userId);
   }
@@ -117,13 +117,13 @@ export async function setMemberActive(memberId: string, isActive: boolean) {
   const supabase = await createClient();
   const { data: member, error: fetchError } = await supabase
     .from("profiles")
-    .select("email, full_name, status")
+    .select("email, full_name, status, activated_at")
     .eq("id", memberId)
     .single();
 
   if (fetchError) throw new Error(fetchError.message);
 
-  if (member.status === "pending" && isActive) {
+  if (isActive && !member.activated_at) {
     throw new Error(
       "Ausstehende Einladungen werden erst nach Annahme automatisch aktiviert",
     );

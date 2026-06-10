@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import type { Profile } from "@/lib/auth/types";
+import { hasCompletedInvitation } from "@/lib/auth/member-status";
 import { createClient } from "@/lib/supabase/server";
 
 export async function getAuthUser() {
@@ -30,11 +31,11 @@ export async function getProfile(): Promise<Profile | null> {
 export async function requireProfile(): Promise<Profile> {
   const profile = await getProfile();
   if (!profile) redirect("/login");
-  if (profile.status === "pending") {
-    redirect("/auth/set-password");
-  }
   if (profile.status === "deactivated" || !profile.is_active) {
     redirect("/login?error=account_deactivated");
+  }
+  if (!hasCompletedInvitation(profile)) {
+    redirect("/auth/set-password");
   }
   return profile;
 }

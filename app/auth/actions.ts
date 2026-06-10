@@ -24,10 +24,6 @@ export async function loginAction(
     return { error: "Anmeldung fehlgeschlagen. Bitte Zugangsdaten prüfen." };
   }
 
-  if (data.user) {
-    await activateProfile(data.user.id);
-  }
-
   redirect(redirectTo.startsWith("/dashboard") ? redirectTo : "/dashboard");
 }
 

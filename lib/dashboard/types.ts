@@ -45,6 +45,7 @@ export interface TeamMember {
   status: TeamMemberStatus;
   created_at: string;
   is_active: boolean;
+  activated_at: string | null;
 }
 
 export interface ClientRecord {

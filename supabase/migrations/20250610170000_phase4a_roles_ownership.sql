@@ -1,7 +1,7 @@
 -- NexAgency CRM Phase 4A (Batch 1): Five-role system, ownership fields, RLS rewrite
 --
 -- PREREQUISITE: Confirm founder email below before applying.
--- Default founder promotion: admin@nexagency.de (see § FOUNDER PROMOTION)
+-- Founder bootstrap: onilbashir@yahoo.com (see § FOUNDER PROMOTION)
 
 -- =============================================================================
 -- SECTION 1: SQL helper functions
@@ -79,10 +79,10 @@ GRANT EXECUTE ON FUNCTION public.is_sales() TO authenticated;
 ALTER TABLE public.profiles
   DROP CONSTRAINT IF EXISTS profiles_role_check;
 
--- FOUNDER PROMOTION: adjust email if your founder account differs
+-- FOUNDER PROMOTION: bootstrap initial super_admin from founder account
 UPDATE public.profiles
 SET role = 'super_admin'
-WHERE email = 'admin@nexagency.de'
+WHERE email = 'onilbashir@yahoo.com'
   AND role = 'admin';
 
 ALTER TABLE public.profiles
@@ -94,7 +94,7 @@ ALTER TABLE public.profiles
 -- =============================================================================
 
 ALTER TABLE public.leads
-  ADD COLUMN IF NOT EXISTS created_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS created_by UUID,
   ADD COLUMN IF NOT EXISTS estimated_value_cents BIGINT
     CHECK (estimated_value_cents IS NULL OR estimated_value_cents >= 0),
   ADD COLUMN IF NOT EXISTS currency TEXT NOT NULL DEFAULT 'EUR';

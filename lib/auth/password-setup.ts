@@ -1,7 +1,7 @@
 import type { EmailOtpType, SupabaseClient } from "@supabase/supabase-js";
 import { hasCompletedInvitation } from "@/lib/auth/member-status";
 
-export const SET_PASSWORD_PATH = "/auth/set-password";
+export const SET_PASSWORD_PATH = "/setup-password";
 
 export function isPasswordSetupType(type: EmailOtpType | string | null): boolean {
   return type === "invite" || type === "recovery";

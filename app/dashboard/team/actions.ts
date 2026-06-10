@@ -8,6 +8,7 @@ import {
 } from "@/lib/auth/permissions";
 import type { Profile, UserRole } from "@/lib/auth/types";
 import { ROLE_LABELS } from "@/lib/auth/types";
+import { SET_PASSWORD_PATH } from "@/lib/auth/password-setup";
 import { requireManagement } from "@/lib/auth/session";
 import { logActivity } from "@/lib/dashboard/activity";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -49,7 +50,7 @@ export async function inviteTeamMember(formData: FormData) {
   const adminClient = createAdminClient();
 
   const { data, error } = await adminClient.auth.admin.inviteUserByEmail(email, {
-    redirectTo: `${origin}/auth/callback?next=/dashboard`,
+    redirectTo: `${origin}/auth/callback?next=${encodeURIComponent(SET_PASSWORD_PATH)}`,
     data: {
       full_name: email.split("@")[0],
     },

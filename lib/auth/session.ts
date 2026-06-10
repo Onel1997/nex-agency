@@ -5,6 +5,7 @@ import {
   isSuperAdmin as checkSuperAdmin,
 } from "@/lib/auth/permissions";
 import { hasCompletedInvitation } from "@/lib/auth/member-status";
+import { SET_PASSWORD_PATH } from "@/lib/auth/password-setup";
 import { createClient } from "@/lib/supabase/server";
 
 export async function getAuthUser() {
@@ -39,7 +40,7 @@ export async function requireProfile(): Promise<Profile> {
     redirect("/login?error=account_deactivated");
   }
   if (!hasCompletedInvitation(profile)) {
-    redirect("/auth/set-password");
+    redirect(SET_PASSWORD_PATH);
   }
   return profile;
 }

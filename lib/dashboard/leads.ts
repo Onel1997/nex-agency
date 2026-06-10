@@ -1,8 +1,9 @@
 import { getProfile, isAdmin } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
+import { getAppointmentCount, getTeamAppointmentCounts } from "./appointments";
 import { getActiveTeamCount } from "./team";
 import { PIPELINE_STATUSES } from "./constants";
-import type { AppointmentRow, DashboardStats, Lead, TeamMemberStats } from "./types";
+import type { DashboardStats, Lead, TeamMemberStats } from "./types";
 
 function formatAssignee(
   assignee: { full_name: string | null; email: string } | null | undefined,
@@ -37,6 +38,19 @@ export async function getLeads(): Promise<Lead[]> {
   return (data ?? []).map((row) => mapLeadRow(row as Record<string, unknown>));
 }
 
+export async function getLeadById(id: string): Promise<Lead | null> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("leads")
+    .select(LEAD_SELECT)
+    .eq("id", id)
+    .maybeSingle();
+
+  if (error) throw new Error(error.message);
+  if (!data) return null;
+  return mapLeadRow(data as Record<string, unknown>);
+}
+
 export async function getDashboardStats(): Promise<DashboardStats> {
   const profile = await getProfile();
   const adminView = profile ? isAdmin(profile) : false;
@@ -49,7 +63,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
   const rows = data ?? [];
   const stats: DashboardStats = {
     leadsCount: rows.length,
-    appointmentsCount: rows.filter((r) => r.status === "appointment").length,
+    appointmentsCount: await getAppointmentCount(),
     clientsCount: rows.filter((r) => r.status === "client").length,
     pipelineCount: rows.filter((r) =>
       PIPELINE_STATUSES.includes(r.status),
@@ -75,21 +89,13 @@ export async function getLeadsByStatus(status: string): Promise<Lead[]> {
   return (data ?? []).map((row) => mapLeadRow(row as Record<string, unknown>));
 }
 
-export async function getAppointments(): Promise<AppointmentRow[]> {
-  const leads = await getLeadsByStatus("appointment");
-  return leads.map((lead) => ({
-    ...lead,
-    assignee_name: lead.assignee_name ?? null,
-  }));
-}
-
 export async function getTeamStats(): Promise<TeamMemberStats[] | null> {
   const profile = await getProfile();
   if (!profile || !isAdmin(profile)) return null;
 
   const supabase = await createClient();
 
-  const [{ data: profiles, error: profilesError }, { data: leads, error: leadsError }] =
+  const [{ data: profiles, error: profilesError }, { data: leads, error: leadsError }, appointmentCounts] =
     await Promise.all([
       supabase
         .from("profiles")
@@ -97,6 +103,7 @@ export async function getTeamStats(): Promise<TeamMemberStats[] | null> {
         .eq("status", "active")
         .order("full_name"),
       supabase.from("leads").select("assigned_to, status"),
+      getTeamAppointmentCounts(),
     ]);
 
   if (profilesError) throw new Error(profilesError.message);
@@ -116,7 +123,6 @@ export async function getTeamStats(): Promise<TeamMemberStats[] | null> {
       clients: 0,
     };
     current.leads += 1;
-    if (lead.status === "appointment") current.appointments += 1;
     if (lead.status === "client") current.clients += 1;
     countsByUser.set(lead.assigned_to, current);
   }
@@ -134,7 +140,7 @@ export async function getTeamStats(): Promise<TeamMemberStats[] | null> {
       email: member.email,
       role: member.role,
       leadsCount: counts.leads,
-      appointmentsCount: counts.appointments,
+      appointmentsCount: appointmentCounts.get(member.id) ?? 0,
       clientsCount: counts.clients,
     };
   });

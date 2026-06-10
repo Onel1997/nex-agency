@@ -1,5 +1,5 @@
 import type { TeamMemberStatus, UserRole } from "@/lib/auth/types";
-import type { AcquiredBy, LeadStatus } from "./constants";
+import type { AcquiredBy, AppointmentStatus, LeadStatus } from "./constants";
 
 export interface Lead {
   id: string;
@@ -25,6 +25,13 @@ export interface DashboardStats {
   clientsCount: number;
   pipelineCount: number;
   teamCount?: number;
+}
+
+export interface AppointmentStats {
+  todayCount: number;
+  weekCount: number;
+  confirmedCount: number;
+  completedCount: number;
 }
 
 export interface TeamMemberStats {
@@ -63,4 +70,19 @@ export interface ClientRecord {
 
 export interface AppointmentRow extends Lead {
   assignee_name: string | null;
+}
+
+export interface Appointment {
+  id: string;
+  title: string;
+  description: string | null;
+  lead_id: string | null;
+  assigned_user_id: string;
+  start_time: string;
+  end_time: string;
+  status: AppointmentStatus;
+  created_at: string;
+  updated_at: string;
+  assignee_name?: string | null;
+  lead_company_name?: string | null;
 }

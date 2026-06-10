@@ -1,5 +1,8 @@
 import {
+  CalendarCheck2,
+  CalendarClock,
   CalendarDays,
+  CheckCircle2,
   Euro,
   Target,
   UserCog,
@@ -13,8 +16,9 @@ import { TeamStatsTable } from "@/components/dashboard/TeamStatsTable";
 import { getProfile, isAdmin } from "@/lib/auth/session";
 import { getRecentActivities } from "@/lib/dashboard/activity";
 import type { ActivityLog } from "@/lib/dashboard/activity-types";
+import { getAppointmentStats } from "@/lib/dashboard/appointments";
 import { getDashboardStats, getTeamStats } from "@/lib/dashboard/leads";
-import type { DashboardStats, TeamMemberStats } from "@/lib/dashboard/types";
+import type { AppointmentStats, DashboardStats, TeamMemberStats } from "@/lib/dashboard/types";
 
 export default async function DashboardPage() {
   const profile = await getProfile();
@@ -26,13 +30,20 @@ export default async function DashboardPage() {
     clientsCount: 0,
     pipelineCount: 0,
   };
+  let appointmentStats: AppointmentStats = {
+    todayCount: 0,
+    weekCount: 0,
+    confirmedCount: 0,
+    completedCount: 0,
+  };
   let teamStats: TeamMemberStats[] | null = null;
   let activities: ActivityLog[] = [];
   let dbError: string | null = null;
 
   try {
-    [stats, teamStats, activities] = await Promise.all([
+    [stats, appointmentStats, teamStats, activities] = await Promise.all([
       getDashboardStats(),
+      getAppointmentStats(),
       adminView ? getTeamStats() : Promise.resolve(null),
       adminView ? getRecentActivities(6) : Promise.resolve([]),
     ]);
@@ -107,6 +118,42 @@ export default async function DashboardPage() {
         )}
       </div>
 
+      <div>
+        <h2 className="mb-4 text-sm font-medium uppercase tracking-wider text-muted-soft">
+          Termine Übersicht
+        </h2>
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <KpiCard
+            label="Heute"
+            value={appointmentStats.todayCount}
+            icon={CalendarClock}
+            href="/dashboard/appointments"
+            trend="Termine heute"
+          />
+          <KpiCard
+            label="Diese Woche"
+            value={appointmentStats.weekCount}
+            icon={CalendarDays}
+            href="/dashboard/appointments"
+            trend="Termine diese Woche"
+          />
+          <KpiCard
+            label="Bestätigt"
+            value={appointmentStats.confirmedCount}
+            icon={CalendarCheck2}
+            href="/dashboard/appointments"
+            trend="Bestätigte Termine"
+          />
+          <KpiCard
+            label="Abgeschlossen"
+            value={appointmentStats.completedCount}
+            icon={CheckCircle2}
+            href="/dashboard/appointments"
+            trend="Erledigte Termine"
+          />
+        </div>
+      </div>
+
       {adminView && teamStats && teamStats.length > 0 && (
         <TeamStatsTable stats={teamStats} />
       )}
@@ -156,9 +203,8 @@ export default async function DashboardPage() {
               Mitarbeiter
             </h2>
             <p className="mt-3 text-sm leading-relaxed text-muted">
-              Sie sehen nur Ihre eigenen Leads, Termine und Kunden. Änderungen
-              werden automatisch in Termine und Kunden übernommen, wenn der
-              Status entsprechend gesetzt wird.
+              Sie sehen nur Ihre eigenen Leads, Termine und Kunden. Termine
+              können mit Leads verknüpft und im Kalender verwaltet werden.
             </p>
           </div>
         )}

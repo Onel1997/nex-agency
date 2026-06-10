@@ -28,3 +28,19 @@ export const PIPELINE_STATUSES: LeadStatus[] = [
   "appointment",
   "proposal",
 ];
+
+export const APPOINTMENT_STATUSES = [
+  "planned",
+  "confirmed",
+  "completed",
+  "cancelled",
+] as const;
+
+export type AppointmentStatus = (typeof APPOINTMENT_STATUSES)[number];
+
+export const APPOINTMENT_STATUS_LABELS: Record<AppointmentStatus, string> = {
+  planned: "Geplant",
+  confirmed: "Bestätigt",
+  completed: "Abgeschlossen",
+  cancelled: "Abgesagt",
+};

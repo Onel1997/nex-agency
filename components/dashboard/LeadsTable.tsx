@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { ExternalLink, Pencil, Trash2 } from "lucide-react";
 import {
   LEAD_STATUSES,
@@ -34,7 +35,12 @@ export function LeadsTable({
           key: "company",
           header: "Firma",
           render: (lead) => (
-            <span className="font-medium text-foreground">{lead.company_name}</span>
+            <Link
+              href={`/dashboard/leads/${lead.id}`}
+              className="font-medium text-foreground transition-colors hover:text-violet-300"
+            >
+              {lead.company_name}
+            </Link>
           ),
         },
         {

@@ -8,13 +8,18 @@ export type ActivityAction =
   | "role_changed"
   | "member_deactivated"
   | "member_reactivated"
-  | "member_deleted";
+  | "member_deleted"
+  | "appointment_created"
+  | "appointment_updated"
+  | "appointment_deleted"
+  | "appointment_status_changed";
 
 export type ActivityEntityType =
   | "lead"
   | "profile"
   | "client"
-  | "team";
+  | "team"
+  | "appointment";
 
 export interface ActivityLog {
   id: string;

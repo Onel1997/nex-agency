@@ -2,9 +2,11 @@ import { createClient } from "@/lib/supabase/server";
 
 export async function activateProfile(userId: string) {
   const supabase = await createClient();
-  await supabase
-    .from("profiles")
-    .update({ status: "active", is_active: true })
-    .eq("id", userId)
-    .eq("status", "pending");
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user || user.id !== userId) return;
+
+  await supabase.rpc("activate_pending_profile");
 }

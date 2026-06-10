@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { activateProfile } from "@/lib/auth/activate-profile";
+import { validatePasswordPair } from "@/lib/auth/password-setup";
 import { createClient } from "@/lib/supabase/server";
 
 export async function loginAction(
@@ -28,6 +29,42 @@ export async function loginAction(
   }
 
   redirect(redirectTo.startsWith("/dashboard") ? redirectTo : "/dashboard");
+}
+
+export async function setPasswordAction(
+  _prev: { error?: string } | null,
+  formData: FormData,
+) {
+  const password = String(formData.get("password") ?? "");
+  const confirmPassword = String(formData.get("confirmPassword") ?? "");
+
+  const validationError = validatePasswordPair(password, confirmPassword);
+  if (validationError) {
+    return { error: validationError };
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return {
+      error:
+        "Ihre Sitzung ist abgelaufen. Bitte öffnen Sie den Einladungslink erneut.",
+    };
+  }
+
+  const { error } = await supabase.auth.updateUser({ password });
+
+  if (error) {
+    return {
+      error: "Passwort konnte nicht gespeichert werden. Bitte erneut versuchen.",
+    };
+  }
+
+  await activateProfile(user.id);
+  redirect("/dashboard");
 }
 
 export async function signOut() {

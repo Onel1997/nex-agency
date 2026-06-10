@@ -31,7 +31,7 @@ export async function requireProfile(): Promise<Profile> {
   const profile = await getProfile();
   if (!profile) redirect("/login");
   if (profile.status === "pending") {
-    redirect("/login?error=invitation_pending");
+    redirect("/auth/set-password");
   }
   if (profile.status === "deactivated" || !profile.is_active) {
     redirect("/login?error=account_deactivated");

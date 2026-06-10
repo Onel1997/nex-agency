@@ -13,6 +13,7 @@ import {
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
+import { canAccessTeamRoutes } from "@/lib/auth/permissions";
 import { UserMenu } from "@/components/dashboard/UserMenu";
 import type { Profile } from "@/lib/auth/types";
 
@@ -23,7 +24,7 @@ const BASE_NAV_ITEMS = [
   { href: "/dashboard/clients", label: "Kunden", icon: Users },
 ];
 
-const ADMIN_NAV_ITEMS = [
+const MANAGEMENT_NAV_ITEMS = [
   { href: "/dashboard/team", label: "Team", icon: UserCog },
   { href: "/dashboard/activities", label: "Aktivitäten", icon: Activity },
 ] as const;
@@ -35,8 +36,8 @@ interface DashboardSidebarProps {
 export function DashboardSidebar({ profile }: DashboardSidebarProps) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const navItems = profile.role === "admin"
-    ? [...BASE_NAV_ITEMS, ...ADMIN_NAV_ITEMS]
+  const navItems = canAccessTeamRoutes(profile)
+    ? [...BASE_NAV_ITEMS, ...MANAGEMENT_NAV_ITEMS]
     : BASE_NAV_ITEMS;
 
   const isActive = (href: string, exact?: boolean) =>

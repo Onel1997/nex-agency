@@ -2,30 +2,43 @@
 
 import { useEffect, useState } from "react";
 import { Modal } from "./Modal";
+import { getAssignableRoles } from "@/lib/auth/permissions";
 import { ROLE_LABELS, type UserRole } from "@/lib/auth/types";
 
 interface InviteMemberModalProps {
   open: boolean;
   onClose: () => void;
   onInvite: (formData: FormData) => Promise<void>;
+  currentUserRole: UserRole;
 }
 
 export function InviteMemberModal({
   open,
   onClose,
   onInvite,
+  currentUserRole,
 }: InviteMemberModalProps) {
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<UserRole>("employee");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const assignableRoles = getAssignableRoles(currentUserRole).filter(
+    (r) => r !== "super_admin" || currentUserRole === "super_admin",
+  );
+  const selectableRoles =
+    assignableRoles.length > 0 ? assignableRoles : (["employee"] as UserRole[]);
+
   useEffect(() => {
     if (!open) return;
     setEmail("");
-    setRole("employee");
+    const roles = getAssignableRoles(currentUserRole).filter(
+      (r) => r !== "super_admin" || currentUserRole === "super_admin",
+    );
+    const defaultRole = roles.includes("employee") ? "employee" : roles[0] ?? "employee";
+    setRole(defaultRole);
     setError(null);
-  }, [open]);
+  }, [open, currentUserRole]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -76,8 +89,11 @@ export function InviteMemberModal({
             onChange={(e) => setRole(e.target.value as UserRole)}
             className="dashboard-input"
           >
-            <option value="employee">{ROLE_LABELS.employee}</option>
-            <option value="admin">{ROLE_LABELS.admin}</option>
+            {selectableRoles.map((option) => (
+              <option key={option} value={option}>
+                {ROLE_LABELS[option]}
+              </option>
+            ))}
           </select>
         </label>
 

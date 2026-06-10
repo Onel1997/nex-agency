@@ -1,4 +1,10 @@
-export type UserRole = "admin" | "employee";
+export type UserRole =
+  | "super_admin"
+  | "admin"
+  | "sales"
+  | "employee"
+  | "freelancer";
+
 export type TeamMemberStatus = "pending" | "active" | "deactivated";
 
 export interface Profile {
@@ -14,8 +20,11 @@ export interface Profile {
 }
 
 export const ROLE_LABELS: Record<UserRole, string> = {
+  super_admin: "Super Admin",
   admin: "Administrator",
+  sales: "Vertrieb",
   employee: "Mitarbeiter",
+  freelancer: "Freelancer",
 };
 
 export const STATUS_LABELS: Record<TeamMemberStatus, string> = {

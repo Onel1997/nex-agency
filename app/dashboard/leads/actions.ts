@@ -2,12 +2,18 @@
 
 import { revalidatePath } from "next/cache";
 import type { LeadFormData } from "@/components/dashboard/LeadForm";
+import { canAssignLeadOwner } from "@/lib/auth/permissions";
+import { getAuthUser, getProfile } from "@/lib/auth/session";
 import { LEAD_STATUS_LABELS, type LeadStatus } from "@/lib/dashboard/constants";
-import { getAuthUser, getProfile, isAdmin } from "@/lib/auth/session";
 import { logActivity } from "@/lib/dashboard/activity";
+import { parseEuroToCents } from "@/lib/dashboard/format";
 import { createClient } from "@/lib/supabase/server";
 
-function toDbPayload(data: LeadFormData, assignedTo: string | null) {
+function toDbPayload(
+  data: LeadFormData,
+  ownerId: string | null,
+  estimatedValueCents: number | null,
+) {
   return {
     company_name: data.company_name.trim(),
     contact_name: data.contact_name.trim() || null,
@@ -17,7 +23,9 @@ function toDbPayload(data: LeadFormData, assignedTo: string | null) {
     status: data.status,
     acquired_by: data.acquired_by || null,
     notes: data.notes.trim() || null,
-    assigned_to: assignedTo,
+    owner_id: ownerId,
+    estimated_value_cents: estimatedValueCents,
+    currency: "EUR",
   };
 }
 
@@ -33,12 +41,12 @@ function actorName(profile: { full_name: string | null; email: string }) {
   return profile.full_name?.trim() || profile.email.split("@")[0];
 }
 
-async function resolveAssignedTo(
+async function resolveOwnerId(
   data: LeadFormData,
   profile: NonNullable<Awaited<ReturnType<typeof getProfile>>>,
 ) {
-  if (isAdmin(profile)) {
-    return data.assigned_to || profile.id;
+  if (canAssignLeadOwner(profile)) {
+    return data.owner_id || profile.id;
   }
   return profile.id;
 }
@@ -48,11 +56,15 @@ export async function createLead(data: LeadFormData) {
   const profile = await getProfile();
   if (!user || !profile) throw new Error("Nicht angemeldet");
 
-  const assignedTo = await resolveAssignedTo(data, profile);
+  const ownerId = await resolveOwnerId(data, profile);
+  const estimatedValueCents = parseEuroToCents(data.estimated_value);
   const supabase = await createClient();
   const { data: created, error } = await supabase
     .from("leads")
-    .insert(toDbPayload(data, assignedTo))
+    .insert({
+      ...toDbPayload(data, ownerId, estimatedValueCents),
+      created_by: profile.id,
+    })
     .select("id")
     .single();
 
@@ -78,21 +90,22 @@ export async function updateLead(id: string, data: LeadFormData) {
   const supabase = await createClient();
   const { data: existing, error: fetchError } = await supabase
     .from("leads")
-    .select("assigned_to, company_name, status")
+    .select("owner_id, company_name, status")
     .eq("id", id)
     .single();
 
   if (fetchError) throw new Error(fetchError.message);
 
-  const assignedTo = isAdmin(profile)
-    ? data.assigned_to || existing?.assigned_to || profile.id
-    : existing?.assigned_to ?? profile.id;
+  const ownerId = canAssignLeadOwner(profile)
+    ? data.owner_id || existing?.owner_id || profile.id
+    : existing?.owner_id ?? profile.id;
 
-  const previousAssignee = existing?.assigned_to ?? null;
+  const previousOwnerId = existing?.owner_id ?? null;
+  const estimatedValueCents = parseEuroToCents(data.estimated_value);
 
   const { error } = await supabase
     .from("leads")
-    .update(toDbPayload(data, assignedTo))
+    .update(toDbPayload(data, ownerId, estimatedValueCents))
     .eq("id", id);
 
   if (error) throw new Error(error.message);
@@ -106,7 +119,7 @@ export async function updateLead(id: string, data: LeadFormData) {
     message: `${actorName(profile)} hat Lead ${data.company_name.trim()} bearbeitet`,
   });
 
-  if (assignedTo !== previousAssignee) {
+  if (ownerId !== previousOwnerId) {
     await logActivity({
       actorId: profile.id,
       action: "lead_assigned",
@@ -114,8 +127,8 @@ export async function updateLead(id: string, data: LeadFormData) {
       entityId: id,
       metadata: {
         company_name: data.company_name.trim(),
-        assigned_to: assignedTo,
-        previous_assigned_to: previousAssignee,
+        owner_id: ownerId,
+        previous_owner_id: previousOwnerId,
       },
       message: `${actorName(profile)} hat Lead ${data.company_name.trim()} neu zugewiesen`,
     });

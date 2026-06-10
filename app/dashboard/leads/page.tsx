@@ -1,5 +1,6 @@
 import { LeadsPageClient } from "@/components/dashboard/LeadsPageClient";
-import { getProfile, isAdmin } from "@/lib/auth/session";
+import { canAssignLeadOwner, isManagement } from "@/lib/auth/permissions";
+import { getProfile } from "@/lib/auth/session";
 import { getLeads } from "@/lib/dashboard/leads";
 import { getAssignableTeamMembers } from "@/lib/dashboard/team";
 import type { Lead } from "@/lib/dashboard/types";
@@ -7,7 +8,7 @@ import type { Lead } from "@/lib/dashboard/types";
 export default async function LeadsPage() {
   const profile = await getProfile();
   let leads: Lead[] = [];
-  let teamMembers = profile ? await getAssignableTeamMembers() : [];
+  const teamMembers = profile ? await getAssignableTeamMembers() : [];
   let error: string | null = null;
 
   try {
@@ -26,10 +27,13 @@ export default async function LeadsPage() {
 
   if (!profile) return null;
 
+  const managementView = isManagement(profile);
+
   return (
     <LeadsPageClient
       leads={leads}
-      canAssign={isAdmin(profile)}
+      canAssign={canAssignLeadOwner(profile)}
+      showOwnership={managementView}
       teamMembers={teamMembers}
       currentUserId={profile.id}
     />

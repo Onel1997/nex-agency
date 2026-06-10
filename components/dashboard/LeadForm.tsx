@@ -8,6 +8,7 @@ import {
   type LeadStatus,
 } from "@/lib/dashboard/constants";
 import type { Lead, TeamMember } from "@/lib/dashboard/types";
+import { centsToEuroInput } from "@/lib/dashboard/format";
 
 export interface LeadFormData {
   company_name: string;
@@ -17,7 +18,8 @@ export interface LeadFormData {
   website: string;
   status: LeadStatus;
   acquired_by: AcquiredBy | "";
-  assigned_to: string;
+  owner_id: string;
+  estimated_value: string;
   notes: string;
 }
 
@@ -29,7 +31,8 @@ export const emptyLeadForm: LeadFormData = {
   website: "",
   status: "new",
   acquired_by: "",
-  assigned_to: "",
+  owner_id: "",
+  estimated_value: "",
   notes: "",
 };
 
@@ -42,7 +45,8 @@ export function leadToFormData(lead: Lead): LeadFormData {
     website: lead.website ?? "",
     status: lead.status,
     acquired_by: lead.acquired_by ?? "",
-    assigned_to: lead.assigned_to ?? "",
+    owner_id: lead.owner_id ?? "",
+    estimated_value: centsToEuroInput(lead.estimated_value_cents),
     notes: lead.notes ?? "",
   };
 }
@@ -60,7 +64,9 @@ interface LeadFormProps {
   isSubmitting?: boolean;
   canAssign?: boolean;
   teamMembers?: TeamMember[];
-  defaultAssigneeId?: string;
+  defaultOwnerId?: string;
+  creatorName?: string | null;
+  mode?: "create" | "edit";
 }
 
 export function LeadForm({
@@ -72,9 +78,11 @@ export function LeadForm({
   isSubmitting,
   canAssign = false,
   teamMembers = [],
-  defaultAssigneeId,
+  defaultOwnerId,
+  creatorName,
+  mode = "create",
 }: LeadFormProps) {
-  const assigneeValue = data.assigned_to || defaultAssigneeId || "";
+  const ownerValue = data.owner_id || defaultOwnerId || "";
 
   return (
     <form id={formId} onSubmit={onSubmit} className="space-y-4">
@@ -138,13 +146,20 @@ export function LeadForm({
             ))}
           </select>
         </Field>
+        <Field label="Geschätzter Wert (EUR)">
+          <input
+            inputMode="decimal"
+            value={data.estimated_value}
+            onChange={(e) => onChange({ ...data, estimated_value: e.target.value })}
+            className="dashboard-input"
+            placeholder="5.000"
+          />
+        </Field>
         {canAssign && (
-          <Field label="Zugewiesen an" className="sm:col-span-2">
+          <Field label="Eigentümer" className="sm:col-span-2">
             <select
-              value={assigneeValue}
-              onChange={(e) =>
-                onChange({ ...data, assigned_to: e.target.value })
-              }
+              value={ownerValue}
+              onChange={(e) => onChange({ ...data, owner_id: e.target.value })}
               className="dashboard-input"
               required
             >
@@ -155,6 +170,15 @@ export function LeadForm({
                 </option>
               ))}
             </select>
+          </Field>
+        )}
+        {mode === "edit" && creatorName && (
+          <Field label="Erstellt von" className="sm:col-span-2">
+            <input
+              value={creatorName}
+              readOnly
+              className="dashboard-input cursor-not-allowed opacity-70"
+            />
           </Field>
         )}
         <Field label="Akquiriert von" className="sm:col-span-2">

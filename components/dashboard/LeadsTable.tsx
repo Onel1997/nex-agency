@@ -7,13 +7,13 @@ import {
   LEAD_STATUS_LABELS,
   type LeadStatus,
 } from "@/lib/dashboard/constants";
-import { formatDate, formatWebsite } from "@/lib/dashboard/format";
+import { formatCents, formatDate, formatWebsite } from "@/lib/dashboard/format";
 import type { Lead } from "@/lib/dashboard/types";
 import { DataTable } from "./DataTable";
 
 interface LeadsTableProps {
   leads: Lead[];
-  showAssignee?: boolean;
+  showOwnership?: boolean;
   onEdit: (lead: Lead) => void;
   onDelete: (id: string) => void;
   onStatusChange: (id: string, status: LeadStatus) => void;
@@ -21,7 +21,7 @@ interface LeadsTableProps {
 
 export function LeadsTable({
   leads,
-  showAssignee = false,
+  showOwnership = false,
   onEdit,
   onDelete,
   onStatusChange,
@@ -50,6 +50,28 @@ export function LeadsTable({
           render: (lead) => lead.contact_name || "—",
         },
         {
+          key: "value",
+          header: "Geschätzter Wert",
+          hideOnMobile: true,
+          render: (lead) => formatCents(lead.estimated_value_cents),
+        },
+        ...(showOwnership
+          ? [
+              {
+                key: "owner",
+                header: "Eigentümer",
+                hideOnMobile: true,
+                render: (lead: Lead) => lead.owner_name || "—",
+              },
+              {
+                key: "creator",
+                header: "Erstellt von",
+                hideOnMobile: true,
+                render: (lead: Lead) => lead.creator_name || "—",
+              },
+            ]
+          : []),
+        {
           key: "phone",
           header: "Telefon",
           hideOnMobile: true,
@@ -69,7 +91,11 @@ export function LeadsTable({
           render: (lead) =>
             lead.website ? (
               <a
-                href={lead.website.startsWith("http") ? lead.website : `https://${lead.website}`}
+                href={
+                  lead.website.startsWith("http")
+                    ? lead.website
+                    : `https://${lead.website}`
+                }
                 target="_blank"
                 rel="noopener noreferrer"
                 className="dashboard-link inline-flex items-center gap-1"
@@ -107,16 +133,6 @@ export function LeadsTable({
           hideOnMobile: true,
           render: (lead) => lead.acquired_by || "—",
         },
-        ...(showAssignee
-          ? [
-              {
-                key: "assignee",
-                header: "Zugewiesen an",
-                hideOnMobile: true,
-                render: (lead: Lead) => lead.assignee_name || "—",
-              },
-            ]
-          : []),
         {
           key: "created",
           header: "Erstellt am",

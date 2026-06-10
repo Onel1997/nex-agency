@@ -1,30 +1,37 @@
-import { getProfile, isAdmin } from "@/lib/auth/session";
+import { isManagement } from "@/lib/auth/permissions";
+import { getProfile } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { getAppointmentCount, getTeamAppointmentCounts } from "./appointments";
 import { getActiveTeamCount } from "./team";
 import { PIPELINE_STATUSES } from "./constants";
 import type { DashboardStats, Lead, TeamMemberStats } from "./types";
 
-function formatAssignee(
-  assignee: { full_name: string | null; email: string } | null | undefined,
+function formatMemberName(
+  member: { full_name: string | null; email: string } | null | undefined,
 ): string | null {
-  if (!assignee) return null;
-  return assignee.full_name?.trim() || assignee.email.split("@")[0];
+  if (!member) return null;
+  return member.full_name?.trim() || member.email.split("@")[0];
 }
 
 function mapLeadRow(row: Record<string, unknown>): Lead {
-  const assignee = Array.isArray(row.assignee) ? row.assignee[0] : row.assignee;
+  const owner = Array.isArray(row.owner) ? row.owner[0] : row.owner;
+  const creator = Array.isArray(row.creator) ? row.creator[0] : row.creator;
+
   return {
     ...(row as unknown as Lead),
-    assignee_name: formatAssignee(
-      assignee as { full_name: string | null; email: string } | null,
+    owner_name: formatMemberName(
+      owner as { full_name: string | null; email: string } | null,
+    ),
+    creator_name: formatMemberName(
+      creator as { full_name: string | null; email: string } | null,
     ),
   };
 }
 
 const LEAD_SELECT = `
   *,
-  assignee:profiles!leads_assigned_to_fkey(full_name, email)
+  owner:profiles!leads_owner_id_fkey(full_name, email),
+  creator:profiles!leads_created_by_fkey(full_name, email)
 `;
 
 export async function getLeads(): Promise<Lead[]> {
@@ -33,6 +40,18 @@ export async function getLeads(): Promise<Lead[]> {
     .from("leads")
     .select(LEAD_SELECT)
     .order("created_at", { ascending: false });
+
+  if (error) throw new Error(error.message);
+  return (data ?? []).map((row) => mapLeadRow(row as Record<string, unknown>));
+}
+
+export async function getRecentLeads(limit = 5): Promise<Lead[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("leads")
+    .select(LEAD_SELECT)
+    .order("created_at", { ascending: false })
+    .limit(limit);
 
   if (error) throw new Error(error.message);
   return (data ?? []).map((row) => mapLeadRow(row as Record<string, unknown>));
@@ -53,24 +72,33 @@ export async function getLeadById(id: string): Promise<Lead | null> {
 
 export async function getDashboardStats(): Promise<DashboardStats> {
   const profile = await getProfile();
-  const adminView = profile ? isAdmin(profile) : false;
+  const managementView = profile ? isManagement(profile) : false;
 
   const supabase = await createClient();
-  const { data, error } = await supabase.from("leads").select("status");
+  const [{ data: leadRows, error: leadsError }, { count: clientCount, error: clientsError }] =
+    await Promise.all([
+      supabase.from("leads").select("status, estimated_value_cents"),
+      supabase.from("clients").select("*", { count: "exact", head: true }),
+    ]);
 
-  if (error) throw new Error(error.message);
+  if (leadsError) throw new Error(leadsError.message);
+  if (clientsError) throw new Error(clientsError.message);
 
-  const rows = data ?? [];
+  const rows = leadRows ?? [];
+  const pipelineRows = rows.filter((r) => PIPELINE_STATUSES.includes(r.status));
+
   const stats: DashboardStats = {
     leadsCount: rows.length,
     appointmentsCount: await getAppointmentCount(),
-    clientsCount: rows.filter((r) => r.status === "client").length,
-    pipelineCount: rows.filter((r) =>
-      PIPELINE_STATUSES.includes(r.status),
-    ).length,
+    clientsCount: clientCount ?? 0,
+    pipelineCount: pipelineRows.length,
+    pipelineValueCents: pipelineRows.reduce(
+      (sum, row) => sum + (row.estimated_value_cents ?? 0),
+      0,
+    ),
   };
 
-  if (adminView) {
+  if (managementView) {
     stats.teamCount = await getActiveTeamCount();
   }
 
@@ -91,7 +119,7 @@ export async function getLeadsByStatus(status: string): Promise<Lead[]> {
 
 export async function getTeamStats(): Promise<TeamMemberStats[] | null> {
   const profile = await getProfile();
-  if (!profile || !isAdmin(profile)) return null;
+  if (!profile || !isManagement(profile)) return null;
 
   const supabase = await createClient();
 
@@ -102,7 +130,7 @@ export async function getTeamStats(): Promise<TeamMemberStats[] | null> {
         .select("id, full_name, email, role")
         .eq("status", "active")
         .order("full_name"),
-      supabase.from("leads").select("assigned_to, status"),
+      supabase.from("leads").select("owner_id, status, estimated_value_cents"),
       getTeamAppointmentCounts(),
     ]);
 
@@ -112,19 +140,23 @@ export async function getTeamStats(): Promise<TeamMemberStats[] | null> {
   const leadRows = leads ?? [];
   const countsByUser = new Map<
     string,
-    { leads: number; appointments: number; clients: number }
+    { leads: number; appointments: number; clients: number; pipelineValueCents: number }
   >();
 
   for (const lead of leadRows) {
-    if (!lead.assigned_to) continue;
-    const current = countsByUser.get(lead.assigned_to) ?? {
+    if (!lead.owner_id) continue;
+    const current = countsByUser.get(lead.owner_id) ?? {
       leads: 0,
       appointments: 0,
       clients: 0,
+      pipelineValueCents: 0,
     };
     current.leads += 1;
     if (lead.status === "client") current.clients += 1;
-    countsByUser.set(lead.assigned_to, current);
+    if (PIPELINE_STATUSES.includes(lead.status)) {
+      current.pipelineValueCents += lead.estimated_value_cents ?? 0;
+    }
+    countsByUser.set(lead.owner_id, current);
   }
 
   return (profiles ?? []).map((member) => {
@@ -132,6 +164,7 @@ export async function getTeamStats(): Promise<TeamMemberStats[] | null> {
       leads: 0,
       appointments: 0,
       clients: 0,
+      pipelineValueCents: 0,
     };
 
     return {
@@ -142,6 +175,7 @@ export async function getTeamStats(): Promise<TeamMemberStats[] | null> {
       leadsCount: counts.leads,
       appointmentsCount: appointmentCounts.get(member.id) ?? 0,
       clientsCount: counts.clients,
+      pipelineValueCents: counts.pipelineValueCents,
     };
   });
 }

@@ -9,19 +9,24 @@ import {
   setMemberActive,
   updateMemberRole,
 } from "@/app/dashboard/team/actions";
+import type { UserRole } from "@/lib/auth/types";
 import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
 import { EmptyState } from "@/components/dashboard/EmptyState";
 import { InviteMemberModal } from "@/components/dashboard/InviteMemberModal";
 import { TeamTable } from "@/components/dashboard/TeamTable";
 import type { TeamMember } from "@/lib/dashboard/types";
-import type { UserRole } from "@/lib/auth/types";
 
 interface TeamPageClientProps {
   members: TeamMember[];
   currentUserId: string;
+  currentUserRole: UserRole;
 }
 
-export function TeamPageClient({ members, currentUserId }: TeamPageClientProps) {
+export function TeamPageClient({
+  members,
+  currentUserId,
+  currentUserRole,
+}: TeamPageClientProps) {
   const router = useRouter();
   const [inviteOpen, setInviteOpen] = useState(false);
 
@@ -77,6 +82,7 @@ export function TeamPageClient({ members, currentUserId }: TeamPageClientProps) 
         <TeamTable
           members={members}
           currentUserId={currentUserId}
+          currentUserRole={currentUserRole}
           onRoleChange={handleRoleChange}
           onToggleActive={handleToggleActive}
           onDelete={handleDelete}
@@ -87,6 +93,7 @@ export function TeamPageClient({ members, currentUserId }: TeamPageClientProps) 
         open={inviteOpen}
         onClose={() => setInviteOpen(false)}
         onInvite={handleInvite}
+        currentUserRole={currentUserRole}
       />
     </div>
   );

@@ -11,12 +11,19 @@ export interface Lead {
   website: string | null;
   status: LeadStatus;
   acquired_by: AcquiredBy | null;
-  assigned_to: string | null;
+  owner_id: string | null;
+  created_by: string;
+  estimated_value_cents: number | null;
+  currency: string;
   notes: string | null;
-  assignee_name?: string | null;
+  owner_name?: string | null;
+  creator_name?: string | null;
 }
 
-export type LeadInsert = Omit<Lead, "id" | "created_at" | "assignee_name">;
+export type LeadInsert = Omit<
+  Lead,
+  "id" | "created_at" | "owner_name" | "creator_name"
+>;
 export type LeadUpdate = Partial<LeadInsert>;
 
 export interface DashboardStats {
@@ -24,6 +31,7 @@ export interface DashboardStats {
   appointmentsCount: number;
   clientsCount: number;
   pipelineCount: number;
+  pipelineValueCents: number;
   teamCount?: number;
 }
 
@@ -42,6 +50,7 @@ export interface TeamMemberStats {
   leadsCount: number;
   appointmentsCount: number;
   clientsCount: number;
+  pipelineValueCents: number;
 }
 
 export interface TeamMember {
@@ -63,9 +72,13 @@ export interface ClientRecord {
   email: string | null;
   phone: string | null;
   website: string | null;
-  assigned_to: string | null;
+  responsible_member_id: string | null;
+  contract_value_cents: number | null;
+  monthly_retainer_cents: number | null;
+  one_time_project_value_cents: number | null;
+  currency: string;
   created_at: string;
-  assignee_name: string | null;
+  responsible_member_name: string | null;
 }
 
 export interface AppointmentRow extends Lead {

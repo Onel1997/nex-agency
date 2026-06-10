@@ -1,4 +1,5 @@
-import { getProfile, isAdmin } from "@/lib/auth/session";
+import { isManagement } from "@/lib/auth/permissions";
+import { getProfile } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import type { Appointment, AppointmentStats } from "./types";
 
@@ -159,7 +160,7 @@ export async function getAppointmentCount(): Promise<number> {
 
 export async function getTeamAppointmentCounts(): Promise<Map<string, number>> {
   const profile = await getProfile();
-  if (!profile || !isAdmin(profile)) return new Map();
+  if (!profile || !isManagement(profile)) return new Map();
 
   const supabase = await createClient();
   const { data, error } = await supabase

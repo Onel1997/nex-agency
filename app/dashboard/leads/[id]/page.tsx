@@ -1,12 +1,13 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, CalendarDays, ExternalLink } from "lucide-react";
+import { ArrowLeft, ExternalLink } from "lucide-react";
 import { LeadDetailClient } from "@/components/dashboard/LeadDetailClient";
 import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
 import { StatusBadge } from "@/components/dashboard/StatusBadge";
-import { getProfile, isAdmin } from "@/lib/auth/session";
+import { canAssignAppointments } from "@/lib/auth/permissions";
+import { getProfile } from "@/lib/auth/session";
 import { getAppointmentsForLead } from "@/lib/dashboard/appointments";
-import { formatDate, formatWebsite } from "@/lib/dashboard/format";
+import { formatCents, formatDate, formatWebsite } from "@/lib/dashboard/format";
 import { getAssignableTeamMembers } from "@/lib/dashboard/team";
 import { getLeadById, getLeads } from "@/lib/dashboard/leads";
 
@@ -56,8 +57,13 @@ export default async function LeadDetailPage({ params }: LeadDetailPageProps) {
             <InfoItem label="Status">
               <StatusBadge status={lead.status} />
             </InfoItem>
+            <InfoItem label="Eigentümer" value={lead.owner_name || "—"} />
+            <InfoItem label="Erstellt von" value={lead.creator_name || "—"} />
+            <InfoItem
+              label="Geschätzter Wert"
+              value={formatCents(lead.estimated_value_cents)}
+            />
             <InfoItem label="Akquiriert von" value={lead.acquired_by || "—"} />
-            <InfoItem label="Verantwortlich" value={lead.assignee_name || "—"} />
             <InfoItem label="Erstellt am" value={formatDate(lead.created_at)} />
             <InfoItem label="Website">
               {lead.website ? (
@@ -97,7 +103,7 @@ export default async function LeadDetailPage({ params }: LeadDetailPageProps) {
           upcomingAppointments={upcomingAppointments}
           leads={leads}
           teamMembers={teamMembers}
-          canAssign={isAdmin(profile)}
+          canAssign={canAssignAppointments(profile)}
           currentUserId={profile.id}
         />
       </div>

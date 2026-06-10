@@ -2,9 +2,13 @@
 
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
-import type { UserRole } from "@/lib/auth/types";
+import {
+  canAssignSuperAdminRole,
+  isValidUserRole,
+} from "@/lib/auth/permissions";
+import type { Profile, UserRole } from "@/lib/auth/types";
 import { ROLE_LABELS } from "@/lib/auth/types";
-import { requireAdmin } from "@/lib/auth/session";
+import { requireManagement } from "@/lib/auth/session";
 import { logActivity } from "@/lib/dashboard/activity";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
@@ -24,15 +28,22 @@ async function getSiteOrigin() {
   return process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
 }
 
+function assertRoleAllowed(role: UserRole, actor: Profile) {
+  if (!isValidUserRole(role)) {
+    throw new Error("Ungültige Rolle");
+  }
+  if (role === "super_admin" && !canAssignSuperAdminRole(actor)) {
+    throw new Error("Nur Super Admins können die Super-Admin-Rolle vergeben");
+  }
+}
+
 export async function inviteTeamMember(formData: FormData) {
-  const admin = await requireAdmin();
+  const admin = await requireManagement();
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const role = String(formData.get("role") ?? "employee") as UserRole;
 
   if (!email) throw new Error("E-Mail ist erforderlich");
-  if (role !== "admin" && role !== "employee") {
-    throw new Error("Ungültige Rolle");
-  }
+  assertRoleAllowed(role, admin);
 
   const origin = await getSiteOrigin();
   const adminClient = createAdminClient();
@@ -74,10 +85,8 @@ export async function inviteTeamMember(formData: FormData) {
 }
 
 export async function updateMemberRole(memberId: string, role: UserRole) {
-  const admin = await requireAdmin();
-  if (role !== "admin" && role !== "employee") {
-    throw new Error("Ungültige Rolle");
-  }
+  const admin = await requireManagement();
+  assertRoleAllowed(role, admin);
 
   const supabase = await createClient();
   const { data: member, error: fetchError } = await supabase
@@ -87,6 +96,14 @@ export async function updateMemberRole(memberId: string, role: UserRole) {
     .single();
 
   if (fetchError) throw new Error(fetchError.message);
+
+  if (
+    member.role === "super_admin" &&
+    role !== "super_admin" &&
+    !canAssignSuperAdminRole(admin)
+  ) {
+    throw new Error("Keine Berechtigung zum Ändern der Super-Admin-Rolle");
+  }
 
   const { error } = await supabase
     .from("profiles")
@@ -109,7 +126,7 @@ export async function updateMemberRole(memberId: string, role: UserRole) {
 }
 
 export async function setMemberActive(memberId: string, isActive: boolean) {
-  const admin = await requireAdmin();
+  const admin = await requireManagement();
   if (memberId === admin.id) {
     throw new Error("Sie können Ihr eigenes Konto nicht deaktivieren");
   }
@@ -154,7 +171,7 @@ export async function setMemberActive(memberId: string, isActive: boolean) {
 }
 
 export async function deleteMember(memberId: string) {
-  const admin = await requireAdmin();
+  const admin = await requireManagement();
   if (memberId === admin.id) {
     throw new Error("Sie können Ihr eigenes Konto nicht löschen");
   }

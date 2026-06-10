@@ -1,4 +1,5 @@
-import { getProfile, isAdmin } from "@/lib/auth/session";
+import { isManagement } from "@/lib/auth/permissions";
+import { getProfile } from "@/lib/auth/session";
 import { resolveTeamMemberStatus } from "@/lib/auth/member-status";
 import { createClient } from "@/lib/supabase/server";
 import type { TeamMember } from "./types";
@@ -14,7 +15,7 @@ function mapTeamMember(
 
 export async function getTeamMembers(): Promise<TeamMember[]> {
   const profile = await getProfile();
-  if (!profile || !isAdmin(profile)) {
+  if (!profile || !isManagement(profile)) {
     throw new Error("Keine Berechtigung");
   }
 
@@ -34,7 +35,7 @@ export async function getAssignableTeamMembers(): Promise<TeamMember[]> {
 
   const supabase = await createClient();
 
-  if (isAdmin(profile)) {
+  if (isManagement(profile)) {
     const { data, error } = await supabase
       .from("profiles")
       .select("id, email, full_name, role, created_at, is_active, status, activated_at")
@@ -62,7 +63,7 @@ export async function getAssignableTeamMembers(): Promise<TeamMember[]> {
 
 export async function getActiveTeamCount(): Promise<number> {
   const profile = await getProfile();
-  if (!profile || !isAdmin(profile)) return 0;
+  if (!profile || !isManagement(profile)) return 0;
 
   const supabase = await createClient();
   const { count, error } = await supabase

@@ -1,10 +1,10 @@
-import { requireAdmin } from "@/lib/auth/session";
+import { requireManagement } from "@/lib/auth/session";
 import { getTeamMembers } from "@/lib/dashboard/team";
 import type { TeamMember } from "@/lib/dashboard/types";
 import { TeamPageClient } from "@/components/dashboard/TeamPageClient";
 
 export default async function TeamPage() {
-  const profile = await requireAdmin();
+  const profile = await requireManagement();
   let members: TeamMember[] = [];
   let error: string | null = null;
 
@@ -25,5 +25,11 @@ export default async function TeamPage() {
     );
   }
 
-  return <TeamPageClient members={members} currentUserId={profile.id} />;
+  return (
+    <TeamPageClient
+      members={members}
+      currentUserId={profile.id}
+      currentUserRole={profile.role}
+    />
+  );
 }

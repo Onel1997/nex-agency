@@ -40,6 +40,27 @@ export function formatCurrency(value: number): string {
   }).format(value);
 }
 
+export function formatCents(cents: number | null | undefined): string {
+  if (cents == null) return "—";
+  return formatCurrency(cents / 100);
+}
+
+export function parseEuroToCents(value: string): number | null {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+
+  const normalized = trimmed.replace(/\./g, "").replace(",", ".");
+  const num = Number.parseFloat(normalized);
+
+  if (Number.isNaN(num) || num < 0) return null;
+  return Math.round(num * 100);
+}
+
+export function centsToEuroInput(cents: number | null | undefined): string {
+  if (cents == null) return "";
+  return (cents / 100).toFixed(2).replace(".", ",");
+}
+
 export function formatWebsite(url: string | null): string {
   if (!url) return "—";
   return url.replace(/^https?:\/\//, "").replace(/\/$/, "");

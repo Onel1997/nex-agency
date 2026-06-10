@@ -1,6 +1,7 @@
 "use client";
 
 import { formatDate } from "@/lib/dashboard/format";
+import { getAssignableRoles } from "@/lib/auth/permissions";
 import { ROLE_LABELS, type UserRole } from "@/lib/auth/types";
 import type { TeamMember } from "@/lib/dashboard/types";
 import { DataTable } from "./DataTable";
@@ -9,6 +10,7 @@ import { TeamMemberStatusBadge } from "./TeamMemberStatusBadge";
 interface TeamTableProps {
   members: TeamMember[];
   currentUserId: string;
+  currentUserRole: UserRole;
   onRoleChange: (memberId: string, role: UserRole) => Promise<void>;
   onToggleActive: (memberId: string, isActive: boolean) => Promise<void>;
   onDelete: (memberId: string) => Promise<void>;
@@ -17,10 +19,13 @@ interface TeamTableProps {
 export function TeamTable({
   members,
   currentUserId,
+  currentUserRole,
   onRoleChange,
   onToggleActive,
   onDelete,
 }: TeamTableProps) {
+  const assignableRoles = getAssignableRoles(currentUserRole);
+
   return (
     <DataTable
       data={members}
@@ -53,8 +58,11 @@ export function TeamTable({
                 className="dashboard-select-sm"
                 aria-label={`Rolle für ${member.email}`}
               >
-                <option value="employee">{ROLE_LABELS.employee}</option>
-                <option value="admin">{ROLE_LABELS.admin}</option>
+                {assignableRoles.map((role) => (
+                  <option key={role} value={role}>
+                    {ROLE_LABELS[role]}
+                  </option>
+                ))}
               </select>
             ),
         },

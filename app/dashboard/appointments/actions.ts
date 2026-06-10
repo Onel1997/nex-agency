@@ -6,7 +6,8 @@ import {
   APPOINTMENT_STATUS_LABELS,
   type AppointmentStatus,
 } from "@/lib/dashboard/constants";
-import { getProfile, isAdmin } from "@/lib/auth/session";
+import { canAssignAppointments } from "@/lib/auth/permissions";
+import { getProfile } from "@/lib/auth/session";
 import { logActivity } from "@/lib/dashboard/activity";
 import { combineDateAndTime } from "@/lib/dashboard/calendar";
 import { createClient } from "@/lib/supabase/server";
@@ -45,7 +46,7 @@ async function resolveAssignedUserId(
   data: AppointmentFormData,
   profile: NonNullable<Awaited<ReturnType<typeof getProfile>>>,
 ) {
-  if (isAdmin(profile)) {
+  if (canAssignAppointments(profile)) {
     return data.assigned_user_id || profile.id;
   }
   return profile.id;
@@ -92,7 +93,7 @@ export async function updateAppointment(id: string, data: AppointmentFormData) {
 
   if (fetchError) throw new Error(fetchError.message);
 
-  const assignedUserId = isAdmin(profile)
+  const assignedUserId = canAssignAppointments(profile)
     ? data.assigned_user_id || existing.assigned_user_id
     : existing.assigned_user_id;
 

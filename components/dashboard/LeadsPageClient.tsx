@@ -20,6 +20,7 @@ import type { LeadStatus } from "@/lib/dashboard/constants";
 interface LeadsPageClientProps {
   leads: Lead[];
   canAssign: boolean;
+  showOwnership: boolean;
   teamMembers: TeamMember[];
   currentUserId: string;
 }
@@ -27,6 +28,7 @@ interface LeadsPageClientProps {
 export function LeadsPageClient({
   leads,
   canAssign,
+  showOwnership,
   teamMembers,
   currentUserId,
 }: LeadsPageClientProps) {
@@ -65,8 +67,8 @@ export function LeadsPageClient({
         title="Leads"
         description={
           canAssign
-            ? "Verwalte alle Team-Leads und weise sie Mitarbeitern zu."
-            : "Verwalte deine Leads und den Status in der Pipeline."
+            ? "Verwalte alle Team-Leads, Eigentümer und geschätzte Werte."
+            : "Verwalte deine Leads, Pipeline und geschätzte Werte."
         }
         actions={
           <button
@@ -101,7 +103,7 @@ export function LeadsPageClient({
       ) : (
         <LeadsTable
           leads={leads}
-          showAssignee={canAssign}
+          showOwnership={showOwnership}
           onEdit={setEditLead}
           onDelete={handleDelete}
           onStatusChange={handleStatusChange}
@@ -115,7 +117,7 @@ export function LeadsPageClient({
         onSave={handleCreate}
         canAssign={canAssign}
         teamMembers={teamMembers}
-        defaultAssigneeId={currentUserId}
+        defaultOwnerId={currentUserId}
       />
 
       {editLead && (
@@ -128,7 +130,7 @@ export function LeadsPageClient({
           onSave={handleEdit}
           canAssign={canAssign}
           teamMembers={teamMembers}
-          defaultAssigneeId={currentUserId}
+          defaultOwnerId={currentUserId}
         />
       )}
     </div>

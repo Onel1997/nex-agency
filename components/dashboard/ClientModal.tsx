@@ -1,42 +1,40 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { LeadForm, emptyLeadForm, leadToFormData, type LeadFormData } from "./LeadForm";
+import {
+  ClientForm,
+  clientToFormData,
+  type ClientFormData,
+} from "./ClientForm";
 import { Modal } from "./Modal";
-import type { Lead, TeamMember } from "@/lib/dashboard/types";
+import type { ClientRecord, TeamMember } from "@/lib/dashboard/types";
 
-interface LeadModalProps {
+interface ClientModalProps {
   open: boolean;
   onClose: () => void;
-  mode: "create" | "edit";
-  lead?: Lead;
-  onSave: (data: LeadFormData) => Promise<void>;
+  client: ClientRecord;
+  onSave: (data: ClientFormData) => Promise<void>;
   canAssign?: boolean;
   teamMembers?: TeamMember[];
-  defaultOwnerId?: string;
 }
 
-export function LeadModal({
+export function ClientModal({
   open,
   onClose,
-  mode,
-  lead,
+  client,
   onSave,
   canAssign = false,
   teamMembers = [],
-  defaultOwnerId,
-}: LeadModalProps) {
-  const [data, setData] = useState<LeadFormData>(
-    lead ? leadToFormData(lead) : emptyLeadForm,
-  );
+}: ClientModalProps) {
+  const [data, setData] = useState<ClientFormData>(clientToFormData(client));
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) return;
-    setData(lead ? leadToFormData(lead) : emptyLeadForm);
+    setData(clientToFormData(client));
     setError(null);
-  }, [open, lead]);
+  }, [open, client]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -45,7 +43,6 @@ export function LeadModal({
     try {
       await onSave(data);
       onClose();
-      setData(emptyLeadForm);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Speichern fehlgeschlagen");
     } finally {
@@ -53,32 +50,23 @@ export function LeadModal({
     }
   };
 
-  const formId = mode === "create" ? "create-lead-form" : "edit-lead-form";
-
   return (
-    <Modal
-      open={open}
-      onClose={onClose}
-      title={mode === "create" ? "Lead hinzufügen" : "Lead bearbeiten"}
-      size="lg"
-    >
+    <Modal open={open} onClose={onClose} title="Kunde bearbeiten" size="lg">
       {error && (
         <p className="mb-4 rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-300 ring-1 ring-red-500/20">
           {error}
         </p>
       )}
-      <LeadForm
-        formId={formId}
+      <ClientForm
+        formId="edit-client-form"
         data={data}
         onChange={setData}
         onSubmit={handleSubmit}
-        submitLabel={mode === "create" ? "Lead erstellen" : "Änderungen speichern"}
+        submitLabel="Änderungen speichern"
         isSubmitting={isSubmitting}
         canAssign={canAssign}
         teamMembers={teamMembers}
-        defaultOwnerId={defaultOwnerId}
-        creatorName={lead?.creator_name}
-        mode={mode}
+        companyName={client.company_name}
       />
     </Modal>
   );

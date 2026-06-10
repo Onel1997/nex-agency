@@ -11,24 +11,35 @@ import {
 import Link from "next/link";
 import { ActivityFeed } from "@/components/dashboard/ActivityFeed";
 import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
+import { DashboardOverview } from "@/components/dashboard/DashboardOverview";
 import { KpiCard } from "@/components/dashboard/KpiCard";
 import { TeamStatsTable } from "@/components/dashboard/TeamStatsTable";
-import { getProfile, isAdmin } from "@/lib/auth/session";
+import { isManagement } from "@/lib/auth/permissions";
+import { getProfile } from "@/lib/auth/session";
 import { getRecentActivities } from "@/lib/dashboard/activity";
 import type { ActivityLog } from "@/lib/dashboard/activity-types";
 import { getAppointmentStats } from "@/lib/dashboard/appointments";
-import { getDashboardStats, getTeamStats } from "@/lib/dashboard/leads";
-import type { AppointmentStats, DashboardStats, TeamMemberStats } from "@/lib/dashboard/types";
+import { getRecentClients } from "@/lib/dashboard/clients";
+import { formatCents } from "@/lib/dashboard/format";
+import { getDashboardStats, getRecentLeads, getTeamStats } from "@/lib/dashboard/leads";
+import type {
+  AppointmentStats,
+  ClientRecord,
+  DashboardStats,
+  Lead,
+  TeamMemberStats,
+} from "@/lib/dashboard/types";
 
 export default async function DashboardPage() {
   const profile = await getProfile();
-  const adminView = profile ? isAdmin(profile) : false;
+  const managementView = profile ? isManagement(profile) : false;
 
   let stats: DashboardStats = {
     leadsCount: 0,
     appointmentsCount: 0,
     clientsCount: 0,
     pipelineCount: 0,
+    pipelineValueCents: 0,
   };
   let appointmentStats: AppointmentStats = {
     todayCount: 0,
@@ -38,15 +49,20 @@ export default async function DashboardPage() {
   };
   let teamStats: TeamMemberStats[] | null = null;
   let activities: ActivityLog[] = [];
+  let recentLeads: Lead[] = [];
+  let recentClients: ClientRecord[] = [];
   let dbError: string | null = null;
 
   try {
-    [stats, appointmentStats, teamStats, activities] = await Promise.all([
-      getDashboardStats(),
-      getAppointmentStats(),
-      adminView ? getTeamStats() : Promise.resolve(null),
-      adminView ? getRecentActivities(6) : Promise.resolve([]),
-    ]);
+    [stats, appointmentStats, teamStats, activities, recentLeads, recentClients] =
+      await Promise.all([
+        getDashboardStats(),
+        getAppointmentStats(),
+        managementView ? getTeamStats() : Promise.resolve(null),
+        managementView ? getRecentActivities(6) : Promise.resolve([]),
+        getRecentLeads(5),
+        getRecentClients(5),
+      ]);
   } catch (err) {
     dbError =
       err instanceof Error
@@ -59,8 +75,8 @@ export default async function DashboardPage() {
       <DashboardHeader
         title="Dashboard"
         description={
-          adminView
-            ? "Team-Überblick über Leads, Termine und Pipeline — NexAgency CRM."
+          managementView
+            ? "Team-Überblick über Leads, Termine, Eigentümer und Vertragswerte — NexAgency CRM."
             : "Ihre Leads, Termine und Pipeline — NexAgency CRM."
         }
       />
@@ -84,23 +100,23 @@ export default async function DashboardPage() {
           value={stats.leadsCount}
           icon={Target}
           href="/dashboard/leads"
-          trend={adminView ? "Gesamt im Team" : "Meine Leads"}
+          trend={managementView ? "Gesamt im Team" : "Meine Leads"}
         />
         <KpiCard
           label="Termine"
           value={stats.appointmentsCount}
           icon={CalendarDays}
           href="/dashboard/appointments"
-          trend={adminView ? "Team-Termine" : "Meine Termine"}
+          trend={managementView ? "Team-Termine" : "Meine Termine"}
         />
         <KpiCard
           label="Kunden"
           value={stats.clientsCount}
           icon={Users}
           href="/dashboard/clients"
-          trend={adminView ? "Team-Kunden" : "Meine Kunden"}
+          trend={managementView ? "Team-Kunden" : "Meine Kunden"}
         />
-        {adminView ? (
+        {managementView ? (
           <KpiCard
             label="Team"
             value={stats.teamCount ?? 0}
@@ -110,10 +126,10 @@ export default async function DashboardPage() {
           />
         ) : (
           <KpiCard
-            label="Pipeline"
-            value={stats.pipelineCount}
+            label="Pipeline-Wert"
+            value={formatCents(stats.pipelineValueCents)}
             icon={Euro}
-            trend="Meine aktiven Pipeline-Leads"
+            trend={`${stats.pipelineCount} aktive Pipeline-Leads`}
           />
         )}
       </div>
@@ -154,12 +170,18 @@ export default async function DashboardPage() {
         </div>
       </div>
 
-      {adminView && teamStats && teamStats.length > 0 && (
+      <DashboardOverview
+        recentLeads={recentLeads}
+        recentClients={recentClients}
+        showOwnership={managementView}
+      />
+
+      {managementView && teamStats && teamStats.length > 0 && (
         <TeamStatsTable stats={teamStats} />
       )}
 
       <div className="grid gap-4 lg:grid-cols-2">
-        {adminView && (
+        {managementView && (
           <div className="glass-card rounded-2xl p-6">
             <div className="flex items-center justify-between gap-3">
               <h2 className="text-sm font-medium uppercase tracking-wider text-muted-soft">
@@ -189,7 +211,7 @@ export default async function DashboardPage() {
             <Link href="/dashboard/clients" className="dashboard-btn-secondary">
               Kunden ansehen
             </Link>
-            {adminView && (
+            {managementView && (
               <Link href="/dashboard/team" className="dashboard-btn-secondary">
                 Team verwalten
               </Link>
@@ -197,14 +219,14 @@ export default async function DashboardPage() {
           </div>
         </div>
 
-        {!adminView && (
+        {!managementView && (
           <div className="glass-card rounded-2xl p-6">
             <h2 className="text-sm font-medium uppercase tracking-wider text-muted-soft">
-              Mitarbeiter
+              Mein Bereich
             </h2>
             <p className="mt-3 text-sm leading-relaxed text-muted">
-              Sie sehen nur Ihre eigenen Leads, Termine und Kunden. Termine
-              können mit Leads verknüpft und im Kalender verwaltet werden.
+              Sie sehen Ihre Leads, Termine und Kunden. Eigentümer, Ersteller und
+              Vertragswerte werden pro Datensatz angezeigt.
             </p>
           </div>
         )}

@@ -1,5 +1,6 @@
 import { AppointmentsPageClient } from "@/components/dashboard/AppointmentsPageClient";
-import { getProfile, isAdmin } from "@/lib/auth/session";
+import { canAssignAppointments } from "@/lib/auth/permissions";
+import { getProfile } from "@/lib/auth/session";
 import { getAllAppointments } from "@/lib/dashboard/appointments";
 import { getLeads } from "@/lib/dashboard/leads";
 import { getAssignableTeamMembers } from "@/lib/dashboard/team";
@@ -38,7 +39,7 @@ export default async function AppointmentsPage() {
       appointments={appointments}
       leads={leads}
       teamMembers={teamMembers}
-      canAssign={isAdmin(profile)}
+      canAssign={canAssignAppointments(profile)}
       currentUserId={profile.id}
     />
   );

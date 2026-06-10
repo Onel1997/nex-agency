@@ -1,5 +1,9 @@
 import { redirect } from "next/navigation";
 import type { Profile } from "@/lib/auth/types";
+import {
+  isManagement as checkManagement,
+  isSuperAdmin as checkSuperAdmin,
+} from "@/lib/auth/permissions";
 import { hasCompletedInvitation } from "@/lib/auth/member-status";
 import { createClient } from "@/lib/supabase/server";
 
@@ -40,12 +44,32 @@ export async function requireProfile(): Promise<Profile> {
   return profile;
 }
 
-export async function requireAdmin(): Promise<Profile> {
+export async function requireManagement(): Promise<Profile> {
   const profile = await requireProfile();
-  if (!isAdmin(profile)) redirect("/dashboard");
+  if (!checkManagement(profile)) redirect("/dashboard");
   return profile;
 }
 
+/** @deprecated Use requireManagement() */
+export async function requireAdmin(): Promise<Profile> {
+  return requireManagement();
+}
+
+export async function requireSuperAdmin(): Promise<Profile> {
+  const profile = await requireProfile();
+  if (!checkSuperAdmin(profile)) redirect("/dashboard");
+  return profile;
+}
+
+export function isManagement(profile: Profile): boolean {
+  return checkManagement(profile);
+}
+
+/** @deprecated Use isManagement() */
 export function isAdmin(profile: Profile): boolean {
-  return profile.role === "admin";
+  return checkManagement(profile);
+}
+
+export function isSuperAdmin(profile: Profile): boolean {
+  return checkSuperAdmin(profile);
 }

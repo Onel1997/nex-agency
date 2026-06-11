@@ -16,6 +16,7 @@ import {
   buildRetainerStats,
   type RetainerPaymentRecord,
 } from "./retainer";
+import { getInvoiceStats } from "./invoices";
 import { calculateCommissionCents } from "./revenue";
 import type {
   ClientRevenueRecord,
@@ -128,7 +129,10 @@ export async function getFinanceStats(): Promise<FinanceStats | null> {
   const profile = await getProfile();
   if (!profile || !canAccessFinanceRoutes(profile)) return null;
 
-  const clients = await getClientRevenueRecords();
+  const [clients, invoiceStats] = await Promise.all([
+    getClientRevenueRecords(),
+    getInvoiceStats(),
+  ]);
 
   let totalRevenueCents = 0;
   let monthlyRecurringRevenueCents = 0;
@@ -151,6 +155,10 @@ export async function getFinanceStats(): Promise<FinanceStats | null> {
     outstandingCommissionsCents,
     paidCommissionsCents,
     outstandingRetainerPaymentsCents,
+    totalInvoicedCents: invoiceStats.totalInvoicedCents,
+    openInvoicesCents: invoiceStats.openInvoicesCents,
+    paidInvoicesCents: invoiceStats.paidInvoicesCents,
+    overdueInvoicesCents: invoiceStats.overdueInvoicesCents,
   };
 }
 

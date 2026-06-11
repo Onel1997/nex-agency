@@ -5,7 +5,7 @@ import { canAccessClient, isManagement } from "@/lib/auth/permissions";
 import { getProfile } from "@/lib/auth/session";
 import { logClientActivity } from "@/lib/dashboard/client-activities";
 import { CLIENT_FILES_BUCKET } from "@/lib/dashboard/client-files";
-import { getClientById } from "@/lib/dashboard/clients";
+import { getClientById, getClientDetailById } from "@/lib/dashboard/clients";
 import {
   COMMUNICATION_TYPES,
   INVOICE_STATUSES,
@@ -13,7 +13,8 @@ import {
   type InvoiceStatus,
 } from "@/lib/dashboard/constants";
 import { parseEuroToCents } from "@/lib/dashboard/format";
-import { generateInvoiceNumber } from "@/lib/dashboard/invoices";
+import { calculateInvoiceAmounts } from "@/lib/dashboard/invoice-math";
+import { reserveInvoiceNumber } from "@/lib/dashboard/invoices";
 import { createClient } from "@/lib/supabase/server";
 
 const ALLOWED_MIME_TYPES = new Set([
@@ -32,6 +33,7 @@ function revalidateClientHub(clientId: string) {
   revalidatePath(`/dashboard/clients/${clientId}`);
   revalidatePath("/dashboard/clients");
   revalidatePath("/dashboard");
+  revalidatePath("/dashboard/finance");
 }
 
 function actorName(profile: { full_name: string | null; email: string }) {
@@ -277,9 +279,63 @@ export async function getClientFileSignedUrl(fileId: string) {
   return data.signedUrl;
 }
 
+async function insertInvoiceWithLineItem(params: {
+  clientId: string;
+  profileId: string;
+  subtotalCents: number;
+  status: InvoiceStatus;
+  description: string;
+}) {
+  const amounts = calculateInvoiceAmounts(params.subtotalCents);
+  const invoiceNumber = await reserveInvoiceNumber();
+  const supabase = await createClient();
+
+  const insertPayload: Record<string, unknown> = {
+    client_id: params.clientId,
+    invoice_number: invoiceNumber,
+    amount_cents: amounts.totalAmountCents,
+    status: params.status,
+    created_by: params.profileId,
+  };
+
+  if (amounts.subtotalCents >= 0) {
+    insertPayload.subtotal_cents = amounts.subtotalCents;
+    insertPayload.tax_amount_cents = amounts.taxAmountCents;
+    insertPayload.total_amount_cents = amounts.totalAmountCents;
+    insertPayload.vat_rate = amounts.vatRate;
+  }
+
+  const { data: invoice, error } = await supabase
+    .from("invoices")
+    .insert(insertPayload)
+    .select("id, invoice_number")
+    .single();
+
+  if (error) throw new Error(error.message);
+
+  const { error: itemError } = await supabase.from("invoice_items").insert({
+    invoice_id: invoice.id,
+    description: params.description,
+    quantity: 1,
+    unit_price_cents: amounts.subtotalCents,
+    line_total_cents: amounts.subtotalCents,
+    sort_order: 0,
+  });
+
+  if (itemError && !itemError.message.includes("invoice_items")) {
+    throw new Error(itemError.message);
+  }
+
+  return {
+    invoiceId: invoice.id as string,
+    invoiceNumber: invoice.invoice_number as string,
+    totalAmountCents: amounts.totalAmountCents,
+  };
+}
+
 export async function createInvoice(
   clientId: string,
-  data: { amount: string; status: InvoiceStatus; invoice_number?: string },
+  data: { amount: string; status: InvoiceStatus },
 ) {
   const { profile } = await requireClientAccess(clientId);
 
@@ -287,39 +343,72 @@ export async function createInvoice(
     throw new Error("Ungültiger Rechnungsstatus");
   }
 
-  const amountCents = parseEuroToCents(data.amount);
-  if (amountCents == null || amountCents < 0) {
-    throw new Error("Bitte einen gültigen Betrag eingeben");
+  const subtotalCents = parseEuroToCents(data.amount);
+  if (subtotalCents == null || subtotalCents < 0) {
+    throw new Error("Bitte einen gültigen Nettobetrag eingeben");
   }
 
-  const invoiceNumber =
-    data.invoice_number?.trim() || (await generateInvoiceNumber());
-
-  const supabase = await createClient();
-  const { error } = await supabase.from("invoices").insert({
-    client_id: clientId,
-    invoice_number: invoiceNumber,
-    amount_cents: amountCents,
+  const { invoiceNumber, totalAmountCents } = await insertInvoiceWithLineItem({
+    clientId,
+    profileId: profile.id,
+    subtotalCents,
     status: data.status,
-    created_by: profile.id,
+    description: "Leistung gemäß Vereinbarung",
   });
-
-  if (error) throw new Error(error.message);
 
   await logClientActivity({
     clientId,
     actorId: profile.id,
     activityType: "invoice_created",
     description: `${actorName(profile)} hat Rechnung ${invoiceNumber} erstellt`,
-    metadata: { invoice_number: invoiceNumber, amount_cents: amountCents },
+    metadata: { invoice_number: invoiceNumber, amount_cents: totalAmountCents },
   });
 
   revalidateClientHub(clientId);
 }
 
+export async function createInvoiceFromContract(clientId: string) {
+  const { profile } = await requireClientAccess(clientId);
+  const client = await getClientDetailById(clientId);
+  if (!client) throw new Error("Kunde nicht gefunden");
+
+  const subtotalCents =
+    client.contract_value_cents ??
+    client.setup_fee_cents ??
+    client.monthly_revenue_cents ??
+    client.monthly_retainer_cents;
+
+  if (subtotalCents == null || subtotalCents <= 0) {
+    throw new Error("Kein Vertragswert für diesen Kunden hinterlegt");
+  }
+
+  const { invoiceNumber, totalAmountCents } = await insertInvoiceWithLineItem({
+    clientId,
+    profileId: profile.id,
+    subtotalCents,
+    status: "draft",
+    description: `Leistung gemäß Vertrag — ${client.company_name}`,
+  });
+
+  await logClientActivity({
+    clientId,
+    actorId: profile.id,
+    activityType: "invoice_created",
+    description: `${actorName(profile)} hat Rechnung ${invoiceNumber} aus Vertrag erstellt`,
+    metadata: {
+      invoice_number: invoiceNumber,
+      amount_cents: totalAmountCents,
+      source: "contract",
+    },
+  });
+
+  revalidateClientHub(clientId);
+  return { invoiceNumber };
+}
+
 export async function updateInvoice(
   invoiceId: string,
-  data: { amount: string; status: InvoiceStatus; invoice_number: string },
+  data: { amount: string; status: InvoiceStatus },
 ) {
   const profile = await getProfile();
   if (!profile) throw new Error("Nicht angemeldet");
@@ -328,35 +417,48 @@ export async function updateInvoice(
     throw new Error("Ungültiger Rechnungsstatus");
   }
 
-  const amountCents = parseEuroToCents(data.amount);
-  if (amountCents == null || amountCents < 0) {
-    throw new Error("Bitte einen gültigen Betrag eingeben");
+  const subtotalCents = parseEuroToCents(data.amount);
+  if (subtotalCents == null || subtotalCents < 0) {
+    throw new Error("Bitte einen gültigen Nettobetrag eingeben");
   }
 
-  const invoiceNumber = data.invoice_number.trim();
-  if (!invoiceNumber) throw new Error("Rechnungsnummer erforderlich");
-
+  const amounts = calculateInvoiceAmounts(subtotalCents);
   const supabase = await createClient();
   const { data: existing, error: fetchError } = await supabase
     .from("invoices")
-    .select("client_id, status")
+    .select("client_id, status, invoice_number")
     .eq("id", invoiceId)
     .single();
 
   if (fetchError) throw new Error(fetchError.message);
   await requireClientAccess(existing.client_id as string);
 
+  const updatePayload: Record<string, unknown> = {
+    amount_cents: amounts.totalAmountCents,
+    status: data.status,
+    updated_at: new Date().toISOString(),
+    subtotal_cents: amounts.subtotalCents,
+    tax_amount_cents: amounts.taxAmountCents,
+    total_amount_cents: amounts.totalAmountCents,
+    vat_rate: amounts.vatRate,
+  };
+
   const { error } = await supabase
     .from("invoices")
-    .update({
-      invoice_number: invoiceNumber,
-      amount_cents: amountCents,
-      status: data.status,
-      updated_at: new Date().toISOString(),
-    })
+    .update(updatePayload)
     .eq("id", invoiceId);
 
   if (error) throw new Error(error.message);
+
+  await supabase
+    .from("invoice_items")
+    .update({
+      unit_price_cents: amounts.subtotalCents,
+      line_total_cents: amounts.subtotalCents,
+    })
+    .eq("invoice_id", invoiceId);
+
+  const invoiceNumber = existing.invoice_number as string;
 
   if (existing.status !== "paid" && data.status === "paid") {
     await logClientActivity({

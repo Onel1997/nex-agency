@@ -65,9 +65,14 @@ export function ClientsPageClient({
             key: "company",
             header: "Firma",
             render: (client) => (
-              <span className="font-medium text-foreground">
-                {client.company_name}
-              </span>
+              <div>
+                <span className="font-medium text-foreground">
+                  {client.company_name}
+                </span>
+                {client.customer_number && (
+                  <div className="text-xs text-muted-soft">{client.customer_number}</div>
+                )}
+              </div>
             ),
           },
           {

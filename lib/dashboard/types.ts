@@ -67,6 +67,10 @@ export interface FinanceStats {
   outstandingCommissionsCents: number;
   paidCommissionsCents: number;
   outstandingRetainerPaymentsCents: number;
+  totalInvoicedCents: number;
+  openInvoicesCents: number;
+  paidInvoicesCents: number;
+  overdueInvoicesCents: number;
 }
 
 export interface CommissionPayoutRecord {
@@ -197,6 +201,7 @@ export interface ClientRecord {
   id: string;
   lead_id: string;
   company_name: string;
+  customer_number: string | null;
   contact_name: string | null;
   email: string | null;
   phone: string | null;
@@ -270,11 +275,43 @@ export interface InvoiceRecord {
   client_id: string;
   invoice_number: string;
   amount_cents: number;
+  subtotal_cents: number;
+  tax_amount_cents: number;
+  total_amount_cents: number;
+  vat_rate: number;
   status: InvoiceStatus;
   created_by: string | null;
   created_at: string;
   updated_at: string;
   company_name?: string;
+  customer_number?: string | null;
+}
+
+export interface InvoiceItemRecord {
+  id: string;
+  invoice_id: string;
+  description: string;
+  quantity: number;
+  unit_price_cents: number;
+  line_total_cents: number;
+  sort_order: number;
+  created_at: string;
+}
+
+export interface InvoiceClientSnapshot {
+  id: string;
+  company_name: string;
+  customer_number: string | null;
+  contact_name: string | null;
+  email: string | null;
+  phone: string | null;
+  website: string | null;
+  currency: string;
+}
+
+export interface InvoiceWithDetails extends InvoiceRecord {
+  client: InvoiceClientSnapshot;
+  items: InvoiceItemRecord[];
 }
 
 export interface AppointmentRow extends Lead {

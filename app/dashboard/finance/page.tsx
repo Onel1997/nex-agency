@@ -15,6 +15,10 @@ export default async function FinancePage() {
     outstandingCommissionsCents: 0,
     paidCommissionsCents: 0,
     outstandingRetainerPaymentsCents: 0,
+    totalInvoicedCents: 0,
+    openInvoicesCents: 0,
+    paidInvoicesCents: 0,
+    overdueInvoicesCents: 0,
   };
   let clients: ClientRevenueRecord[] = [];
   let error: string | null = null;

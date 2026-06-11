@@ -10,7 +10,16 @@ import { EmptyState } from "@/components/dashboard/EmptyState";
 import { KpiCard } from "@/components/dashboard/KpiCard";
 import { formatCents, formatDate } from "@/lib/dashboard/format";
 import type { ClientRevenueRecord, FinanceStats } from "@/lib/dashboard/types";
-import { Banknote, CircleDollarSign, Clock3, Euro, Receipt, Wallet } from "lucide-react";
+import {
+  AlertCircle,
+  Banknote,
+  CircleDollarSign,
+  Clock3,
+  Euro,
+  FileCheck2,
+  Receipt,
+  Wallet,
+} from "lucide-react";
 import Link from "next/link";
 
 interface FinancePageClientProps {
@@ -53,7 +62,7 @@ export function FinancePageClient({ stats, clients }: FinancePageClientProps) {
         description="Verträge, Retainer, Umsatz und Provisionsübersicht — nur für Administratoren."
       />
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
         <KpiCard
           label="Gesamtumsatz"
           value={formatCents(stats.totalRevenueCents)}
@@ -83,6 +92,33 @@ export function FinancePageClient({ stats, clients }: FinancePageClientProps) {
           value={formatCents(stats.outstandingRetainerPaymentsCents)}
           icon={Clock3}
           trend="Unbezahlte Monatsbeträge"
+        />
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <KpiCard
+          label="Gesamt fakturiert"
+          value={formatCents(stats.totalInvoicedCents)}
+          icon={Receipt}
+          trend="Brutto aller Rechnungen"
+        />
+        <KpiCard
+          label="Offene Rechnungen"
+          value={formatCents(stats.openInvoicesCents)}
+          icon={FileCheck2}
+          trend="Entwurf & versendet"
+        />
+        <KpiCard
+          label="Bezahlte Rechnungen"
+          value={formatCents(stats.paidInvoicesCents)}
+          icon={Banknote}
+          trend="Status: bezahlt"
+        />
+        <KpiCard
+          label="Überfällige Rechnungen"
+          value={formatCents(stats.overdueInvoicesCents)}
+          icon={AlertCircle}
+          trend="Status: überfällig"
         />
       </div>
 

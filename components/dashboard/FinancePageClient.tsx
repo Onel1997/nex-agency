@@ -9,8 +9,14 @@ import { DataTable } from "@/components/dashboard/DataTable";
 import { EmptyState } from "@/components/dashboard/EmptyState";
 import { KpiCard } from "@/components/dashboard/KpiCard";
 import { InvoiceTable } from "@/components/dashboard/InvoiceTable";
+import { ProfitBreakdownCard } from "@/components/dashboard/ProfitBreakdownCard";
 import { formatCents, formatDate } from "@/lib/dashboard/format";
-import type { ClientRevenueRecord, FinanceStats, InvoiceRecord } from "@/lib/dashboard/types";
+import type {
+  ClientRevenueRecord,
+  FinanceStats,
+  InvoiceRecord,
+  ProfitBreakdown,
+} from "@/lib/dashboard/types";
 import {
   AlertCircle,
   Banknote,
@@ -19,6 +25,8 @@ import {
   Euro,
   FileCheck2,
   Receipt,
+  TrendingUp,
+  Users,
   Wallet,
 } from "lucide-react";
 import Link from "next/link";
@@ -27,9 +35,15 @@ interface FinancePageClientProps {
   stats: FinanceStats;
   clients: ClientRevenueRecord[];
   invoices: InvoiceRecord[];
+  profitBreakdowns: ProfitBreakdown[];
 }
 
-export function FinancePageClient({ stats, clients, invoices }: FinancePageClientProps) {
+export function FinancePageClient({
+  stats,
+  clients,
+  invoices,
+  profitBreakdowns,
+}: FinancePageClientProps) {
   const [editingClient, setEditingClient] = useState<ClientRevenueRecord | null>(
     null,
   );
@@ -61,7 +75,7 @@ export function FinancePageClient({ stats, clients, invoices }: FinancePageClien
     <div className="space-y-8">
       <DashboardHeader
         title="Finanzen"
-        description="Verträge, Retainer, Umsatz und Provisionsübersicht — nur für Administratoren."
+        description="Super-Admin Finance Center — Kundenumsatz, Freelancer, Ausgaben und Agenturgewinn."
       />
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
@@ -152,6 +166,55 @@ export function FinancePageClient({ stats, clients, invoices }: FinancePageClien
           icon={Wallet}
           trend="Noch nicht bezahlt"
         />
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
+        <KpiCard
+          label="Offene Freelancer-Rechnungen"
+          value={formatCents(stats.openFreelancerInvoicesCents)}
+          icon={Users}
+          href="/dashboard/finance/freelancers"
+          trend="Status: eingereicht"
+        />
+        <KpiCard
+          label="Bezahlte Freelancer-Rechnungen"
+          value={formatCents(stats.paidFreelancerInvoicesCents)}
+          icon={Banknote}
+          href="/dashboard/finance/freelancers"
+          trend="Status: bezahlt"
+        />
+        <KpiCard
+          label="Monatskosten"
+          value={formatCents(stats.monthlyExpensesCents)}
+          icon={Receipt}
+          href="/dashboard/finance/expenses"
+          trend="Agenturausgaben"
+        />
+        <KpiCard
+          label="Jahreskosten"
+          value={formatCents(stats.yearlyExpensesCents)}
+          icon={Receipt}
+          href="/dashboard/finance/expenses"
+          trend="Agenturausgaben"
+        />
+        <KpiCard
+          label="Agenturgewinn"
+          value={formatCents(stats.agencyProfitCents)}
+          icon={TrendingUp}
+          trend="Umsatz − Kosten − Provisionen"
+        />
+      </div>
+
+      <div>
+        <h2 className="text-sm font-medium uppercase tracking-wider text-muted-soft">
+          Gewinnberechnung
+        </h2>
+        <p className="mt-1 text-sm text-muted">
+          Kundenumsatz minus Freelancerkosten, Provisionen und Agenturkosten.
+        </p>
+        <div className="mt-4">
+          <ProfitBreakdownCard breakdowns={profitBreakdowns} />
+        </div>
       </div>
 
       <div>

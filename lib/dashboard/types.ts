@@ -5,9 +5,13 @@ import type {
   ClientActivityType,
   CommissionStatus,
   CommunicationType,
+  ExpenseCategory,
+  FreelancerInvoiceStatus,
+  FreelancerPayoutStatus,
   InvoiceStatus,
   InvoiceType,
   LeadStatus,
+  ProfitPeriod,
 } from "./constants";
 
 export interface Lead {
@@ -78,6 +82,96 @@ export interface FinanceStats {
   paidInvoicesCents: number;
   overdueInvoicesCents: number;
   outstandingInvoiceAmountCents: number;
+  openFreelancerInvoicesCents: number;
+  paidFreelancerInvoicesCents: number;
+  outstandingFreelancerInvoicesCents: number;
+  monthlyExpensesCents: number;
+  yearlyExpensesCents: number;
+  agencyProfitCents: number;
+}
+
+export interface FreelancerRecord {
+  id: string;
+  name: string;
+  company_name: string | null;
+  contact_person: string | null;
+  email: string | null;
+  phone: string | null;
+  street: string | null;
+  postal_code: string | null;
+  city: string | null;
+  country: string | null;
+  tax_number: string | null;
+  vat_id: string | null;
+  iban: string | null;
+  bic: string | null;
+  default_commission_rate: number;
+  is_active: boolean;
+  last_payout_at: string | null;
+  created_at: string;
+  updated_at: string;
+  total_earned_cents: number;
+  total_paid_out_cents: number;
+  outstanding_cents: number;
+}
+
+export interface FreelancerInvoiceRecord {
+  id: string;
+  freelancer_id: string;
+  invoice_number: string;
+  description: string;
+  subtotal_cents: number;
+  tax_amount_cents: number;
+  total_amount_cents: number;
+  vat_rate: number;
+  status: FreelancerInvoiceStatus;
+  due_date: string | null;
+  submitted_at: string | null;
+  paid_at: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+  freelancer_name?: string;
+}
+
+export interface FreelancerInvoiceWithDetails extends FreelancerInvoiceRecord {
+  freelancer: FreelancerRecord;
+}
+
+export interface FreelancerPayoutRecord {
+  id: string;
+  freelancer_id: string;
+  amount_cents: number;
+  payout_date: string;
+  status: FreelancerPayoutStatus;
+  notes: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+  freelancer_name?: string;
+  project_names: string[];
+  project_ids: string[];
+}
+
+export interface ExpenseRecord {
+  id: string;
+  title: string;
+  amount_cents: number;
+  expense_date: string;
+  category: ExpenseCategory;
+  note: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ProfitBreakdown {
+  period: ProfitPeriod;
+  customerRevenueCents: number;
+  freelancerCostsCents: number;
+  commissionsCents: number;
+  agencyCostsCents: number;
+  profitCents: number;
 }
 
 export interface CommissionPayoutRecord {

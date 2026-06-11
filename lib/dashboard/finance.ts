@@ -18,12 +18,19 @@ import {
 } from "./retainer";
 import { resolveRetainerAmountCents } from "./billing-cycle";
 import { resolveInvoiceType } from "./invoice-type";
+import { computeExpenseStats, getAllExpenses } from "./expenses";
+import {
+  computeFreelancerInvoiceStats,
+  getAllFreelancerInvoices,
+} from "./freelancer-invoices";
 import { getAllInvoices, getInvoiceStats } from "./invoices";
+import { computeAllProfitBreakdowns } from "./profit";
 import { calculateCommissionCents } from "./revenue";
 import type {
   ClientRevenueRecord,
   CommissionPayoutRecord,
   FinanceStats,
+  ProfitBreakdown,
 } from "./types";
 
 function formatMemberName(
@@ -174,11 +181,14 @@ export async function getFinanceStats(): Promise<FinanceStats | null> {
   const profile = await getProfile();
   if (!profile || !canAccessFinanceRoutes(profile)) return null;
 
-  const [clients, invoiceStats, invoices] = await Promise.all([
-    getClientRevenueRecords(),
-    getInvoiceStats(),
-    getAllInvoices(),
-  ]);
+  const [clients, invoiceStats, invoices, freelancerInvoices, expenses] =
+    await Promise.all([
+      getClientRevenueRecords(),
+      getInvoiceStats(),
+      getAllInvoices(),
+      getAllFreelancerInvoices(),
+      getAllExpenses(),
+    ]);
 
   let totalRevenueCents = 0;
   let monthlyRecurringRevenueCents = 0;
@@ -200,6 +210,30 @@ export async function getFinanceStats(): Promise<FinanceStats | null> {
   }
 
   const retainerInvoiceStats = computeRetainerInvoiceStats(invoices);
+  const freelancerInvoiceStats = computeFreelancerInvoiceStats(freelancerInvoices);
+  const expenseStats = computeExpenseStats(expenses);
+
+  const supabase = await createClient();
+  const { data: commissionPayoutRows } = await supabase
+    .from("client_commission_payouts")
+    .select("amount_cents, payout_date");
+
+  const commissionPayouts: CommissionPayoutRecord[] = (commissionPayoutRows ?? []).map(
+    (row, index) => ({
+      id: `aggregate-${index}`,
+      amount_cents: row.amount_cents as number,
+      payout_date: row.payout_date as string,
+      created_at: row.payout_date as string,
+    }),
+  );
+
+  const profitBreakdowns = computeAllProfitBreakdowns({
+    customerInvoices: invoices,
+    freelancerInvoices,
+    commissionPayouts,
+    expenses,
+  });
+  const totalProfit = profitBreakdowns.find((p) => p.period === "total");
 
   return {
     totalRevenueCents,
@@ -214,7 +248,45 @@ export async function getFinanceStats(): Promise<FinanceStats | null> {
     paidInvoicesCents: invoiceStats.paidInvoicesCents,
     overdueInvoicesCents: invoiceStats.overdueInvoicesCents,
     outstandingInvoiceAmountCents: invoiceStats.outstandingInvoiceAmountCents,
+    ...freelancerInvoiceStats,
+    monthlyExpensesCents: expenseStats.monthlyExpensesCents,
+    yearlyExpensesCents: expenseStats.yearlyExpensesCents,
+    agencyProfitCents: totalProfit?.profitCents ?? 0,
   };
+}
+
+export async function getProfitBreakdowns(): Promise<ProfitBreakdown[]> {
+  const profile = await getProfile();
+  if (!profile || !canAccessFinanceRoutes(profile)) {
+    throw new Error("Keine Berechtigung");
+  }
+
+  const [invoices, freelancerInvoices, expenses] = await Promise.all([
+    getAllInvoices(),
+    getAllFreelancerInvoices(),
+    getAllExpenses(),
+  ]);
+
+  const supabase = await createClient();
+  const { data: commissionPayoutRows } = await supabase
+    .from("client_commission_payouts")
+    .select("amount_cents, payout_date");
+
+  const commissionPayouts: CommissionPayoutRecord[] = (commissionPayoutRows ?? []).map(
+    (row, index) => ({
+      id: `aggregate-${index}`,
+      amount_cents: row.amount_cents as number,
+      payout_date: row.payout_date as string,
+      created_at: row.payout_date as string,
+    }),
+  );
+
+  return computeAllProfitBreakdowns({
+    customerInvoices: invoices,
+    freelancerInvoices,
+    commissionPayouts,
+    expenses,
+  });
 }
 
 async function buildClientRevenueRecords(

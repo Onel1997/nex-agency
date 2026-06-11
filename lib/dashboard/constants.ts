@@ -146,3 +146,65 @@ export const CLIENT_ACTIVITY_TYPE_LABELS: Record<ClientActivityType, string> = {
   invoice_sent: "Rechnung gesendet",
   invoice_paid: "Rechnung bezahlt",
 };
+
+export const FREELANCER_INVOICE_STATUSES = [
+  "draft",
+  "submitted",
+  "paid",
+] as const;
+
+export type FreelancerInvoiceStatus =
+  (typeof FREELANCER_INVOICE_STATUSES)[number];
+
+export const FREELANCER_INVOICE_STATUS_LABELS: Record<
+  FreelancerInvoiceStatus,
+  string
+> = {
+  draft: "Entwurf",
+  submitted: "Eingereicht",
+  paid: "Bezahlt",
+};
+
+export const FREELANCER_PAYOUT_STATUSES = ["offen", "ausgezahlt"] as const;
+
+export type FreelancerPayoutStatus =
+  (typeof FREELANCER_PAYOUT_STATUSES)[number];
+
+export const FREELANCER_PAYOUT_STATUS_LABELS: Record<
+  FreelancerPayoutStatus,
+  string
+> = {
+  offen: "Offen",
+  ausgezahlt: "Ausgezahlt",
+};
+
+export const EXPENSE_CATEGORIES = [
+  "software",
+  "advertising",
+  "freelancer",
+  "hosting",
+  "office",
+  "other",
+] as const;
+
+export type ExpenseCategory = (typeof EXPENSE_CATEGORIES)[number];
+
+export const EXPENSE_CATEGORY_LABELS: Record<ExpenseCategory, string> = {
+  software: "Software",
+  advertising: "Werbung",
+  freelancer: "Freelancer",
+  hosting: "Hosting",
+  office: "Büro",
+  other: "Sonstiges",
+};
+
+export const PROFIT_PERIODS = ["month", "quarter", "year", "total"] as const;
+
+export type ProfitPeriod = (typeof PROFIT_PERIODS)[number];
+
+export const PROFIT_PERIOD_LABELS: Record<ProfitPeriod, string> = {
+  month: "Monat",
+  quarter: "Quartal",
+  year: "Jahr",
+  total: "Gesamt",
+};

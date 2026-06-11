@@ -13,6 +13,8 @@ interface DataTableProps<T> {
   data: T[];
   rowKey: (row: T) => string;
   emptyState?: ReactNode;
+  onRowClick?: (row: T) => void;
+  getRowAriaLabel?: (row: T) => string;
 }
 
 export function DataTable<T>({
@@ -20,6 +22,8 @@ export function DataTable<T>({
   data,
   rowKey,
   emptyState,
+  onRowClick,
+  getRowAriaLabel,
 }: DataTableProps<T>) {
   if (data.length === 0 && emptyState) {
     return (
@@ -49,7 +53,25 @@ export function DataTable<T>({
             {data.map((row) => (
               <tr
                 key={rowKey(row)}
-                className="transition-colors hover:bg-surface-hover/50"
+                onClick={onRowClick ? () => onRowClick(row) : undefined}
+                onKeyDown={
+                  onRowClick
+                    ? (event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          onRowClick(row);
+                        }
+                      }
+                    : undefined
+                }
+                tabIndex={onRowClick ? 0 : undefined}
+                role={onRowClick ? "link" : undefined}
+                aria-label={onRowClick ? getRowAriaLabel?.(row) : undefined}
+                className={
+                  onRowClick
+                    ? "cursor-pointer transition-colors hover:bg-white/5 active:bg-white/[0.07]"
+                    : "transition-colors hover:bg-surface-hover/50"
+                }
               >
                 {columns.map((col) => (
                   <td

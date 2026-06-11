@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Pencil, Users } from "lucide-react";
@@ -50,6 +49,10 @@ export function ClientsPageClient({
       <DataTable
         data={clients}
         rowKey={(row) => row.id}
+        onRowClick={(client) => router.push(`/dashboard/clients/${client.id}`)}
+        getRowAriaLabel={(client) =>
+          `Kundenakte für ${client.company_name} öffnen`
+        }
         emptyState={
           <EmptyState
             icon={Users}
@@ -62,12 +65,9 @@ export function ClientsPageClient({
             key: "company",
             header: "Firma",
             render: (client) => (
-              <Link
-                href={`/dashboard/clients/${client.id}`}
-                className="font-medium text-foreground transition-colors hover:text-violet-300"
-              >
+              <span className="font-medium text-foreground">
                 {client.company_name}
-              </Link>
+              </span>
             ),
           },
           {
@@ -116,7 +116,10 @@ export function ClientsPageClient({
                     canEditClientRevenue(profile, client.responsible_member_id) ? (
                       <button
                         type="button"
-                        onClick={() => setEditClient(client)}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          setEditClient(client);
+                        }}
                         className="dashboard-icon-btn rounded-lg p-2 text-muted hover:text-foreground"
                         aria-label={`${client.company_name} bearbeiten`}
                       >

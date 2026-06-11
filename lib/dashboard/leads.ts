@@ -19,6 +19,7 @@ function mapLeadRow(row: Record<string, unknown>): Lead {
 
   return {
     ...(row as unknown as Lead),
+    converted_to_client: Boolean(row.converted_to_client),
     owner_name: formatMemberName(
       owner as { full_name: string | null; email: string } | null,
     ),
@@ -130,7 +131,9 @@ export async function getTeamStats(): Promise<TeamMemberStats[] | null> {
         .select("id, full_name, email, role")
         .eq("status", "active")
         .order("full_name"),
-      supabase.from("leads").select("owner_id, status, estimated_value_cents"),
+      supabase
+        .from("leads")
+        .select("owner_id, status, estimated_value_cents, converted_to_client"),
       getTeamAppointmentCounts(),
     ]);
 
@@ -152,7 +155,7 @@ export async function getTeamStats(): Promise<TeamMemberStats[] | null> {
       pipelineValueCents: 0,
     };
     current.leads += 1;
-    if (lead.status === "client") current.clients += 1;
+    if (lead.converted_to_client) current.clients += 1;
     if (PIPELINE_STATUSES.includes(lead.status)) {
       current.pipelineValueCents += lead.estimated_value_cents ?? 0;
     }

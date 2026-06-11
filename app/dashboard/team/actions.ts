@@ -3,16 +3,17 @@
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import {
-  canAssignSuperAdminRole,
-  isValidUserRole,
+  assertRoleAssignable,
+  canAssignRoleToMember,
+  canManageMember,
 } from "@/lib/auth/permissions";
+import { normalizeUserRole } from "@/lib/auth/roles";
 import type { Profile, UserRole } from "@/lib/auth/types";
 import { ROLE_LABELS } from "@/lib/auth/types";
 import { SET_PASSWORD_PATH } from "@/lib/auth/password-setup";
 import { requireManagement } from "@/lib/auth/session";
 import { logActivity } from "@/lib/dashboard/activity";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createClient } from "@/lib/supabase/server";
 
 function revalidateTeam() {
   revalidatePath("/dashboard");
@@ -29,22 +30,46 @@ async function getSiteOrigin() {
   return process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
 }
 
-function assertRoleAllowed(role: UserRole, actor: Profile) {
-  if (!isValidUserRole(role)) {
-    throw new Error("Ungültige Rolle");
+function parseRole(role: string): UserRole {
+  const normalized = normalizeUserRole(role);
+  if (!normalized) throw new Error("Ungültige Rolle");
+  return normalized;
+}
+
+function assertMemberManageable(
+  actor: Profile,
+  member: { role: string },
+  nextRole?: UserRole,
+) {
+  if (!canManageMember(actor, member)) {
+    throw new Error(
+      "Keine Berechtigung: Super Admins können nur von Super Admins verwaltet werden",
+    );
   }
-  if (role === "super_admin" && !canAssignSuperAdminRole(actor)) {
-    throw new Error("Nur Super Admins können die Super-Admin-Rolle vergeben");
+  if (nextRole && !canAssignRoleToMember(actor, member, nextRole)) {
+    throw new Error("Keine Berechtigung, diese Rolle zu vergeben");
   }
+}
+
+async function fetchMemberProfile(memberId: string) {
+  const adminClient = createAdminClient();
+  const { data, error } = await adminClient
+    .from("profiles")
+    .select("email, full_name, role, status, commission_rate, activated_at")
+    .eq("id", memberId)
+    .single();
+
+  if (error) throw new Error(error.message);
+  return data;
 }
 
 export async function inviteTeamMember(formData: FormData) {
   const admin = await requireManagement();
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
-  const role = String(formData.get("role") ?? "employee") as UserRole;
+  const role = parseRole(String(formData.get("role") ?? "employee"));
 
   if (!email) throw new Error("E-Mail ist erforderlich");
-  assertRoleAllowed(role, admin);
+  assertRoleAssignable(role, admin);
 
   const origin = await getSiteOrigin();
   const adminClient = createAdminClient();
@@ -60,7 +85,7 @@ export async function inviteTeamMember(formData: FormData) {
 
   const userId = data.user?.id;
   if (userId) {
-    await adminClient
+    const { error: profileError } = await adminClient
       .from("profiles")
       .update({
         role,
@@ -70,6 +95,8 @@ export async function inviteTeamMember(formData: FormData) {
         activated_at: null,
       })
       .eq("id", userId);
+
+    if (profileError) throw new Error(profileError.message);
   }
 
   const displayName = email.split("@")[0];
@@ -85,28 +112,75 @@ export async function inviteTeamMember(formData: FormData) {
   revalidateTeam();
 }
 
-export async function updateMemberRole(memberId: string, role: UserRole) {
+export interface UpdateTeamMemberInput {
+  full_name: string;
+  role: UserRole;
+  commission_rate: number;
+}
+
+export async function updateTeamMember(
+  memberId: string,
+  input: UpdateTeamMemberInput,
+) {
   const admin = await requireManagement();
-  assertRoleAllowed(role, admin);
+  const full_name = input.full_name.trim();
+  const role = parseRole(input.role);
+  const commission_rate = input.commission_rate;
 
-  const supabase = await createClient();
-  const { data: member, error: fetchError } = await supabase
-    .from("profiles")
-    .select("email, full_name, role, status")
-    .eq("id", memberId)
-    .single();
+  if (!full_name) throw new Error("Name ist erforderlich");
 
-  if (fetchError) throw new Error(fetchError.message);
-
-  if (
-    member.role === "super_admin" &&
-    role !== "super_admin" &&
-    !canAssignSuperAdminRole(admin)
-  ) {
-    throw new Error("Keine Berechtigung zum Ändern der Super-Admin-Rolle");
+  if (commission_rate < 0 || commission_rate > 100) {
+    throw new Error("Provisionssatz muss zwischen 0 und 100 liegen");
   }
 
-  const { error } = await supabase
+  if (memberId === admin.id && role !== admin.role) {
+    throw new Error("Sie können Ihre eigene Rolle nicht ändern");
+  }
+
+  const member = await fetchMemberProfile(memberId);
+  assertMemberManageable(admin, member, role);
+
+  const adminClient = createAdminClient();
+  const { error } = await adminClient
+    .from("profiles")
+    .update({ full_name, role, commission_rate })
+    .eq("id", memberId);
+
+  if (error) throw new Error(error.message);
+
+  const memberName = full_name || member.email.split("@")[0];
+  await logActivity({
+    actorId: admin.id,
+    action: "member_updated",
+    entityType: "profile",
+    entityId: memberId,
+    metadata: {
+      email: member.email,
+      full_name,
+      role,
+      commission_rate,
+      previous_role: member.role,
+      previous_commission_rate: member.commission_rate,
+    },
+    message: `${formatActorName(admin)} hat ${memberName} aktualisiert`,
+  });
+
+  revalidateTeam();
+}
+
+export async function updateMemberRole(memberId: string, roleInput: UserRole) {
+  const admin = await requireManagement();
+  const role = parseRole(roleInput);
+
+  if (memberId === admin.id) {
+    throw new Error("Sie können Ihre eigene Rolle nicht ändern");
+  }
+
+  const member = await fetchMemberProfile(memberId);
+  assertMemberManageable(admin, member, role);
+
+  const adminClient = createAdminClient();
+  const { error } = await adminClient
     .from("profiles")
     .update({ role })
     .eq("id", memberId);
@@ -132,14 +206,8 @@ export async function setMemberActive(memberId: string, isActive: boolean) {
     throw new Error("Sie können Ihr eigenes Konto nicht deaktivieren");
   }
 
-  const supabase = await createClient();
-  const { data: member, error: fetchError } = await supabase
-    .from("profiles")
-    .select("email, full_name, status, activated_at")
-    .eq("id", memberId)
-    .single();
-
-  if (fetchError) throw new Error(fetchError.message);
+  const member = await fetchMemberProfile(memberId);
+  assertMemberManageable(admin, member);
 
   if (isActive && !member.activated_at) {
     throw new Error(
@@ -149,7 +217,8 @@ export async function setMemberActive(memberId: string, isActive: boolean) {
 
   const nextStatus = isActive ? "active" : "deactivated";
 
-  const { error } = await supabase
+  const adminClient = createAdminClient();
+  const { error } = await adminClient
     .from("profiles")
     .update({ status: nextStatus, is_active: isActive })
     .eq("id", memberId);
@@ -177,14 +246,8 @@ export async function deleteMember(memberId: string) {
     throw new Error("Sie können Ihr eigenes Konto nicht löschen");
   }
 
-  const supabase = await createClient();
-  const { data: member, error: fetchError } = await supabase
-    .from("profiles")
-    .select("email, full_name, status")
-    .eq("id", memberId)
-    .single();
-
-  if (fetchError) throw new Error(fetchError.message);
+  const member = await fetchMemberProfile(memberId);
+  assertMemberManageable(admin, member);
 
   const memberName = member.full_name?.trim() || member.email.split("@")[0];
 

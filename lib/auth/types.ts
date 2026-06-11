@@ -1,7 +1,7 @@
 export type UserRole =
   | "super_admin"
   | "admin"
-  | "sales"
+  | "sales_manager"
   | "employee"
   | "freelancer";
 
@@ -23,7 +23,7 @@ export interface Profile {
 export const ROLE_LABELS: Record<UserRole, string> = {
   super_admin: "Super Admin",
   admin: "Administrator",
-  sales: "Vertrieb",
+  sales_manager: "Sales Manager",
   employee: "Mitarbeiter",
   freelancer: "Freelancer",
 };

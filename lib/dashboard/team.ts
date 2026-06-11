@@ -1,17 +1,21 @@
 import { isManagement } from "@/lib/auth/permissions";
+import { normalizeUserRole } from "@/lib/auth/roles";
 import { getProfile } from "@/lib/auth/session";
 import { resolveTeamMemberStatus } from "@/lib/auth/member-status";
 import { createClient } from "@/lib/supabase/server";
 import type { TeamMember } from "./types";
 
 function mapTeamMember(
-  row: Omit<TeamMember, "status"> & {
+  row: Omit<TeamMember, "status" | "role"> & {
     status: TeamMember["status"];
+    role: string;
     commission_rate?: number;
   },
 ): TeamMember {
+  const normalizedRole = normalizeUserRole(row.role) ?? "employee";
   return {
     ...row,
+    role: normalizedRole,
     commission_rate: Number(row.commission_rate ?? 10),
     status: resolveTeamMemberStatus(row),
   };

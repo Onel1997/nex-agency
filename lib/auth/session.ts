@@ -7,6 +7,7 @@ import {
 } from "@/lib/auth/permissions";
 import { hasCompletedInvitation } from "@/lib/auth/member-status";
 import { SET_PASSWORD_PATH } from "@/lib/auth/password-setup";
+import { normalizeUserRole } from "@/lib/auth/roles";
 import { createClient } from "@/lib/supabase/server";
 
 export async function getAuthUser() {
@@ -31,7 +32,14 @@ export async function getProfile(): Promise<Profile | null> {
   const { data, error } = await supabase.rpc("get_current_profile");
 
   if (error || !data) return null;
-  return data as Profile;
+
+  const profile = data as Profile;
+  const normalizedRole = normalizeUserRole(profile.role);
+  if (!normalizedRole) return profile;
+
+  return normalizedRole === profile.role
+    ? profile
+    : { ...profile, role: normalizedRole };
 }
 
 export async function requireProfile(): Promise<Profile> {

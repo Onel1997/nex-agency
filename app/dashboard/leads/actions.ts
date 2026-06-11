@@ -203,3 +203,83 @@ export async function updateLeadStatus(id: string, status: LeadStatus) {
 
   revalidateDashboard();
 }
+
+export async function convertLeadToClient(leadId: string) {
+  const profile = await getProfile();
+  if (!profile) throw new Error("Nicht angemeldet");
+
+  const supabase = await createClient();
+  const { data: lead, error: fetchError } = await supabase
+    .from("leads")
+    .select(
+      "company_name, contact_name, phone, email, website, status, acquired_by, notes, owner_id, estimated_value_cents, currency, converted_to_client",
+    )
+    .eq("id", leadId)
+    .single();
+
+  if (fetchError) throw new Error(fetchError.message);
+  if (lead.status !== "won") {
+    throw new Error("Nur gewonnene Leads können in Kunden umgewandelt werden");
+  }
+  if (lead.converted_to_client) {
+    throw new Error("Lead wurde bereits in einen Kunden umgewandelt");
+  }
+
+  const { data: existingClient } = await supabase
+    .from("clients")
+    .select("id")
+    .eq("lead_id", leadId)
+    .maybeSingle();
+
+  if (existingClient) {
+    const { error: flagError } = await supabase
+      .from("leads")
+      .update({ converted_to_client: true })
+      .eq("id", leadId);
+
+    if (flagError) throw new Error(flagError.message);
+    revalidateDashboard();
+    return;
+  }
+
+  const { data: client, error: insertError } = await supabase
+    .from("clients")
+    .insert({
+      lead_id: leadId,
+      company_name: lead.company_name,
+      contact_name: lead.contact_name,
+      email: lead.email,
+      phone: lead.phone,
+      website: lead.website,
+      responsible_member_id: lead.owner_id,
+      acquired_by: lead.acquired_by,
+      notes: lead.notes,
+      contract_value_cents: lead.estimated_value_cents,
+      currency: lead.currency ?? "EUR",
+    })
+    .select("id")
+    .single();
+
+  if (insertError) throw new Error(insertError.message);
+
+  const { error: updateError } = await supabase
+    .from("leads")
+    .update({ converted_to_client: true })
+    .eq("id", leadId);
+
+  if (updateError) throw new Error(updateError.message);
+
+  await logActivity({
+    actorId: profile.id,
+    action: "lead_converted",
+    entityType: "client",
+    entityId: client.id,
+    metadata: {
+      lead_id: leadId,
+      company_name: lead.company_name,
+    },
+    message: `${actorName(profile)} hat Lead ${lead.company_name} in einen Kunden umgewandelt`,
+  });
+
+  revalidateDashboard();
+}

@@ -10,6 +10,7 @@ import {
 import { formatCents, formatDate, formatWebsite } from "@/lib/dashboard/format";
 import type { Lead } from "@/lib/dashboard/types";
 import { DataTable } from "./DataTable";
+import { LeadConversionAction } from "./LeadConversionAction";
 
 interface LeadsTableProps {
   leads: Lead[];
@@ -17,6 +18,7 @@ interface LeadsTableProps {
   onEdit: (lead: Lead) => void;
   onDelete: (id: string) => void;
   onStatusChange: (id: string, status: LeadStatus) => void;
+  onConvert: (leadId: string) => Promise<void>;
 }
 
 export function LeadsTable({
@@ -25,6 +27,7 @@ export function LeadsTable({
   onEdit,
   onDelete,
   onStatusChange,
+  onConvert,
 }: LeadsTableProps) {
   return (
     <DataTable
@@ -59,7 +62,7 @@ export function LeadsTable({
           ? [
               {
                 key: "owner",
-                header: "Eigentümer",
+                header: "Betreuer",
                 hideOnMobile: true,
                 render: (lead: Lead) => lead.owner_name || "—",
               },
@@ -111,20 +114,23 @@ export function LeadsTable({
           key: "status",
           header: "Status",
           render: (lead) => (
-            <select
-              value={lead.status}
-              onChange={(e) =>
-                onStatusChange(lead.id, e.target.value as LeadStatus)
-              }
-              className="dashboard-select-sm"
-              aria-label={`Status für ${lead.company_name}`}
-            >
-              {LEAD_STATUSES.map((status) => (
-                <option key={status} value={status}>
-                  {LEAD_STATUS_LABELS[status]}
-                </option>
-              ))}
-            </select>
+            <div className="flex min-w-[9rem] flex-col gap-2">
+              <select
+                value={lead.status}
+                onChange={(e) =>
+                  onStatusChange(lead.id, e.target.value as LeadStatus)
+                }
+                className="dashboard-select-sm"
+                aria-label={`Status für ${lead.company_name}`}
+              >
+                {LEAD_STATUSES.map((status) => (
+                  <option key={status} value={status}>
+                    {LEAD_STATUS_LABELS[status]}
+                  </option>
+                ))}
+              </select>
+              <LeadConversionAction lead={lead} onConvert={onConvert} />
+            </div>
           ),
         },
         {

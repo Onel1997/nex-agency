@@ -8,49 +8,79 @@ import {
   inviteTeamMember,
   setMemberActive,
   updateMemberRole,
+  updateTeamMember,
 } from "@/app/dashboard/team/actions";
-import type { UserRole } from "@/lib/auth/types";
+import type { Profile, UserRole } from "@/lib/auth/types";
 import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
+import { EditTeamMemberModal } from "@/components/dashboard/EditTeamMemberModal";
+import type { EditTeamMemberData } from "@/components/dashboard/EditTeamMemberModal";
 import { EmptyState } from "@/components/dashboard/EmptyState";
 import { InviteMemberModal } from "@/components/dashboard/InviteMemberModal";
 import { TeamTable } from "@/components/dashboard/TeamTable";
+import { Toast } from "@/components/dashboard/Toast";
 import type { TeamMember } from "@/lib/dashboard/types";
 
 interface TeamPageClientProps {
   members: TeamMember[];
   currentUserId: string;
   currentUserRole: UserRole;
+  currentUserProfile: Profile;
 }
 
 export function TeamPageClient({
   members,
   currentUserId,
   currentUserRole,
+  currentUserProfile,
 }: TeamPageClientProps) {
   const router = useRouter();
   const [inviteOpen, setInviteOpen] = useState(false);
+  const [editMember, setEditMember] = useState<TeamMember | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const refresh = () => router.refresh();
 
+  const runAction = async (action: () => Promise<void>) => {
+    setError(null);
+    try {
+      await action();
+      refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Aktion fehlgeschlagen");
+    }
+  };
+
   const handleInvite = async (formData: FormData) => {
-    await inviteTeamMember(formData);
-    refresh();
+    await runAction(async () => {
+      await inviteTeamMember(formData);
+      setInviteOpen(false);
+    });
   };
 
   const handleRoleChange = async (memberId: string, role: UserRole) => {
-    await updateMemberRole(memberId, role);
-    refresh();
+    await runAction(() => updateMemberRole(memberId, role));
   };
 
   const handleToggleActive = async (memberId: string, isActive: boolean) => {
-    await setMemberActive(memberId, isActive);
-    refresh();
+    await runAction(() => setMemberActive(memberId, isActive));
   };
 
   const handleDelete = async (memberId: string) => {
     if (!confirm("Benutzer wirklich löschen?")) return;
-    await deleteMember(memberId);
-    refresh();
+    await runAction(() => deleteMember(memberId));
+  };
+
+  const handleEdit = async (memberId: string, data: EditTeamMemberData) => {
+    setError(null);
+    try {
+      await updateTeamMember(memberId, data);
+      setEditMember(null);
+      setToast("Teammitglied aktualisiert");
+      refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Speichern fehlgeschlagen");
+    }
   };
 
   return (
@@ -70,6 +100,12 @@ export function TeamPageClient({
         }
       />
 
+      {error && (
+        <div className="rounded-xl bg-red-500/10 px-4 py-3 text-sm text-red-300 ring-1 ring-red-500/20">
+          {error}
+        </div>
+      )}
+
       {members.length === 0 ? (
         <div className="glass-card rounded-2xl">
           <EmptyState
@@ -83,6 +119,8 @@ export function TeamPageClient({
           members={members}
           currentUserId={currentUserId}
           currentUserRole={currentUserRole}
+          currentUserProfile={currentUserProfile}
+          onEdit={setEditMember}
           onRoleChange={handleRoleChange}
           onToggleActive={handleToggleActive}
           onDelete={handleDelete}
@@ -95,6 +133,20 @@ export function TeamPageClient({
         onInvite={handleInvite}
         currentUserRole={currentUserRole}
       />
+
+      {editMember && (
+        <EditTeamMemberModal
+          key={editMember.id}
+          open={Boolean(editMember)}
+          member={editMember}
+          currentUserId={currentUserId}
+          currentUserProfile={currentUserProfile}
+          onClose={() => setEditMember(null)}
+          onSave={handleEdit}
+        />
+      )}
+
+      <Toast message={toast} onDismiss={() => setToast(null)} />
     </div>
   );
 }

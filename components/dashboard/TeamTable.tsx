@@ -1,9 +1,14 @@
 "use client";
 
-import { formatDate } from "@/lib/dashboard/format";
-import { getAssignableRoles } from "@/lib/auth/permissions";
-import { ROLE_LABELS, type UserRole } from "@/lib/auth/types";
+import { formatDate, formatPercent } from "@/lib/dashboard/format";
+import {
+  canManageMember,
+  getAssignableRoles,
+} from "@/lib/auth/permissions";
+import { getRoleLabel, normalizeUserRole, roleSelectOptions } from "@/lib/auth/roles";
+import type { UserRole } from "@/lib/auth/types";
 import type { TeamMember } from "@/lib/dashboard/types";
+import type { Profile } from "@/lib/auth/types";
 import { DataTable } from "./DataTable";
 import { TeamMemberStatusBadge } from "./TeamMemberStatusBadge";
 
@@ -11,6 +16,8 @@ interface TeamTableProps {
   members: TeamMember[];
   currentUserId: string;
   currentUserRole: UserRole;
+  currentUserProfile: Pick<Profile, "id" | "role">;
+  onEdit: (member: TeamMember) => void;
   onRoleChange: (memberId: string, role: UserRole) => Promise<void>;
   onToggleActive: (memberId: string, isActive: boolean) => Promise<void>;
   onDelete: (memberId: string) => Promise<void>;
@@ -20,6 +27,8 @@ export function TeamTable({
   members,
   currentUserId,
   currentUserRole,
+  currentUserProfile,
+  onEdit,
   onRoleChange,
   onToggleActive,
   onDelete,
@@ -35,36 +44,64 @@ export function TeamTable({
           key: "name",
           header: "Name",
           render: (member) => (
-            <div>
-              <div className="font-medium text-foreground">
-                {member.full_name?.trim() || member.email.split("@")[0]}
-              </div>
-              <div className="text-xs text-muted-soft">{member.email}</div>
+            <div className="font-medium text-foreground">
+              {member.full_name?.trim() || "—"}
             </div>
+          ),
+        },
+        {
+          key: "email",
+          header: "E-Mail",
+          hideOnMobile: true,
+          render: (member) => (
+            <span className="text-muted">{member.email}</span>
           ),
         },
         {
           key: "role",
           header: "Rolle",
-          render: (member) =>
-            member.id === currentUserId ? (
-              <span className="text-muted">{ROLE_LABELS[member.role]}</span>
-            ) : (
+          render: (member) => {
+            const memberRole = normalizeUserRole(member.role) ?? member.role;
+            const canEditRole =
+              member.id !== currentUserId &&
+              canManageMember(currentUserProfile, { role: memberRole });
+
+            if (!canEditRole) {
+              return (
+                <span className="text-muted">{getRoleLabel(member.role)}</span>
+              );
+            }
+
+            const options = roleSelectOptions(assignableRoles, member.role);
+
+            return (
               <select
-                value={member.role}
+                value={memberRole}
                 onChange={(e) =>
                   onRoleChange(member.id, e.target.value as UserRole)
                 }
                 className="dashboard-select-sm"
                 aria-label={`Rolle für ${member.email}`}
               >
-                {assignableRoles.map((role) => (
+                {options.map((role) => (
                   <option key={role} value={role}>
-                    {ROLE_LABELS[role]}
+                    {getRoleLabel(role)}
                   </option>
                 ))}
               </select>
-            ),
+            );
+          },
+        },
+        {
+          key: "commission",
+          header: "Provision",
+          className: "text-right",
+          hideOnMobile: true,
+          render: (member) => (
+            <span className="tabular-nums text-foreground">
+              {formatPercent(member.commission_rate)}
+            </span>
+          ),
         },
         {
           key: "status",
@@ -81,39 +118,55 @@ export function TeamTable({
         {
           key: "actions",
           header: "Aktionen",
-          className: "w-[220px]",
-          render: (member) =>
-            member.id === currentUserId ? (
-              <span className="text-xs text-muted-soft">—</span>
-            ) : (
+          className: "w-[260px]",
+          render: (member) => {
+            const memberRole = normalizeUserRole(member.role) ?? member.role;
+            const canManage = canManageMember(currentUserProfile, {
+              role: memberRole,
+            });
+
+            return (
               <div className="flex flex-wrap gap-2">
-                {member.status === "active" && (
-                  <button
-                    type="button"
-                    onClick={() => onToggleActive(member.id, false)}
-                    className="dashboard-btn-secondary px-3 py-1.5 text-xs"
-                  >
-                    Deaktivieren
-                  </button>
-                )}
-                {member.status === "deactivated" && (
-                  <button
-                    type="button"
-                    onClick={() => onToggleActive(member.id, true)}
-                    className="dashboard-btn-secondary px-3 py-1.5 text-xs"
-                  >
-                    Reaktivieren
-                  </button>
-                )}
                 <button
                   type="button"
-                  onClick={() => onDelete(member.id)}
-                  className="dashboard-btn-secondary px-3 py-1.5 text-xs text-red-300 hover:border-red-500/35 hover:bg-red-500/10"
+                  onClick={() => onEdit(member)}
+                  disabled={!canManage}
+                  className="dashboard-btn-secondary px-3 py-1.5 text-xs disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  Löschen
+                  Bearbeiten
                 </button>
+                {member.id !== currentUserId && canManage && (
+                  <>
+                    {member.status === "active" && (
+                      <button
+                        type="button"
+                        onClick={() => onToggleActive(member.id, false)}
+                        className="dashboard-btn-secondary px-3 py-1.5 text-xs"
+                      >
+                        Deaktivieren
+                      </button>
+                    )}
+                    {member.status === "deactivated" && (
+                      <button
+                        type="button"
+                        onClick={() => onToggleActive(member.id, true)}
+                        className="dashboard-btn-secondary px-3 py-1.5 text-xs"
+                      >
+                        Reaktivieren
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => onDelete(member.id)}
+                      className="dashboard-btn-secondary px-3 py-1.5 text-xs text-red-300 hover:border-red-500/35 hover:bg-red-500/10"
+                    >
+                      Löschen
+                    </button>
+                  </>
+                )}
               </div>
-            ),
+            );
+          },
         },
       ]}
     />

@@ -1,15 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { CommissionPayoutModal } from "@/components/dashboard/CommissionPayoutModal";
 import { CommissionStatusBadge } from "@/components/dashboard/CommissionStatusBadge";
 import { ClientRevenueModal } from "@/components/dashboard/ClientRevenueModal";
 import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
 import { DataTable } from "@/components/dashboard/DataTable";
 import { EmptyState } from "@/components/dashboard/EmptyState";
 import { KpiCard } from "@/components/dashboard/KpiCard";
-import { formatCents } from "@/lib/dashboard/format";
+import { formatCents, formatDate } from "@/lib/dashboard/format";
 import type { ClientRevenueRecord, FinanceStats } from "@/lib/dashboard/types";
-import { Banknote, CircleDollarSign, Euro, Receipt, Wallet } from "lucide-react";
+import { Banknote, CircleDollarSign, Clock3, Euro, Receipt, Wallet } from "lucide-react";
 import Link from "next/link";
 
 interface FinancePageClientProps {
@@ -21,38 +22,67 @@ export function FinancePageClient({ stats, clients }: FinancePageClientProps) {
   const [editingClient, setEditingClient] = useState<ClientRevenueRecord | null>(
     null,
   );
+  const [payoutClient, setPayoutClient] = useState<ClientRevenueRecord | null>(
+    null,
+  );
+
+  useEffect(() => {
+    if (!editingClient) return;
+    const updated = clients.find((client) => client.id === editingClient.id);
+    if (updated) setEditingClient(updated);
+  }, [clients, editingClient?.id]);
+
+  useEffect(() => {
+    if (!payoutClient) return;
+    const updated = clients.find((client) => client.id === payoutClient.id);
+    if (updated) setPayoutClient(updated);
+  }, [clients, payoutClient?.id]);
+
+  const handlePayoutRequest = (client: ClientRevenueRecord) => {
+    setPayoutClient(client);
+  };
+
+  const handlePayoutClose = () => {
+    setPayoutClient(null);
+  };
 
   return (
     <div className="space-y-8">
       <DashboardHeader
         title="Finanzen"
-        description="Umsatz, wiederkehrende Einnahmen und Provisionsübersicht — nur für Administratoren."
+        description="Verträge, Retainer, Umsatz und Provisionsübersicht — nur für Administratoren."
       />
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         <KpiCard
           label="Gesamtumsatz"
           value={formatCents(stats.totalRevenueCents)}
           icon={Euro}
-          trend="Summe aller Kundenumsätze"
+          trend="Setup + bezahlte Retainer"
         />
         <KpiCard
-          label="Monatlicher Umsatz (MRR)"
+          label="MRR"
           value={formatCents(stats.monthlyRecurringRevenueCents)}
           icon={CircleDollarSign}
-          trend="Wiederkehrende monatliche Einnahmen"
+          trend="Monatliche Retainer-Summe"
         />
         <KpiCard
           label="Offene Provisionen"
           value={formatCents(stats.outstandingCommissionsCents)}
           icon={Wallet}
-          trend="Ausstehend & offen"
+          trend="Noch auszuzahlen"
         />
         <KpiCard
           label="Bezahlte Provisionen"
           value={formatCents(stats.paidCommissionsCents)}
           icon={Banknote}
           trend="Bereits ausgezahlt"
+        />
+        <KpiCard
+          label="Offene Retainer-Zahlungen"
+          value={formatCents(stats.outstandingRetainerPaymentsCents)}
+          icon={Clock3}
+          trend="Unbezahlte Monatsbeträge"
         />
       </div>
 
@@ -62,7 +92,7 @@ export function FinancePageClient({ stats, clients }: FinancePageClientProps) {
             Kundenumsätze
           </h2>
           <p className="mt-1 text-sm text-muted">
-            Umsatzfelder und Provisionsstatus pro Kunde verwalten.
+            Vertragsdaten, Retainer und Provisionsstatus pro Kunde verwalten.
           </p>
         </div>
         <Link href="/dashboard/performance" className="dashboard-link text-sm">
@@ -85,6 +115,15 @@ export function FinancePageClient({ stats, clients }: FinancePageClientProps) {
             ),
           },
           {
+            key: "contract",
+            header: "Vertragsbeginn",
+            hideOnMobile: true,
+            render: (client) =>
+              client.contract_start_date
+                ? formatDate(`${client.contract_start_date}T12:00:00`)
+                : "—",
+          },
+          {
             key: "monthly",
             header: "Monatlich",
             className: "text-right",
@@ -99,6 +138,20 @@ export function FinancePageClient({ stats, clients }: FinancePageClientProps) {
             render: (client) => formatCents(client.setup_fee_cents),
           },
           {
+            key: "retainer",
+            header: "Retainer",
+            className: "text-right",
+            hideOnMobile: true,
+            render: (client) => (
+              <div>
+                <div>{formatCents(client.retainer_revenue_cents)}</div>
+                <div className="text-xs text-muted-soft">
+                  {client.months_paid} bezahlt / {client.months_open} offen
+                </div>
+              </div>
+            ),
+          },
+          {
             key: "total",
             header: "Gesamt",
             className: "text-right",
@@ -109,7 +162,17 @@ export function FinancePageClient({ stats, clients }: FinancePageClientProps) {
             header: "Provision",
             className: "text-right",
             hideOnMobile: true,
-            render: (client) => formatCents(client.commission_cents),
+            render: (client) => (
+              <div>
+                <div>{formatCents(client.commission_total_cents)}</div>
+                <div className="text-xs text-muted-soft">
+                  {formatCents(client.commission_paid_cents)} ausgezahlt
+                </div>
+                <div className="text-xs text-muted-soft">
+                  {formatCents(client.commission_outstanding_cents)} offen
+                </div>
+              </div>
+            ),
           },
           {
             key: "status",
@@ -147,7 +210,18 @@ export function FinancePageClient({ stats, clients }: FinancePageClientProps) {
       <ClientRevenueModal
         client={editingClient}
         open={editingClient !== null}
-        onClose={() => setEditingClient(null)}
+        payoutOpen={payoutClient !== null}
+        onClose={() => {
+          if (payoutClient) return;
+          setEditingClient(null);
+        }}
+        onRequestPayout={handlePayoutRequest}
+      />
+
+      <CommissionPayoutModal
+        client={payoutClient}
+        open={payoutClient !== null}
+        onClose={handlePayoutClose}
       />
     </div>
   );

@@ -30,6 +30,7 @@ export default async function TeamPage() {
       members={members}
       currentUserId={profile.id}
       currentUserRole={profile.role}
+      currentUserProfile={profile}
     />
   );
 }

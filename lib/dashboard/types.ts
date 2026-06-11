@@ -1,6 +1,5 @@
 import type { TeamMemberStatus, UserRole } from "@/lib/auth/types";
 import type {
-  AcquiredBy,
   AppointmentStatus,
   CommissionStatus,
   LeadStatus,
@@ -15,12 +14,13 @@ export interface Lead {
   email: string | null;
   website: string | null;
   status: LeadStatus;
-  acquired_by: AcquiredBy | null;
+  acquired_by: string | null;
   owner_id: string | null;
   created_by: string;
   estimated_value_cents: number | null;
   currency: string;
   notes: string | null;
+  converted_to_client: boolean;
   owner_name?: string | null;
   creator_name?: string | null;
 }
@@ -63,6 +63,22 @@ export interface FinanceStats {
   monthlyRecurringRevenueCents: number;
   outstandingCommissionsCents: number;
   paidCommissionsCents: number;
+  outstandingRetainerPaymentsCents: number;
+}
+
+export interface CommissionPayoutRecord {
+  id: string;
+  amount_cents: number;
+  payout_date: string;
+  created_at: string;
+}
+
+export interface RetainerPeriodView {
+  period_year: number;
+  period_month: number;
+  label: string;
+  status: "paid" | "open";
+  isUpcoming: boolean;
 }
 
 export interface ClientRevenueRecord {
@@ -72,9 +88,22 @@ export interface ClientRevenueRecord {
   responsible_member_name: string | null;
   monthly_revenue_cents: number | null;
   setup_fee_cents: number | null;
+  contract_start_date: string | null;
   total_revenue_cents: number | null;
+  setup_revenue_cents: number;
+  retainer_revenue_cents: number;
+  months_active: number;
+  months_paid: number;
+  months_open: number;
+  next_payment_due: string | null;
+  outstanding_retainer_cents: number;
+  retainer_periods: RetainerPeriodView[];
   commission_status: CommissionStatus;
   commission_cents: number;
+  commission_total_cents: number;
+  commission_paid_cents: number;
+  commission_outstanding_cents: number;
+  commission_payouts: CommissionPayoutRecord[];
   commission_rate: number;
   currency: string;
 }
@@ -88,8 +117,12 @@ export interface TeamPerformanceStats {
   leadsCreated: number;
   leadsWon: number;
   clientsOwned: number;
+  setupRevenueCents: number;
+  retainerRevenueCents: number;
   revenueGeneratedCents: number;
-  commissionsEarnedCents: number;
+  commissionsTotalCents: number;
+  commissionsPaidCents: number;
+  commissionsOutstandingCents: number;
 }
 
 export interface TeamMember {

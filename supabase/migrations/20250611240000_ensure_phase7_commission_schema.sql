@@ -1,0 +1,48 @@
+-- Ensure Phase 7 commission liability schema (idempotent)
+
+ALTER TABLE public.clients
+  ADD COLUMN IF NOT EXISTS commission_total_cents BIGINT NOT NULL DEFAULT 0
+    CHECK (commission_total_cents >= 0),
+  ADD COLUMN IF NOT EXISTS commission_paid_cents BIGINT NOT NULL DEFAULT 0
+    CHECK (commission_paid_cents >= 0),
+  ADD COLUMN IF NOT EXISTS commission_outstanding_cents BIGINT NOT NULL DEFAULT 0
+    CHECK (commission_outstanding_cents >= 0);
+
+UPDATE public.clients c
+SET commission_total_cents = GREATEST(
+  c.commission_total_cents,
+  GREATEST(
+    0,
+    ROUND(
+      COALESCE(c.setup_fee_cents, 0)::NUMERIC
+      * COALESCE(p.commission_rate, 0)::NUMERIC
+      / 100.0
+    )::BIGINT
+  )
+)
+FROM public.profiles p
+WHERE p.id = c.responsible_member_id
+  AND COALESCE(c.setup_fee_cents, 0) > 0
+  AND COALESCE(p.commission_rate, 0) > 0
+  AND c.commission_total_cents = 0;
+
+UPDATE public.clients
+SET commission_outstanding_cents = GREATEST(
+  0,
+  commission_total_cents - commission_paid_cents
+)
+WHERE commission_total_cents > 0
+  AND commission_outstanding_cents = 0
+  AND commission_paid_cents = 0;
+
+UPDATE public.clients
+SET commission_outstanding_cents = GREATEST(
+  0,
+  commission_total_cents - commission_paid_cents
+)
+WHERE commission_outstanding_cents
+  <> GREATEST(0, commission_total_cents - commission_paid_cents);
+
+CREATE INDEX IF NOT EXISTS clients_commission_outstanding_idx
+  ON public.clients (commission_outstanding_cents)
+  WHERE commission_outstanding_cents > 0;

@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Plus, Target } from "lucide-react";
 import {
+  convertLeadToClient,
   createLead,
   deleteLead,
   updateLead,
@@ -61,13 +62,18 @@ export function LeadsPageClient({
     refresh();
   };
 
+  const handleConvert = async (leadId: string) => {
+    await convertLeadToClient(leadId);
+    refresh();
+  };
+
   return (
     <div className="space-y-6">
       <DashboardHeader
         title="Leads"
         description={
           canAssign
-            ? "Verwalte alle Team-Leads, Eigentümer und geschätzte Werte."
+            ? "Verwalte alle Team-Leads, Betreuer und geschätzte Werte."
             : "Verwalte deine Leads, Pipeline und geschätzte Werte."
         }
         actions={
@@ -107,6 +113,7 @@ export function LeadsPageClient({
           onEdit={setEditLead}
           onDelete={handleDelete}
           onStatusChange={handleStatusChange}
+          onConvert={handleConvert}
         />
       )}
 

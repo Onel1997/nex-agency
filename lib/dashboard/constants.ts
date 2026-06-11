@@ -1,9 +1,9 @@
 export const LEAD_STATUSES = [
   "new",
   "contacted",
-  "appointment",
+  "qualified",
   "proposal",
-  "client",
+  "won",
   "lost",
 ] as const;
 
@@ -12,9 +12,9 @@ export type LeadStatus = (typeof LEAD_STATUSES)[number];
 export const LEAD_STATUS_LABELS: Record<LeadStatus, string> = {
   new: "Neu",
   contacted: "Kontaktiert",
-  appointment: "Termin",
+  qualified: "Qualifiziert",
   proposal: "Angebot",
-  client: "Kunde",
+  won: "Gewonnen",
   lost: "Verloren",
 };
 
@@ -25,7 +25,7 @@ export type AcquiredBy = (typeof ACQUIRED_BY_OPTIONS)[number];
 export const PIPELINE_STATUSES: LeadStatus[] = [
   "new",
   "contacted",
-  "appointment",
+  "qualified",
   "proposal",
 ];
 

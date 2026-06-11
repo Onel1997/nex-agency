@@ -1,14 +1,13 @@
 "use client";
 
 import {
-  ACQUIRED_BY_OPTIONS,
   LEAD_STATUSES,
   LEAD_STATUS_LABELS,
-  type AcquiredBy,
   type LeadStatus,
 } from "@/lib/dashboard/constants";
 import type { Lead, TeamMember } from "@/lib/dashboard/types";
 import { centsToEuroInput } from "@/lib/dashboard/format";
+import { ASSIGNMENT_FIELD_LABEL } from "@/lib/dashboard/assignments";
 
 export interface LeadFormData {
   company_name: string;
@@ -17,7 +16,7 @@ export interface LeadFormData {
   email: string;
   website: string;
   status: LeadStatus;
-  acquired_by: AcquiredBy | "";
+  acquired_by: string;
   owner_id: string;
   estimated_value: string;
   notes: string;
@@ -55,6 +54,12 @@ function memberLabel(member: TeamMember) {
   return member.full_name?.trim() || member.email.split("@")[0];
 }
 
+const BETREUER_ROLES = new Set(["super_admin", "admin", "sales_manager"]);
+
+function isBetreuerMember(member: TeamMember) {
+  return BETREUER_ROLES.has(member.role);
+}
+
 interface LeadFormProps {
   formId: string;
   data: LeadFormData;
@@ -82,7 +87,22 @@ export function LeadForm({
   creatorName,
   mode = "create",
 }: LeadFormProps) {
-  const ownerValue = data.owner_id || defaultOwnerId || "";
+  const betreuerMembers = teamMembers.filter(isBetreuerMember);
+  const defaultBetreuerId =
+    defaultOwnerId && betreuerMembers.some((member) => member.id === defaultOwnerId)
+      ? defaultOwnerId
+      : "";
+  const ownerValue = data.owner_id || defaultBetreuerId || "";
+  const ownerOptions =
+    ownerValue && !betreuerMembers.some((member) => member.id === ownerValue)
+      ? [
+          ...betreuerMembers,
+          ...teamMembers.filter((member) => member.id === ownerValue),
+        ]
+      : betreuerMembers;
+  const hasLegacyAcquiredBy =
+    Boolean(data.acquired_by) &&
+    !teamMembers.some((member) => memberLabel(member) === data.acquired_by);
 
   return (
     <form id={formId} onSubmit={onSubmit} className="space-y-4">
@@ -156,15 +176,15 @@ export function LeadForm({
           />
         </Field>
         {canAssign && (
-          <Field label="Eigentümer" className="sm:col-span-2">
+          <Field label={ASSIGNMENT_FIELD_LABEL} className="sm:col-span-2">
             <select
               value={ownerValue}
               onChange={(e) => onChange({ ...data, owner_id: e.target.value })}
               className="dashboard-input"
               required
             >
-              <option value="">— Teammitglied wählen —</option>
-              {teamMembers.map((member) => (
+              <option value="">— Mitarbeiter wählen —</option>
+              {ownerOptions.map((member) => (
                 <option key={member.id} value={member.id}>
                   {memberLabel(member)}
                 </option>
@@ -184,20 +204,18 @@ export function LeadForm({
         <Field label="Akquiriert von" className="sm:col-span-2">
           <select
             value={data.acquired_by}
-            onChange={(e) =>
-              onChange({
-                ...data,
-                acquired_by: e.target.value as AcquiredBy | "",
-              })
-            }
+            onChange={(e) => onChange({ ...data, acquired_by: e.target.value })}
             className="dashboard-input"
           >
-            <option value="">— Auswählen —</option>
-            {ACQUIRED_BY_OPTIONS.map((option) => (
-              <option key={option} value={option}>
-                {option}
+            <option value="">— Teammitglied wählen —</option>
+            {teamMembers.map((member) => (
+              <option key={member.id} value={memberLabel(member)}>
+                {memberLabel(member)}
               </option>
             ))}
+            {hasLegacyAcquiredBy && (
+              <option value={data.acquired_by}>{data.acquired_by}</option>
+            )}
           </select>
         </Field>
         <Field label="Notizen" className="sm:col-span-2">

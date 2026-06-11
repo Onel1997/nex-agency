@@ -2,6 +2,7 @@
 
 import type { ClientRecord, TeamMember } from "@/lib/dashboard/types";
 import { centsToEuroInput } from "@/lib/dashboard/format";
+import { ASSIGNMENT_FIELD_LABEL } from "@/lib/dashboard/assignments";
 
 export interface ClientFormData {
   responsible_member_id: string;
@@ -54,7 +55,7 @@ export function ClientForm({
 
       <div className="grid gap-4 sm:grid-cols-2">
         {canAssign && (
-          <Field label="Verantwortlich" className="sm:col-span-2">
+          <Field label={ASSIGNMENT_FIELD_LABEL} className="sm:col-span-2">
             <select
               value={data.responsible_member_id}
               onChange={(e) =>

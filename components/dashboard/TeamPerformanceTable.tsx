@@ -15,11 +15,11 @@ export function TeamPerformanceTable({ stats }: TeamPerformanceTableProps) {
         Team-Performance
       </h2>
       <p className="mt-2 text-sm text-muted">
-        Leads, Kunden, Umsatz und Provisionen pro Teammitglied.
+        Leads, Kunden, Setup- und Retainer-Umsatz sowie Provisionen pro Teammitglied.
       </p>
 
       <div className="dashboard-table mt-6 overflow-x-auto">
-        <table className="w-full min-w-[960px] text-left text-sm">
+        <table className="w-full min-w-[1320px] text-left text-sm">
           <thead>
             <tr className="border-b border-border text-xs uppercase tracking-wider text-muted-soft">
               <th className="px-3 py-3 font-medium">Mitglied</th>
@@ -28,8 +28,12 @@ export function TeamPerformanceTable({ stats }: TeamPerformanceTableProps) {
               <th className="px-3 py-3 font-medium text-right">Leads erstellt</th>
               <th className="px-3 py-3 font-medium text-right">Leads gewonnen</th>
               <th className="px-3 py-3 font-medium text-right">Kunden</th>
-              <th className="px-3 py-3 font-medium text-right">Umsatz</th>
-              <th className="px-3 py-3 font-medium text-right">Provisionen</th>
+              <th className="px-3 py-3 font-medium text-right">Setup-Umsatz</th>
+              <th className="px-3 py-3 font-medium text-right">Retainer-Umsatz</th>
+              <th className="px-3 py-3 font-medium text-right">Gesamtumsatz</th>
+              <th className="px-3 py-3 font-medium text-right">Provision verdient</th>
+              <th className="px-3 py-3 font-medium text-right">Provision ausgezahlt</th>
+              <th className="px-3 py-3 font-medium text-right">Provision offen</th>
             </tr>
           </thead>
           <tbody>
@@ -58,10 +62,22 @@ export function TeamPerformanceTable({ stats }: TeamPerformanceTableProps) {
                   {member.clientsOwned}
                 </td>
                 <td className="px-3 py-3 text-right tabular-nums text-foreground">
+                  {formatCents(member.setupRevenueCents)}
+                </td>
+                <td className="px-3 py-3 text-right tabular-nums text-foreground">
+                  {formatCents(member.retainerRevenueCents)}
+                </td>
+                <td className="px-3 py-3 text-right tabular-nums text-foreground">
                   {formatCents(member.revenueGeneratedCents)}
                 </td>
                 <td className="px-3 py-3 text-right tabular-nums text-foreground">
-                  {formatCents(member.commissionsEarnedCents)}
+                  {formatCents(member.commissionsTotalCents)}
+                </td>
+                <td className="px-3 py-3 text-right tabular-nums text-foreground">
+                  {formatCents(member.commissionsPaidCents)}
+                </td>
+                <td className="px-3 py-3 text-right tabular-nums text-foreground">
+                  {formatCents(member.commissionsOutstandingCents)}
                 </td>
               </tr>
             ))}

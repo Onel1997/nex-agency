@@ -2,6 +2,7 @@
 
 import { X } from "lucide-react";
 import { useEffect, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 
 interface ModalProps {
   open: boolean;
@@ -9,6 +10,9 @@ interface ModalProps {
   title: string;
   children: ReactNode;
   size?: "md" | "lg";
+  layer?: "default" | "stacked";
+  closeOnEscape?: boolean;
+  closeOnBackdrop?: boolean;
 }
 
 export function Modal({
@@ -17,33 +21,57 @@ export function Modal({
   title,
   children,
   size = "md",
+  layer = "default",
+  closeOnEscape = true,
+  closeOnBackdrop = true,
 }: ModalProps) {
   useEffect(() => {
-    if (!open) return;
+    if (!open || !closeOnEscape) return;
 
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") {
+        e.stopPropagation();
+        onClose();
+      }
     };
 
     document.body.style.overflow = "hidden";
-    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("keydown", onKeyDown, true);
 
     return () => {
       document.body.style.overflow = "";
-      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("keydown", onKeyDown, true);
     };
-  }, [open, onClose]);
+  }, [open, onClose, closeOnEscape]);
 
-  if (!open) return null;
+  useEffect(() => {
+    if (!open || closeOnEscape) return;
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center p-4 sm:items-center">
-      <button
-        type="button"
-        aria-label="Modal schließen"
-        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-        onClick={onClose}
-      />
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [open, closeOnEscape]);
+
+  if (!open || typeof document === "undefined") return null;
+
+  const zIndexClass = layer === "stacked" ? "z-[110]" : "z-[100]";
+
+  return createPortal(
+    <div className={`fixed inset-0 ${zIndexClass} flex items-end justify-center p-4 sm:items-center`}>
+      {closeOnBackdrop ? (
+        <button
+          type="button"
+          aria-label="Modal schließen"
+          className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+          onClick={onClose}
+        />
+      ) : (
+        <div
+          aria-hidden="true"
+          className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+        />
+      )}
       <div
         role="dialog"
         aria-modal="true"
@@ -51,6 +79,7 @@ export function Modal({
         className={`dashboard-modal glass-card relative z-10 w-full rounded-2xl ${
           size === "lg" ? "max-w-2xl" : "max-w-lg"
         }`}
+        onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-border px-5 py-4 sm:px-6">
           <h2
@@ -70,6 +99,7 @@ export function Modal({
         </div>
         <div className="px-5 py-5 sm:px-6">{children}</div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

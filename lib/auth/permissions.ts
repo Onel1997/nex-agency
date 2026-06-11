@@ -28,6 +28,10 @@ export function canAccessTeamRoutes(profile: Profile): boolean {
   return isManagement(profile);
 }
 
+export function canAccessFinanceRoutes(profile: Profile): boolean {
+  return isManagement(profile);
+}
+
 export function canAssignSuperAdminRole(profile: Profile): boolean {
   return isSuperAdmin(profile);
 }

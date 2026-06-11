@@ -61,6 +61,23 @@ export function centsToEuroInput(cents: number | null | undefined): string {
   return (cents / 100).toFixed(2).replace(".", ",");
 }
 
+export function formatPercent(value: number | null | undefined): string {
+  if (value == null) return "—";
+  return new Intl.NumberFormat("de-DE", {
+    style: "percent",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 1,
+  }).format(value / 100);
+}
+
+export function parsePercent(value: string): number | null {
+  const trimmed = value.trim().replace("%", "").replace(",", ".");
+  if (!trimmed) return null;
+  const num = Number.parseFloat(trimmed);
+  if (Number.isNaN(num) || num < 0 || num > 100) return null;
+  return Math.round(num * 100) / 100;
+}
+
 export function formatWebsite(url: string | null): string {
   if (!url) return "—";
   return url.replace(/^https?:\/\//, "").replace(/\/$/, "");

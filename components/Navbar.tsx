@@ -5,7 +5,7 @@ import { easePremium } from "@/lib/motion";
 import { bookingLink } from "@/lib/contact";
 import { unlockDocumentScroll } from "@/lib/scrollUnlock";
 import { useMotionProfile } from "@/lib/useMotionProfile";
-import { Sparkles, Menu, X } from "lucide-react";
+import { Sparkles, Menu, X, LayoutDashboard, LogIn } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
@@ -15,6 +15,29 @@ const links = [
   { label: "Projekte", href: "#portfolio" },
   { label: "Prozess", href: "#process" },
 ];
+
+function NavAuthIconCTA({
+  isAuthenticated,
+  onNavigate,
+}: {
+  isAuthenticated: boolean;
+  onNavigate?: () => void;
+}) {
+  const href = isAuthenticated ? "/dashboard" : "/login";
+  const label = isAuthenticated ? "Dashboard" : "Login";
+  const Icon = isAuthenticated ? LayoutDashboard : LogIn;
+
+  return (
+    <Link
+      href={href}
+      onClick={onNavigate}
+      className="nav-auth-icon-btn md:hidden"
+      aria-label={label}
+    >
+      <Icon className="h-4 w-4" aria-hidden />
+    </Link>
+  );
+}
 
 function NavAuthCTA({
   isAuthenticated,
@@ -79,11 +102,15 @@ function NavbarContent({
   return (
     <>
       <nav className={navShellClass}>
-        <a href="/" className="flex items-center gap-2.5" aria-label="NexAgency Startseite">
-          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-violet-500 to-cyan-500 shadow-[0_4px_20px_-4px_rgba(124,58,237,0.5)]">
-            <Sparkles className="h-4 w-4 text-white" />
+        <a
+          href="/"
+          className="nav-logo-link flex min-w-0 flex-1 items-center gap-2 md:gap-2.5"
+          aria-label="NexAgency Startseite"
+        >
+          <span className="nav-logo-mark flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-violet-500 to-cyan-500 shadow-[0_4px_20px_-4px_rgba(124,58,237,0.5)] md:h-8 md:w-8">
+            <Sparkles className="nav-logo-icon h-3.5 w-3.5 text-white md:h-4 md:w-4" />
           </span>
-          <span className="text-[17px] font-semibold tracking-[-0.025em]">
+          <span className="nav-logo-text truncate text-[15px] font-semibold tracking-[-0.025em] md:text-[17px]">
             Nex<span className="gradient-text">Agency</span>
           </span>
         </a>
@@ -96,26 +123,27 @@ function NavbarContent({
           ))}
         </div>
 
-        <div className="flex items-center gap-2">
-          <NavBookingCTA className="hidden shrink-0 md:inline-flex" />
+        <div className="nav-toolbar flex shrink-0 items-center gap-1.5 md:gap-2">
+          <NavBookingCTA className="nav-booking-cta--toolbar inline-flex shrink-0 md:inline-flex" />
           <NavAuthCTA
             isAuthenticated={isAuthenticated}
             className="hidden shrink-0 md:inline-flex"
           />
+          <NavAuthIconCTA isAuthenticated={isAuthenticated} />
           <button
             type="button"
             onClick={toggleMenu}
-            className="rounded-lg p-2 text-muted transition-colors hover:bg-white/[0.04] hover:text-foreground md:hidden"
+            className="nav-menu-toggle rounded-lg p-1.5 text-muted transition-colors hover:bg-white/[0.04] hover:text-foreground md:hidden md:p-2"
             aria-expanded={open}
             aria-label={open ? "Menü schließen" : "Menü öffnen"}
           >
-            {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+            {open ? <X className="h-[18px] w-[18px] md:h-5 md:w-5" /> : <Menu className="h-[18px] w-[18px] md:h-5 md:w-5" />}
           </button>
         </div>
       </nav>
 
       {open ? (
-        <div className="mx-auto mt-2 max-w-6xl rounded-2xl border border-border bg-surface/95 p-4 nav-blur-strong md:hidden">
+        <div className="site-nav-mobile-panel mx-auto mt-2 max-w-6xl rounded-2xl border border-border bg-surface/95 p-4 nav-blur-strong md:hidden">
           <div className="flex flex-col gap-1">
             {links.map((link) => (
               <a
@@ -127,14 +155,6 @@ function NavbarContent({
                 {link.label}
               </a>
             ))}
-            <div className="mt-2 flex flex-col gap-2">
-              <NavBookingCTA menu onNavigate={closeMenu} />
-              <NavAuthCTA
-                isAuthenticated={isAuthenticated}
-                menu
-                onNavigate={closeMenu}
-              />
-            </div>
           </div>
         </div>
       ) : null}
@@ -192,7 +212,7 @@ export function Navbar({ isAuthenticated = false }: { isAuthenticated?: boolean 
     };
   }, [open, closeMenu]);
 
-  const navShellClass = `mx-auto flex max-w-6xl items-center justify-between rounded-2xl border px-5 py-3 transition-[border-color,background-color,box-shadow] duration-300 ${
+  const navShellClass = `site-nav-shell mx-auto flex min-w-0 max-w-6xl items-center justify-between gap-2 rounded-2xl border px-3 py-2 transition-[border-color,background-color,box-shadow] duration-300 md:gap-0 md:px-5 md:py-3 ${
     scrolled
       ? "border-border-strong bg-surface/92 shadow-[0_8px_40px_-12px_rgba(0,0,0,0.5)] nav-blur-strong"
       : "border-border/50 bg-surface/55 nav-blur"
@@ -200,7 +220,7 @@ export function Navbar({ isAuthenticated = false }: { isAuthenticated?: boolean 
 
   /** Matches pt-4 + nav row (py-3, h-8) — reserves layout space for fixed header */
   const headerClass =
-    "site-nav-header fixed inset-x-0 top-0 z-[100] px-4 pt-4 sm:px-6";
+    "site-nav-header fixed inset-x-0 top-0 z-[100] overflow-x-hidden px-3 pt-2 md:px-6 md:pt-4";
 
   const content = (
     <NavbarContent

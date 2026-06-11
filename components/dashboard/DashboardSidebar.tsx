@@ -3,9 +3,11 @@
 import {
   Activity,
   CalendarDays,
+  Euro,
   LayoutDashboard,
   Menu,
   Target,
+  TrendingUp,
   UserCog,
   Users,
   X,
@@ -13,7 +15,10 @@ import {
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
-import { canAccessTeamRoutes } from "@/lib/auth/permissions";
+import {
+  canAccessFinanceRoutes,
+  canAccessTeamRoutes,
+} from "@/lib/auth/permissions";
 import { UserMenu } from "@/components/dashboard/UserMenu";
 import type { Profile } from "@/lib/auth/types";
 
@@ -29,6 +34,11 @@ const MANAGEMENT_NAV_ITEMS = [
   { href: "/dashboard/activities", label: "Aktivitäten", icon: Activity },
 ] as const;
 
+const FINANCE_NAV_ITEMS = [
+  { href: "/dashboard/finance", label: "Finanzen", icon: Euro },
+  { href: "/dashboard/performance", label: "Performance", icon: TrendingUp },
+] as const;
+
 interface DashboardSidebarProps {
   profile: Profile;
 }
@@ -36,9 +46,11 @@ interface DashboardSidebarProps {
 export function DashboardSidebar({ profile }: DashboardSidebarProps) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const navItems = canAccessTeamRoutes(profile)
-    ? [...BASE_NAV_ITEMS, ...MANAGEMENT_NAV_ITEMS]
-    : BASE_NAV_ITEMS;
+  const navItems = [
+    ...BASE_NAV_ITEMS,
+    ...(canAccessTeamRoutes(profile) ? MANAGEMENT_NAV_ITEMS : []),
+    ...(canAccessFinanceRoutes(profile) ? FINANCE_NAV_ITEMS : []),
+  ];
 
   const isActive = (href: string, exact?: boolean) =>
     exact ? pathname === href : pathname.startsWith(href);

@@ -1,5 +1,10 @@
 import type { TeamMemberStatus, UserRole } from "@/lib/auth/types";
-import type { AcquiredBy, AppointmentStatus, LeadStatus } from "./constants";
+import type {
+  AcquiredBy,
+  AppointmentStatus,
+  CommissionStatus,
+  LeadStatus,
+} from "./constants";
 
 export interface Lead {
   id: string;
@@ -53,6 +58,40 @@ export interface TeamMemberStats {
   pipelineValueCents: number;
 }
 
+export interface FinanceStats {
+  totalRevenueCents: number;
+  monthlyRecurringRevenueCents: number;
+  outstandingCommissionsCents: number;
+  paidCommissionsCents: number;
+}
+
+export interface ClientRevenueRecord {
+  id: string;
+  company_name: string;
+  responsible_member_id: string | null;
+  responsible_member_name: string | null;
+  monthly_revenue_cents: number | null;
+  setup_fee_cents: number | null;
+  total_revenue_cents: number | null;
+  commission_status: CommissionStatus;
+  commission_cents: number;
+  commission_rate: number;
+  currency: string;
+}
+
+export interface TeamPerformanceStats {
+  userId: string;
+  fullName: string;
+  email: string;
+  role: string;
+  commissionRate: number;
+  leadsCreated: number;
+  leadsWon: number;
+  clientsOwned: number;
+  revenueGeneratedCents: number;
+  commissionsEarnedCents: number;
+}
+
 export interface TeamMember {
   id: string;
   email: string;
@@ -62,6 +101,7 @@ export interface TeamMember {
   created_at: string;
   is_active: boolean;
   activated_at: string | null;
+  commission_rate: number;
 }
 
 export interface ClientRecord {

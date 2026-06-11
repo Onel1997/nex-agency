@@ -44,3 +44,19 @@ export const APPOINTMENT_STATUS_LABELS: Record<AppointmentStatus, string> = {
   completed: "Abgeschlossen",
   cancelled: "Abgesagt",
 };
+
+export const COMMISSION_STATUSES = [
+  "none",
+  "pending",
+  "outstanding",
+  "paid",
+] as const;
+
+export type CommissionStatus = (typeof COMMISSION_STATUSES)[number];
+
+export const COMMISSION_STATUS_LABELS: Record<CommissionStatus, string> = {
+  none: "Keine",
+  pending: "Ausstehend",
+  outstanding: "Offen",
+  paid: "Bezahlt",
+};

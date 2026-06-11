@@ -15,6 +15,7 @@ export interface Profile {
   status: TeamMemberStatus;
   is_active: boolean;
   activated_at: string | null;
+  commission_rate: number;
   created_at: string;
   updated_at: string;
 }

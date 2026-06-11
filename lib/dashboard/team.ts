@@ -5,10 +5,14 @@ import { createClient } from "@/lib/supabase/server";
 import type { TeamMember } from "./types";
 
 function mapTeamMember(
-  row: Omit<TeamMember, "status"> & { status: TeamMember["status"] },
+  row: Omit<TeamMember, "status"> & {
+    status: TeamMember["status"];
+    commission_rate?: number;
+  },
 ): TeamMember {
   return {
     ...row,
+    commission_rate: Number(row.commission_rate ?? 10),
     status: resolveTeamMemberStatus(row),
   };
 }
@@ -22,7 +26,7 @@ export async function getTeamMembers(): Promise<TeamMember[]> {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("profiles")
-    .select("id, email, full_name, role, created_at, is_active, status, activated_at")
+    .select("id, email, full_name, role, created_at, is_active, status, activated_at, commission_rate")
     .order("created_at", { ascending: false });
 
   if (error) throw new Error(error.message);
@@ -38,7 +42,7 @@ export async function getAssignableTeamMembers(): Promise<TeamMember[]> {
   if (isManagement(profile)) {
     const { data, error } = await supabase
       .from("profiles")
-      .select("id, email, full_name, role, created_at, is_active, status, activated_at")
+      .select("id, email, full_name, role, created_at, is_active, status, activated_at, commission_rate")
       .eq("status", "active")
       .not("activated_at", "is", null)
       .order("full_name");
@@ -57,6 +61,7 @@ export async function getAssignableTeamMembers(): Promise<TeamMember[]> {
       created_at: profile.created_at,
       is_active: profile.is_active,
       activated_at: profile.activated_at,
+      commission_rate: profile.commission_rate,
     }),
   ];
 }

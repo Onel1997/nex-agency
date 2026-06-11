@@ -2,7 +2,11 @@ import { createClient } from "@/lib/supabase/server";
 import { isClientHubSchemaMissingError } from "./client-activities";
 import type { InvoiceStatus } from "./constants";
 import { calculateInvoiceAmounts, DEFAULT_VAT_RATE } from "./invoice-math";
+import { syncOverdueInvoices } from "./invoice-overdue";
+import { filterInvoicesForClient } from "./contract-invoices";
 import type { InvoiceItemRecord, InvoiceRecord, InvoiceWithDetails } from "./types";
+
+export { filterInvoicesForClient } from "./contract-invoices";
 
 function isPhase10InvoiceSchemaMissingError(message: string) {
   const normalized = message.toLowerCase();
@@ -12,7 +16,8 @@ function isPhase10InvoiceSchemaMissingError(message: string) {
       (normalized.includes("subtotal_cents") ||
         normalized.includes("invoice_items") ||
         normalized.includes("customer_number") ||
-        normalized.includes("next_invoice_number")))
+        normalized.includes("next_invoice_number") ||
+        normalized.includes("due_date")))
   );
 }
 
@@ -74,6 +79,7 @@ function mapInvoiceRow(row: Record<string, unknown>): InvoiceRecord {
     created_by: (row.created_by as string | null) ?? null,
     created_at: row.created_at as string,
     updated_at: row.updated_at as string,
+    due_date: (row.due_date as string | null | undefined) ?? null,
     company_name: (row.company_name as string | undefined) ?? undefined,
     customer_number: (row.customer_number as string | null | undefined) ?? null,
   };
@@ -91,12 +97,15 @@ const INVOICE_SELECT = `
   status,
   created_by,
   created_at,
-  updated_at
+  updated_at,
+  due_date
 `;
 
 export async function getInvoicesForClient(
   clientId: string,
 ): Promise<InvoiceRecord[]> {
+  await syncOverdueInvoices();
+
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("invoices")
@@ -111,7 +120,10 @@ export async function getInvoicesForClient(
     throw new Error(error.message);
   }
 
-  return (data ?? []).map((row) => mapInvoiceRow(row as Record<string, unknown>));
+  return filterInvoicesForClient(
+    (data ?? []).map((row) => mapInvoiceRow(row as Record<string, unknown>)),
+    clientId,
+  );
 }
 
 async function getInvoicesForClientLegacy(
@@ -140,10 +152,15 @@ async function getInvoicesForClientLegacy(
     throw new Error(error.message);
   }
 
-  return (data ?? []).map((row) => mapInvoiceRow(row as Record<string, unknown>));
+  return filterInvoicesForClient(
+    (data ?? []).map((row) => mapInvoiceRow(row as Record<string, unknown>)),
+    clientId,
+  );
 }
 
 export async function getAllInvoices(): Promise<InvoiceRecord[]> {
+  await syncOverdueInvoices();
+
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("invoices")
@@ -212,6 +229,8 @@ export async function getInvoiceItems(
 export async function getInvoiceWithDetails(
   invoiceId: string,
 ): Promise<InvoiceWithDetails | null> {
+  await syncOverdueInvoices();
+
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("invoices")
@@ -271,15 +290,19 @@ export interface InvoiceStats {
   openInvoicesCents: number;
   paidInvoicesCents: number;
   overdueInvoicesCents: number;
+  outstandingInvoiceAmountCents: number;
 }
 
 export async function getInvoiceStats(): Promise<InvoiceStats> {
+  await syncOverdueInvoices();
+
   const invoices = await getAllInvoices();
 
   let totalInvoicedCents = 0;
   let openInvoicesCents = 0;
   let paidInvoicesCents = 0;
   let overdueInvoicesCents = 0;
+  let outstandingInvoiceAmountCents = 0;
 
   for (const invoice of invoices) {
     const gross = invoice.total_amount_cents;
@@ -291,8 +314,10 @@ export async function getInvoiceStats(): Promise<InvoiceStats> {
       paidInvoicesCents += gross;
     } else if (invoice.status === "overdue") {
       overdueInvoicesCents += gross;
+      outstandingInvoiceAmountCents += gross;
     } else if (invoice.status === "draft" || invoice.status === "sent") {
       openInvoicesCents += gross;
+      outstandingInvoiceAmountCents += gross;
     }
   }
 
@@ -301,6 +326,7 @@ export async function getInvoiceStats(): Promise<InvoiceStats> {
     openInvoicesCents,
     paidInvoicesCents,
     overdueInvoicesCents,
+    outstandingInvoiceAmountCents,
   };
 }
 

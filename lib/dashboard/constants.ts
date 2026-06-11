@@ -71,9 +71,17 @@ export const INVOICE_STATUSES = [
 
 export type InvoiceStatus = (typeof INVOICE_STATUSES)[number];
 
+/** Primary invoice lifecycle statuses shown in day-to-day workflows. */
+export const INVOICE_OPERATIONAL_STATUSES = [
+  "draft",
+  "sent",
+  "paid",
+  "overdue",
+] as const satisfies readonly InvoiceStatus[];
+
 export const INVOICE_STATUS_LABELS: Record<InvoiceStatus, string> = {
   draft: "Entwurf",
-  sent: "Versendet",
+  sent: "Gesendet",
   paid: "Bezahlt",
   overdue: "Überfällig",
   cancelled: "Storniert",
@@ -103,6 +111,7 @@ export const CLIENT_ACTIVITY_TYPES = [
   "commission_paid",
   "file_uploaded",
   "invoice_created",
+  "invoice_sent",
   "invoice_paid",
 ] as const;
 
@@ -116,5 +125,6 @@ export const CLIENT_ACTIVITY_TYPE_LABELS: Record<ClientActivityType, string> = {
   commission_paid: "Provision ausgezahlt",
   file_uploaded: "Datei hochgeladen",
   invoice_created: "Rechnung erstellt",
+  invoice_sent: "Rechnung gesendet",
   invoice_paid: "Rechnung bezahlt",
 };

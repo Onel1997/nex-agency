@@ -2,31 +2,440 @@ import fs from "node:fs";
 import path from "node:path";
 import PDFDocument from "pdfkit";
 import { formatCents, formatDate } from "./format";
+import {
+  INVOICE_COMPANY,
+  INVOICE_PAYMENT,
+  INVOICE_PAYMENT_TERM_DAYS,
+} from "./invoice-company";
 import { registerInvoicePdfFonts } from "./invoice-pdf-fonts";
-import type { InvoiceWithDetails } from "./types";
+import { formatInvoiceDueDate } from "./invoice-dates";
+import type { InvoiceClientSnapshot, InvoiceWithDetails } from "./types";
 
 function formatEuroLine(cents: number): string {
   return formatCents(cents).replace(/\s/g, " ");
+}
+
+const PAGE = {
+  margin: 50,
+  width: 595,
+  height: 842,
+  bottom: 792,
+} as const;
+
+const RIGHT_COL_X = 368;
+const RIGHT_COL_WIDTH = 177;
+const LINE = 11;
+const LABEL_GAP = 4;
+const SECTION_GAP = 5;
+const TABLE_ROW_MIN = 15;
+const TABLE_HEADER_HEIGHT = 18;
+const TOTALS_HEIGHT = 44;
+const CLOSING_BLOCK_HEIGHT = 132;
+
+const COLORS = {
+  title: "#111827",
+  body: "#1f2937",
+  muted: "#6b7280",
+  accent: "#7c3aed",
+  tagline: "#0891b2",
+  rule: "#e5e7eb",
+} as const;
+
+function renderLabelValueLine(
+  doc: InstanceType<typeof PDFDocument>,
+  fonts: { regular: string; bold: string },
+  x: number,
+  y: number,
+  width: number,
+  label: string,
+  value: string,
+  options?: { align?: "left" | "right"; highlight?: boolean },
+): number {
+  const align = options?.align ?? "left";
+  const highlight = options?.highlight ?? false;
+
+  doc.fontSize(8).font(fonts.regular).fillColor(COLORS.muted);
+  doc.text(`${label}:`, x, y, { align, width });
+  y += LINE;
+
+  doc
+    .fontSize(highlight ? 10 : 9)
+    .font(highlight ? fonts.bold : fonts.regular)
+    .fillColor(COLORS.title)
+    .text(value, x, y, { align, width });
+
+  return y + LINE + SECTION_GAP;
+}
+
+function renderCompanyBlock(
+  doc: InstanceType<typeof PDFDocument>,
+  fonts: { regular: string; bold: string },
+): number {
+  let y: number = PAGE.margin;
+
+  doc
+    .fillColor(COLORS.accent)
+    .fontSize(22)
+    .font(fonts.bold)
+    .text(INVOICE_COMPANY.name, PAGE.margin, y);
+  y += 24;
+
+  doc
+    .fillColor(COLORS.tagline)
+    .fontSize(9)
+    .font(fonts.regular)
+    .text(INVOICE_COMPANY.tagline, PAGE.margin, y);
+  y += 13;
+
+  doc.fontSize(8).fillColor(COLORS.muted).text(INVOICE_COMPANY.legalForm, PAGE.margin, y);
+  y += 16;
+
+  doc.fontSize(9).font(fonts.regular).fillColor(COLORS.body);
+  doc.text(INVOICE_COMPANY.street, PAGE.margin, y);
+  y += LINE;
+  doc.text(`${INVOICE_COMPANY.postalCode} ${INVOICE_COMPANY.city}`, PAGE.margin, y);
+  y += LINE;
+  doc.text(INVOICE_COMPANY.country, PAGE.margin, y);
+  y += LINE + LABEL_GAP;
+  doc.fillColor(COLORS.muted).text(INVOICE_COMPANY.email, PAGE.margin, y);
+  y += LINE;
+
+  return y;
+}
+
+function renderInvoiceMetaBlock(
+  doc: InstanceType<typeof PDFDocument>,
+  fonts: { regular: string; bold: string },
+  invoice: InvoiceWithDetails,
+): number {
+  let y: number = PAGE.margin;
+
+  doc
+    .fillColor(COLORS.title)
+    .fontSize(18)
+    .font(fonts.bold)
+    .text("RECHNUNG", RIGHT_COL_X, y, { align: "right", width: RIGHT_COL_WIDTH });
+  y += 26;
+
+  y = renderLabelValueLine(
+    doc,
+    fonts,
+    RIGHT_COL_X,
+    y,
+    RIGHT_COL_WIDTH,
+    "Rechnungsnummer",
+    invoice.invoice_number,
+    { align: "right", highlight: true },
+  );
+
+  if (invoice.client.customer_number) {
+    y = renderLabelValueLine(
+      doc,
+      fonts,
+      RIGHT_COL_X,
+      y,
+      RIGHT_COL_WIDTH,
+      "Kundennummer",
+      invoice.client.customer_number,
+      { align: "right", highlight: true },
+    );
+  }
+
+  y = renderLabelValueLine(
+    doc,
+    fonts,
+    RIGHT_COL_X,
+    y,
+    RIGHT_COL_WIDTH,
+    "Rechnungsdatum",
+    formatDate(invoice.created_at),
+    { align: "right" },
+  );
+
+  y = renderLabelValueLine(
+    doc,
+    fonts,
+    RIGHT_COL_X,
+    y,
+    RIGHT_COL_WIDTH,
+    "Fällig bis",
+    formatInvoiceDueDate(invoice.due_date, invoice.created_at),
+    { align: "right" },
+  );
+
+  return y - SECTION_GAP;
+}
+
+function renderRecipientBlock(
+  doc: InstanceType<typeof PDFDocument>,
+  fonts: { regular: string; bold: string },
+  client: InvoiceClientSnapshot,
+  startY: number,
+): number {
+  let y = startY;
+
+  doc
+    .fontSize(10)
+    .font(fonts.bold)
+    .fillColor(COLORS.title)
+    .text("Rechnungsempfänger", PAGE.margin, y);
+  y += 15;
+
+  if (client.contact_name) {
+    doc.fontSize(9).font(fonts.regular).fillColor(COLORS.body).text(client.contact_name, PAGE.margin, y);
+    y += LINE;
+  }
+
+  doc.fontSize(9).font(fonts.bold).fillColor(COLORS.title).text(client.company_name, PAGE.margin, y);
+  y += LINE + LABEL_GAP;
+
+  if (client.customer_number) {
+    doc
+      .fontSize(9)
+      .font(fonts.regular)
+      .fillColor(COLORS.body)
+      .text(`Kundennummer: ${client.customer_number}`, PAGE.margin, y);
+    y += LINE + LABEL_GAP;
+  }
+
+  if (client.email) {
+    doc.fontSize(8).font(fonts.regular).fillColor(COLORS.muted).text("E-Mail:", PAGE.margin, y);
+    y += LINE;
+    doc.fontSize(9).font(fonts.regular).fillColor(COLORS.body).text(client.email, PAGE.margin, y);
+    y += LINE + LABEL_GAP;
+  }
+
+  if (client.phone) {
+    doc.fontSize(8).font(fonts.regular).fillColor(COLORS.muted).text("Telefon:", PAGE.margin, y);
+    y += LINE;
+    doc.fontSize(9).font(fonts.regular).fillColor(COLORS.body).text(client.phone, PAGE.margin, y);
+    y += LINE;
+  }
+
+  return y;
+}
+
+function renderTableHeader(
+  doc: InstanceType<typeof PDFDocument>,
+  fonts: { regular: string; bold: string },
+  tableTop: number,
+): void {
+  const colDesc = PAGE.margin;
+  const colQty = 320;
+  const colUnit = 380;
+  const colTotal = 480;
+
+  doc
+    .font(fonts.bold)
+    .fontSize(8)
+    .fillColor(COLORS.muted)
+    .text("POSITION", colDesc, tableTop)
+    .text("MENGE", colQty, tableTop)
+    .text("EINZELPREIS", colUnit, tableTop)
+    .text("SUMME", colTotal, tableTop, { align: "right", width: 65 });
+
+  doc
+    .moveTo(PAGE.margin, tableTop + 11)
+    .lineTo(PAGE.width - PAGE.margin, tableTop + 11)
+    .strokeColor(COLORS.rule)
+    .stroke();
+}
+
+function measureRowHeight(
+  doc: InstanceType<typeof PDFDocument>,
+  description: string,
+): number {
+  return Math.max(
+    TABLE_ROW_MIN,
+    doc.heightOfString(description, { width: 250 }) + 3,
+  );
+}
+
+function renderTableRow(
+  doc: InstanceType<typeof PDFDocument>,
+  item: InvoiceWithDetails["items"][number],
+  rowY: number,
+): void {
+  const colDesc = PAGE.margin;
+  const colQty = 320;
+  const colUnit = 380;
+  const colTotal = 480;
+
+  doc.text(item.description, colDesc, rowY, { width: 250 });
+  doc.text(String(item.quantity), colQty, rowY);
+  doc.text(formatEuroLine(item.unit_price_cents), colUnit, rowY);
+  doc.text(formatEuroLine(item.line_total_cents), colTotal, rowY, {
+    align: "right",
+    width: 65,
+  });
+}
+
+function renderTotalsSection(
+  doc: InstanceType<typeof PDFDocument>,
+  fonts: { regular: string; bold: string },
+  invoice: InvoiceWithDetails,
+  startY: number,
+): number {
+  let totalRowY = startY + 6;
+
+  doc
+    .moveTo(350, totalRowY - 5)
+    .lineTo(PAGE.width - PAGE.margin, totalRowY - 5)
+    .strokeColor(COLORS.rule)
+    .stroke();
+
+  const totals = [
+    ["Netto", formatEuroLine(invoice.subtotal_cents)],
+    [`MwSt. (${invoice.vat_rate}%)`, formatEuroLine(invoice.tax_amount_cents)],
+    ["Gesamtbetrag", formatEuroLine(invoice.total_amount_cents)],
+  ];
+
+  for (const [label, value] of totals) {
+    const isTotal = label === "Gesamtbetrag";
+    doc
+      .font(isTotal ? fonts.bold : fonts.regular)
+      .fontSize(isTotal ? 10 : 9)
+      .fillColor(isTotal ? COLORS.title : COLORS.muted)
+      .text(label, 350, totalRowY)
+      .text(value, 480, totalRowY, { align: "right", width: 65 });
+    totalRowY += isTotal ? 16 : 14;
+  }
+
+  return totalRowY;
+}
+
+function renderPaymentAndClosing(
+  doc: InstanceType<typeof PDFDocument>,
+  fonts: { regular: string; bold: string },
+  startY: number,
+): number {
+  let y = startY + 10;
+
+  doc
+    .moveTo(PAGE.margin, y)
+    .lineTo(PAGE.width - PAGE.margin, y)
+    .strokeColor(COLORS.rule)
+    .stroke();
+  y += 12;
+
+  doc
+    .fontSize(10)
+    .font(fonts.bold)
+    .fillColor(COLORS.title)
+    .text("Zahlungsinformationen", PAGE.margin, y);
+  y += 15;
+
+  y = renderLabelValueLine(
+    doc,
+    fonts,
+    PAGE.margin,
+    y,
+    280,
+    "Kontoinhaber",
+    INVOICE_PAYMENT.accountHolder,
+  );
+  y = renderLabelValueLine(doc, fonts, PAGE.margin, y, 280, "IBAN", INVOICE_PAYMENT.iban);
+  y = renderLabelValueLine(
+    doc,
+    fonts,
+    PAGE.margin,
+    y,
+    280,
+    "Zahlungsziel",
+    INVOICE_PAYMENT.paymentTermLabel,
+  );
+
+  y += 2;
+  doc
+    .fontSize(9)
+    .font(fonts.regular)
+    .fillColor(COLORS.title)
+    .text("Vielen Dank für Ihren Auftrag.", PAGE.margin, y);
+  y += LINE + LABEL_GAP;
+
+  doc
+    .fontSize(8)
+    .fillColor(COLORS.muted)
+    .text("Bei Fragen zur Rechnung kontaktieren Sie uns unter:", PAGE.margin, y);
+  y += LINE;
+  doc.fontSize(9).fillColor(COLORS.body).text(INVOICE_COMPANY.email, PAGE.margin, y);
+
+  return y + LINE;
+}
+
+function renderItemTable(
+  doc: InstanceType<typeof PDFDocument>,
+  fonts: { regular: string; bold: string },
+  items: InvoiceWithDetails["items"],
+  tableTop: number,
+): number {
+  renderTableHeader(doc, fonts, tableTop);
+
+  let rowY = tableTop + TABLE_HEADER_HEIGHT;
+  doc.font(fonts.regular).fontSize(9).fillColor(COLORS.title);
+
+  const reservedClosingHeight = TOTALS_HEIGHT + CLOSING_BLOCK_HEIGHT + 8;
+  const tableBreakWithClosing = PAGE.bottom - reservedClosingHeight;
+  const tableBreakFull = PAGE.bottom - PAGE.margin;
+
+  for (let index = 0; index < items.length; index += 1) {
+    const item = items[index];
+    const rowHeight = measureRowHeight(doc, item.description);
+    const isLastRow = index === items.length - 1;
+    const breakY = isLastRow ? tableBreakWithClosing : tableBreakFull;
+
+    if (rowY + rowHeight > breakY) {
+      doc.addPage();
+      const continuedTop = PAGE.margin;
+      renderTableHeader(doc, fonts, continuedTop);
+      rowY = continuedTop + TABLE_HEADER_HEIGHT;
+    }
+
+    renderTableRow(doc, item, rowY);
+    rowY += rowHeight;
+  }
+
+  return rowY;
 }
 
 function escapePdfLiteral(text: string): string {
   return text.replace(/\\/g, "\\\\").replace(/\(/g, "\\(").replace(/\)/g, "\\)");
 }
 
-/** Minimal PDF using PDF built-in Helvetica (no AFM files on disk). */
-function generateFallbackInvoicePdfBuffer(invoice: InvoiceWithDetails): Buffer {
+function buildFallbackLines(invoice: InvoiceWithDetails): string[] {
   const { client, items } = invoice;
-  const lines = [
-    "NexAgency",
-    "RECHNUNG",
-    `Rechnungsnr.: ${invoice.invoice_number}`,
-    `Datum: ${formatDate(invoice.created_at)}`,
-    "",
+  const recipientLines = [
     "Rechnungsempfaenger:",
+    ...(client.contact_name ? [client.contact_name] : []),
     client.company_name,
-    client.customer_number ? `Kundennr.: ${client.customer_number}` : "",
-    client.contact_name ?? "",
-    client.email ?? "",
+    ...(client.customer_number ? [`Kundennummer: ${client.customer_number}`] : []),
+    ...(client.email ? ["E-Mail:", client.email] : []),
+    ...(client.phone ? ["Telefon:", client.phone] : []),
+  ];
+
+  return [
+    INVOICE_COMPANY.name,
+    INVOICE_COMPANY.tagline,
+    INVOICE_COMPANY.legalForm,
+    "",
+    INVOICE_COMPANY.street,
+    `${INVOICE_COMPANY.postalCode} ${INVOICE_COMPANY.city}`,
+    INVOICE_COMPANY.country,
+    INVOICE_COMPANY.email,
+    "",
+    "RECHNUNG",
+    "",
+    "Rechnungsnummer:",
+    invoice.invoice_number,
+    ...(client.customer_number ? ["", "Kundennummer:", client.customer_number] : []),
+    "",
+    "Rechnungsdatum:",
+    formatDate(invoice.created_at),
+    "",
+    "Faellig bis:",
+    formatInvoiceDueDate(invoice.due_date, invoice.created_at),
+    "",
+    ...recipientLines,
     "",
     "Positionen:",
     ...items.map(
@@ -38,14 +447,31 @@ function generateFallbackInvoicePdfBuffer(invoice: InvoiceWithDetails): Buffer {
     `MwSt. (${invoice.vat_rate}%): ${formatEuroLine(invoice.tax_amount_cents)}`,
     `Gesamtbetrag: ${formatEuroLine(invoice.total_amount_cents)}`,
     "",
-    "NexAgency - Diese Rechnung wurde automatisch erstellt.",
-  ].filter(Boolean);
+    "Zahlungsinformationen",
+    "",
+    "Kontoinhaber:",
+    INVOICE_PAYMENT.accountHolder,
+    "IBAN:",
+    INVOICE_PAYMENT.iban,
+    "Zahlungsziel:",
+    INVOICE_PAYMENT.paymentTermLabel,
+    "",
+    "Vielen Dank fuer Ihren Auftrag.",
+    "",
+    "Bei Fragen zur Rechnung kontaktieren Sie uns unter:",
+    INVOICE_COMPANY.email,
+  ];
+}
+
+/** Minimal PDF using PDF built-in Helvetica (no AFM files on disk). */
+function generateFallbackInvoicePdfBuffer(invoice: InvoiceWithDetails): Buffer {
+  const lines = buildFallbackLines(invoice);
 
   let y = 780;
   const contentParts = ["BT", "/F1 10 Tf"];
   for (const line of lines) {
     contentParts.push(`1 0 0 1 50 ${y} Tm (${escapePdfLiteral(line)}) Tj`);
-    y -= 14;
+    y -= 11;
   }
   contentParts.push("ET");
   const stream = `${contentParts.join("\n")}\n`;
@@ -85,146 +511,30 @@ function renderInvoicePdf(
 ): void {
   const { client, items } = invoice;
 
-  doc
-    .fillColor("#7c3aed")
-    .fontSize(28)
-    .font(fonts.bold)
-    .text("NexAgency", 50, 45);
+  const companyBottomY = renderCompanyBlock(doc, fonts);
+  const metaBottomY = renderInvoiceMetaBlock(doc, fonts, invoice);
+  const recipientTopY = Math.max(companyBottomY, metaBottomY) + 10;
+  const recipientBottomY = renderRecipientBlock(doc, fonts, client, recipientTopY);
 
-  doc
-    .fillColor("#22d3ee")
-    .fontSize(10)
-    .font(fonts.regular)
-    .text("Digital Agency CRM", 50, 78);
+  const tableTop = recipientBottomY + 8;
+  const tableEndY = renderItemTable(doc, fonts, items, tableTop);
 
-  doc
-    .fillColor("#111827")
-    .fontSize(22)
-    .font(fonts.bold)
-    .text("RECHNUNG", 400, 50, { align: "right", width: 145 });
-
-  doc
-    .fontSize(10)
-    .font(fonts.regular)
-    .fillColor("#4b5563")
-    .text(`Rechnungsnr.: ${invoice.invoice_number}`, 400, 80, {
-      align: "right",
-      width: 145,
-    })
-    .text(`Datum: ${formatDate(invoice.created_at)}`, 400, 95, {
-      align: "right",
-      width: 145,
-    });
-
-  doc.moveDown(3);
-  const leftY = doc.y;
-
-  doc
-    .fillColor("#111827")
-    .fontSize(11)
-    .font(fonts.bold)
-    .text("Rechnungsempfänger", 50, leftY);
-
-  doc
-    .font(fonts.regular)
-    .fontSize(10)
-    .fillColor("#374151")
-    .text(client.company_name, 50, leftY + 18);
-
-  let detailY = leftY + 34;
-  if (client.customer_number) {
-    doc.text(`Kundennr.: ${client.customer_number}`, 50, detailY);
-    detailY += 14;
-  }
-  if (client.contact_name) {
-    doc.text(client.contact_name, 50, detailY);
-    detailY += 14;
-  }
-  if (client.email) {
-    doc.text(client.email, 50, detailY);
-    detailY += 14;
-  }
-  if (client.phone) {
-    doc.text(client.phone, 50, detailY);
+  let contentY = tableEndY;
+  const closingBlockHeight = TOTALS_HEIGHT + CLOSING_BLOCK_HEIGHT + 6;
+  if (contentY + closingBlockHeight > PAGE.bottom) {
+    doc.addPage();
+    contentY = PAGE.margin;
   }
 
-  const tableTop = Math.max(detailY + 30, 220);
-  const colDesc = 50;
-  const colQty = 320;
-  const colUnit = 380;
-  const colTotal = 480;
-
-  doc
-    .font(fonts.bold)
-    .fontSize(9)
-    .fillColor("#6b7280")
-    .text("POSITION", colDesc, tableTop)
-    .text("MENGE", colQty, tableTop)
-    .text("EINZELPREIS", colUnit, tableTop)
-    .text("SUMME", colTotal, tableTop, { align: "right", width: 65 });
-
-  doc
-    .moveTo(50, tableTop + 14)
-    .lineTo(545, tableTop + 14)
-    .strokeColor("#e5e7eb")
-    .stroke();
-
-  let rowY = tableTop + 24;
-  doc.font(fonts.regular).fontSize(10).fillColor("#111827");
-
-  for (const item of items) {
-    doc.text(item.description, colDesc, rowY, { width: 250 });
-    doc.text(String(item.quantity), colQty, rowY);
-    doc.text(formatEuroLine(item.unit_price_cents), colUnit, rowY);
-    doc.text(formatEuroLine(item.line_total_cents), colTotal, rowY, {
-      align: "right",
-      width: 65,
-    });
-    rowY += Math.max(20, doc.heightOfString(item.description, { width: 250 }) + 6);
-  }
-
-  const totalsY = rowY + 20;
-  doc
-    .moveTo(350, totalsY - 10)
-    .lineTo(545, totalsY - 10)
-    .strokeColor("#e5e7eb")
-    .stroke();
-
-  const totals = [
-    ["Netto", formatEuroLine(invoice.subtotal_cents)],
-    [`MwSt. (${invoice.vat_rate}%)`, formatEuroLine(invoice.tax_amount_cents)],
-    ["Gesamtbetrag", formatEuroLine(invoice.total_amount_cents)],
-  ];
-
-  let totalRowY = totalsY;
-  for (const [label, value] of totals) {
-    const isTotal = label === "Gesamtbetrag";
-    doc
-      .font(isTotal ? fonts.bold : fonts.regular)
-      .fontSize(isTotal ? 11 : 10)
-      .fillColor(isTotal ? "#111827" : "#4b5563")
-      .text(label, 350, totalRowY)
-      .text(value, 480, totalRowY, { align: "right", width: 65 });
-    totalRowY += isTotal ? 22 : 18;
-  }
-
-  doc
-    .fontSize(8)
-    .font(fonts.regular)
-    .fillColor("#9ca3af")
-    .text(
-      "NexAgency · Diese Rechnung wurde automatisch erstellt.",
-      50,
-      780,
-      { align: "center", width: 495 },
-    );
+  const totalsEndY = renderTotalsSection(doc, fonts, invoice, contentY);
+  renderPaymentAndClosing(doc, fonts, totalsEndY);
 }
 
 async function generateInvoicePdfWithPdfKit(
   invoice: InvoiceWithDetails,
 ): Promise<Buffer> {
   return new Promise((resolve, reject) => {
-    const doc = new PDFDocument({ size: "A4", margin: 50, autoFirstPage: true });
+    const doc = new PDFDocument({ size: "A4", margin: PAGE.margin, autoFirstPage: true });
     const chunks: Buffer[] = [];
 
     doc.on("data", (chunk: Buffer) => chunks.push(chunk));
@@ -268,3 +578,5 @@ export function resolveInvoiceFontPath(): string | null {
   ];
   return candidates.find((candidate) => fs.existsSync(candidate)) ?? null;
 }
+
+export { INVOICE_PAYMENT_TERM_DAYS };

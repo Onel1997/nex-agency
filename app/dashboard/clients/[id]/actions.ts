@@ -6,6 +6,7 @@ import { getProfile } from "@/lib/auth/session";
 import { logClientActivity } from "@/lib/dashboard/client-activities";
 import { CLIENT_FILES_BUCKET } from "@/lib/dashboard/client-files";
 import { getClientById, getClientDetailById } from "@/lib/dashboard/clients";
+import { hasActiveContract } from "@/lib/dashboard/contract-invoices";
 import {
   COMMUNICATION_TYPES,
   INVOICE_STATUSES,
@@ -14,6 +15,7 @@ import {
 } from "@/lib/dashboard/constants";
 import { parseEuroToCents } from "@/lib/dashboard/format";
 import { calculateInvoiceAmounts } from "@/lib/dashboard/invoice-math";
+import { computeInvoiceDueDate } from "@/lib/dashboard/invoice-dates";
 import { reserveInvoiceNumber } from "@/lib/dashboard/invoices";
 import { createClient } from "@/lib/supabase/server";
 
@@ -296,6 +298,7 @@ async function insertInvoiceWithLineItem(params: {
     amount_cents: amounts.totalAmountCents,
     status: params.status,
     created_by: params.profileId,
+    due_date: computeInvoiceDueDate(),
   };
 
   if (amounts.subtotalCents >= 0) {
@@ -339,6 +342,11 @@ export async function createInvoice(
 ) {
   const { profile } = await requireClientAccess(clientId);
 
+  const client = await getClientDetailById(clientId);
+  if (client && hasActiveContract(client)) {
+    throw new Error("Rechnungen werden automatisch aus Verträgen erstellt.");
+  }
+
   if (!INVOICE_STATUSES.includes(data.status)) {
     throw new Error("Ungültiger Rechnungsstatus");
   }
@@ -371,6 +379,10 @@ export async function createInvoiceFromContract(clientId: string) {
   const { profile } = await requireClientAccess(clientId);
   const client = await getClientDetailById(clientId);
   if (!client) throw new Error("Kunde nicht gefunden");
+
+  if (!hasActiveContract(client)) {
+    throw new Error("Kein aktiver Vertrag für diesen Kunden hinterlegt");
+  }
 
   const subtotalCents =
     client.contract_value_cents ??
@@ -469,6 +481,85 @@ export async function updateInvoice(
       metadata: { invoice_number: invoiceNumber },
     });
   }
+
+  revalidateClientHub(existing.client_id as string);
+}
+
+export async function markInvoiceAsSent(invoiceId: string) {
+  const profile = await getProfile();
+  if (!profile) throw new Error("Nicht angemeldet");
+
+  const supabase = await createClient();
+  const { data: existing, error: fetchError } = await supabase
+    .from("invoices")
+    .select("client_id, status, invoice_number")
+    .eq("id", invoiceId)
+    .single();
+
+  if (fetchError) throw new Error(fetchError.message);
+  await requireClientAccess(existing.client_id as string);
+
+  if (existing.status === "paid") {
+    throw new Error("Bezahlte Rechnungen können nicht als gesendet markiert werden");
+  }
+  if (existing.status === "cancelled") {
+    throw new Error("Stornierte Rechnungen können nicht als gesendet markiert werden");
+  }
+  if (existing.status === "sent") return;
+
+  const { error } = await supabase
+    .from("invoices")
+    .update({ status: "sent", updated_at: new Date().toISOString() })
+    .eq("id", invoiceId);
+
+  if (error) throw new Error(error.message);
+
+  const invoiceNumber = existing.invoice_number as string;
+  await logClientActivity({
+    clientId: existing.client_id as string,
+    actorId: profile.id,
+    activityType: "invoice_sent",
+    description: `${actorName(profile)} hat Rechnung ${invoiceNumber} als gesendet markiert`,
+    metadata: { invoice_number: invoiceNumber },
+  });
+
+  revalidateClientHub(existing.client_id as string);
+}
+
+export async function markInvoiceAsPaid(invoiceId: string) {
+  const profile = await getProfile();
+  if (!profile) throw new Error("Nicht angemeldet");
+
+  const supabase = await createClient();
+  const { data: existing, error: fetchError } = await supabase
+    .from("invoices")
+    .select("client_id, status, invoice_number")
+    .eq("id", invoiceId)
+    .single();
+
+  if (fetchError) throw new Error(fetchError.message);
+  await requireClientAccess(existing.client_id as string);
+
+  if (existing.status === "paid") return;
+  if (existing.status === "cancelled") {
+    throw new Error("Stornierte Rechnungen können nicht als bezahlt markiert werden");
+  }
+
+  const { error } = await supabase
+    .from("invoices")
+    .update({ status: "paid", updated_at: new Date().toISOString() })
+    .eq("id", invoiceId);
+
+  if (error) throw new Error(error.message);
+
+  const invoiceNumber = existing.invoice_number as string;
+  await logClientActivity({
+    clientId: existing.client_id as string,
+    actorId: profile.id,
+    activityType: "invoice_paid",
+    description: `${actorName(profile)} hat Rechnung ${invoiceNumber} als bezahlt markiert`,
+    metadata: { invoice_number: invoiceNumber },
+  });
 
   revalidateClientHub(existing.client_id as string);
 }

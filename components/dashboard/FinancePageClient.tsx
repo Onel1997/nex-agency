@@ -8,8 +8,9 @@ import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
 import { DataTable } from "@/components/dashboard/DataTable";
 import { EmptyState } from "@/components/dashboard/EmptyState";
 import { KpiCard } from "@/components/dashboard/KpiCard";
+import { InvoiceTable } from "@/components/dashboard/InvoiceTable";
 import { formatCents, formatDate } from "@/lib/dashboard/format";
-import type { ClientRevenueRecord, FinanceStats } from "@/lib/dashboard/types";
+import type { ClientRevenueRecord, FinanceStats, InvoiceRecord } from "@/lib/dashboard/types";
 import {
   AlertCircle,
   Banknote,
@@ -25,9 +26,10 @@ import Link from "next/link";
 interface FinancePageClientProps {
   stats: FinanceStats;
   clients: ClientRevenueRecord[];
+  invoices: InvoiceRecord[];
 }
 
-export function FinancePageClient({ stats, clients }: FinancePageClientProps) {
+export function FinancePageClient({ stats, clients, invoices }: FinancePageClientProps) {
   const [editingClient, setEditingClient] = useState<ClientRevenueRecord | null>(
     null,
   );
@@ -95,7 +97,7 @@ export function FinancePageClient({ stats, clients }: FinancePageClientProps) {
         />
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
         <KpiCard
           label="Gesamt fakturiert"
           value={formatCents(stats.totalInvoicedCents)}
@@ -106,20 +108,44 @@ export function FinancePageClient({ stats, clients }: FinancePageClientProps) {
           label="Offene Rechnungen"
           value={formatCents(stats.openInvoicesCents)}
           icon={FileCheck2}
-          trend="Entwurf & versendet"
-        />
-        <KpiCard
-          label="Bezahlte Rechnungen"
-          value={formatCents(stats.paidInvoicesCents)}
-          icon={Banknote}
-          trend="Status: bezahlt"
+          trend="Entwurf & gesendet"
         />
         <KpiCard
           label="Überfällige Rechnungen"
           value={formatCents(stats.overdueInvoicesCents)}
           icon={AlertCircle}
-          trend="Status: überfällig"
+          trend="Fälligkeitsdatum überschritten"
         />
+        <KpiCard
+          label="Bezahlt"
+          value={formatCents(stats.paidInvoicesCents)}
+          icon={Banknote}
+          trend="Status: bezahlt"
+        />
+        <KpiCard
+          label="Offener Betrag"
+          value={formatCents(stats.outstandingInvoiceAmountCents)}
+          icon={Wallet}
+          trend="Noch nicht bezahlt"
+        />
+      </div>
+
+      <div>
+        <h2 className="text-sm font-medium uppercase tracking-wider text-muted-soft">
+          Alle Rechnungen
+        </h2>
+        <p className="mt-1 text-sm text-muted">
+          Zentraler Überblick über alle Agenturrechnungen — unabhängig vom Kunden.
+        </p>
+        <div className="glass-card mt-4 overflow-hidden rounded-2xl">
+          <InvoiceTable
+            invoices={invoices}
+            variant="agency"
+            onDownload={(invoiceId) => {
+              window.open(`/api/invoices/${invoiceId}/pdf`, "_blank", "noopener,noreferrer");
+            }}
+          />
+        </div>
       </div>
 
       <div className="flex items-center justify-between gap-3">

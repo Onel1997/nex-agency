@@ -71,6 +71,7 @@ export interface FinanceStats {
   openInvoicesCents: number;
   paidInvoicesCents: number;
   overdueInvoicesCents: number;
+  outstandingInvoiceAmountCents: number;
 }
 
 export interface CommissionPayoutRecord {
@@ -283,6 +284,7 @@ export interface InvoiceRecord {
   created_by: string | null;
   created_at: string;
   updated_at: string;
+  due_date: string | null;
   company_name?: string;
   customer_number?: string | null;
 }

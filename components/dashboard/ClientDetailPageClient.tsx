@@ -26,6 +26,8 @@ import {
   deleteClientNote,
   deleteInvoice,
   getClientFileSignedUrl,
+  markInvoiceAsPaid,
+  markInvoiceAsSent,
   updateClientNote,
   updateInvoice,
   uploadClientFile,
@@ -34,7 +36,7 @@ import { updateClient } from "@/app/dashboard/clients/actions";
 import type { ClientFormData } from "@/components/dashboard/ClientForm";
 import { ClientModal } from "@/components/dashboard/ClientModal";
 import { CommissionStatusBadge } from "@/components/dashboard/CommissionStatusBadge";
-import { InvoiceStatusBadge } from "@/components/dashboard/InvoiceStatusBadge";
+import { InvoiceTable } from "@/components/dashboard/InvoiceTable";
 import { Toast } from "@/components/dashboard/Toast";
 import type { Profile } from "@/lib/auth/types";
 import { isManagement } from "@/lib/auth/permissions";
@@ -42,6 +44,7 @@ import {
   CLIENT_ACTIVITY_TYPE_LABELS,
   COMMUNICATION_TYPE_LABELS,
   COMMUNICATION_TYPES,
+  INVOICE_OPERATIONAL_STATUSES,
   INVOICE_STATUSES,
   INVOICE_STATUS_LABELS,
   type CommunicationType,
@@ -55,6 +58,11 @@ import {
   formatFileSize,
   formatWebsite,
 } from "@/lib/dashboard/format";
+import {
+  filterInvoicesForClient,
+  getContractInvoicePreview,
+  hasActiveContract,
+} from "@/lib/dashboard/contract-invoices";
 import type {
   ClientActivity,
   ClientCommunication,
@@ -111,6 +119,8 @@ export function ClientDetailPageClient({
   const [toast, setToast] = useState<string | null>(null);
   const [editOpen, setEditOpen] = useState(false);
   const [, startTransition] = useTransition();
+  const clientInvoices = filterInvoicesForClient(invoices, client.id);
+  const activeContract = hasActiveContract(client);
 
   const setTab = useCallback(
     (tab: TabId) => {
@@ -209,6 +219,7 @@ export function ClientDetailPageClient({
         <ContractsTab
           client={client}
           revenue={revenue}
+          invoices={clientInvoices}
           onCreateInvoiceFromContract={async () => {
             try {
               const result = await createInvoiceFromContract(client.id);
@@ -223,10 +234,20 @@ export function ClientDetailPageClient({
       )}
       {activeTab === "invoices" && (
         <InvoicesTab
-          clientId={client.id}
+          client={client}
           companyName={client.company_name}
-          invoices={invoices}
+          invoices={clientInvoices}
+          activeContract={activeContract}
           isAdmin={isManagement(profile)}
+          onCreateInvoiceFromContract={async () => {
+            try {
+              const result = await createInvoiceFromContract(client.id);
+              setToast(`Rechnung ${result.invoiceNumber} aus Vertrag erstellt`);
+              refresh();
+            } catch (error) {
+              handleError(error);
+            }
+          }}
           onError={handleError}
           onSuccess={(msg) => {
             setToast(msg);
@@ -850,18 +871,16 @@ function CommunicationTab({
 function ContractsTab({
   client,
   revenue,
+  invoices,
   onCreateInvoiceFromContract,
 }: {
   client: ClientDetailRecord;
   revenue: ClientRevenueRecord | null;
+  invoices: InvoiceRecord[];
   onCreateInvoiceFromContract: () => Promise<void>;
 }) {
   const [pending, setPending] = useState(false);
-  const hasContractValue =
-    (client.contract_value_cents ?? 0) > 0 ||
-    (client.setup_fee_cents ?? 0) > 0 ||
-    (client.monthly_revenue_cents ?? 0) > 0 ||
-    (client.monthly_retainer_cents ?? 0) > 0;
+  const activeContract = hasActiveContract(client);
 
   const handleCreateInvoice = async () => {
     setPending(true);
@@ -885,7 +904,7 @@ function ContractsTab({
         <h2 className="text-sm font-medium uppercase tracking-wider text-muted-soft">
           Vertragsübersicht
         </h2>
-        {hasContractValue && (
+        {activeContract && (
           <button
             type="button"
             disabled={pending}
@@ -961,22 +980,38 @@ function ContractsTab({
           </ul>
         </div>
       )}
+
+      <div className="mt-6 border-t border-border pt-6">
+        <h3 className="text-xs font-medium uppercase tracking-wider text-muted-soft">
+          Vertragsrechnungen
+        </h3>
+        <p className="mt-1 text-sm text-muted">
+          Alle Rechnungen, die aus diesem Vertrag bzw. für diesen Kunden erstellt wurden.
+        </p>
+        <div className="glass-card mt-4 overflow-hidden rounded-2xl">
+          <InvoiceTable invoices={invoices} variant="compact" />
+        </div>
+      </div>
     </div>
   );
 }
 
 function InvoicesTab({
-  clientId,
+  client,
   companyName,
   invoices,
+  activeContract,
   isAdmin,
+  onCreateInvoiceFromContract,
   onError,
   onSuccess,
 }: {
-  clientId: string;
+  client: ClientDetailRecord;
   companyName: string;
   invoices: InvoiceRecord[];
+  activeContract: boolean;
   isAdmin: boolean;
+  onCreateInvoiceFromContract: () => Promise<void>;
   onError: (error: unknown) => void;
   onSuccess: (message: string) => void;
 }) {
@@ -985,6 +1020,7 @@ function InvoicesTab({
   const [amount, setAmount] = useState("");
   const [status, setStatus] = useState<InvoiceStatus>("draft");
   const [pending, setPending] = useState(false);
+  const contractPreview = getContractInvoicePreview(client);
 
   const resetForm = () => {
     setAmount("");
@@ -996,7 +1032,7 @@ function InvoicesTab({
   const handleCreate = async () => {
     setPending(true);
     try {
-      await createInvoice(clientId, {
+      await createInvoice(client.id, {
         amount,
         status,
       });
@@ -1046,23 +1082,99 @@ function InvoicesTab({
     window.open(`/api/invoices/${invoiceId}/pdf`, "_blank", "noopener,noreferrer");
   };
 
+  const handleMarkSent = async (invoiceId: string) => {
+    setPending(true);
+    try {
+      await markInvoiceAsSent(invoiceId);
+      onSuccess("Rechnung als gesendet markiert");
+    } catch (error) {
+      onError(error);
+    } finally {
+      setPending(false);
+    }
+  };
+
+  const handleMarkPaid = async (invoiceId: string) => {
+    setPending(true);
+    try {
+      await markInvoiceAsPaid(invoiceId);
+      onSuccess("Rechnung als bezahlt markiert");
+    } catch (error) {
+      onError(error);
+    } finally {
+      setPending(false);
+    }
+  };
+
+  const handleCreateFromContract = async () => {
+    setPending(true);
+    try {
+      await onCreateInvoiceFromContract();
+    } catch (error) {
+      onError(error);
+    } finally {
+      setPending(false);
+    }
+  };
+
+  const editingInvoice = editingId
+    ? invoices.find((invoice) => invoice.id === editingId)
+    : null;
+
   return (
     <div className="space-y-4">
-      <div className="flex justify-end">
-        <button
-          type="button"
-          onClick={() => {
-            resetForm();
-            setShowForm(true);
-          }}
-          className="dashboard-btn-primary inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm"
-        >
-          <Plus className="h-4 w-4" />
-          Neue Rechnung
-        </button>
-      </div>
+      {activeContract ? (
+        <div className="glass-card rounded-2xl p-6">
+          <p className="text-sm text-muted">
+            Rechnungen werden automatisch aus Verträgen erstellt.
+          </p>
 
-      {showForm && (
+          {contractPreview && (
+            <dl className="mt-4 grid gap-4 sm:grid-cols-3">
+              <InfoItem
+                label="Vertragswert"
+                value={formatCents(contractPreview.subtotalCents)}
+              />
+              <InfoItem
+                label="MwSt."
+                value={formatCents(contractPreview.taxAmountCents)}
+              />
+              <InfoItem
+                label="Gesamtbetrag"
+                value={formatCents(contractPreview.totalAmountCents)}
+              />
+            </dl>
+          )}
+
+          <div className="mt-4">
+            <button
+              type="button"
+              disabled={pending}
+              onClick={handleCreateFromContract}
+              className="dashboard-btn-primary inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm"
+            >
+              <Receipt className="h-4 w-4" />
+              {pending ? "Wird erstellt…" : "Rechnung aus Vertrag erstellen"}
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={() => {
+              resetForm();
+              setShowForm(true);
+            }}
+            className="dashboard-btn-primary inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm"
+          >
+            <Plus className="h-4 w-4" />
+            Neue Rechnung
+          </button>
+        </div>
+      )}
+
+      {showForm && (!activeContract || editingId) && (
         <div className="glass-card rounded-2xl p-6">
           <h2 className="text-sm font-medium uppercase tracking-wider text-muted-soft">
             {editingId ? "Rechnung bearbeiten" : "Neue Rechnung"}
@@ -1089,11 +1201,14 @@ function InvoicesTab({
                 onChange={(e) => setStatus(e.target.value as InvoiceStatus)}
                 className="dashboard-input mt-1 w-full rounded-xl px-3 py-2 text-sm"
               >
-                {INVOICE_STATUSES.map((s) => (
+                {INVOICE_OPERATIONAL_STATUSES.map((s) => (
                   <option key={s} value={s}>
                     {INVOICE_STATUS_LABELS[s]}
                   </option>
                 ))}
+                {editingInvoice?.status === "cancelled" && (
+                  <option value="cancelled">{INVOICE_STATUS_LABELS.cancelled}</option>
+                )}
               </select>
             </div>
           </div>
@@ -1120,97 +1235,19 @@ function InvoicesTab({
       )}
 
       <div className="glass-card overflow-hidden rounded-2xl">
-        {invoices.length === 0 ? (
-          <p className="p-6 text-sm text-muted">Noch keine Rechnungen vorhanden.</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="dashboard-table w-full min-w-[860px] text-left text-sm">
-              <thead>
-                <tr className="border-b border-border">
-                  <th className="px-4 py-3.5 text-xs font-medium uppercase tracking-wider text-muted-soft">
-                    Rechnungsnummer
-                  </th>
-                  <th className="hidden px-4 py-3.5 text-xs font-medium uppercase tracking-wider text-muted-soft md:table-cell">
-                    Netto
-                  </th>
-                  <th className="hidden px-4 py-3.5 text-xs font-medium uppercase tracking-wider text-muted-soft lg:table-cell">
-                    MwSt.
-                  </th>
-                  <th className="px-4 py-3.5 text-xs font-medium uppercase tracking-wider text-muted-soft">
-                    Gesamt
-                  </th>
-                  <th className="px-4 py-3.5 text-xs font-medium uppercase tracking-wider text-muted-soft">
-                    Status
-                  </th>
-                  <th className="hidden px-4 py-3.5 text-xs font-medium uppercase tracking-wider text-muted-soft md:table-cell">
-                    Erstellt
-                  </th>
-                  <th className="px-4 py-3.5 text-xs font-medium uppercase tracking-wider text-muted-soft">
-                    Aktionen
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {invoices.map((invoice) => (
-                  <tr key={invoice.id}>
-                    <td className="px-4 py-3">
-                      <div className="font-medium">{invoice.invoice_number}</div>
-                      <div className="text-xs text-muted-soft md:hidden">
-                        {formatCents(invoice.total_amount_cents)} · {companyName}
-                      </div>
-                    </td>
-                    <td className="hidden px-4 py-3 md:table-cell">
-                      {formatCents(invoice.subtotal_cents)}
-                    </td>
-                    <td className="hidden px-4 py-3 lg:table-cell">
-                      {formatCents(invoice.tax_amount_cents)}
-                    </td>
-                    <td className="px-4 py-3 font-medium">
-                      {formatCents(invoice.total_amount_cents)}
-                    </td>
-                    <td className="px-4 py-3">
-                      <InvoiceStatusBadge status={invoice.status} />
-                    </td>
-                    <td className="hidden px-4 py-3 text-muted md:table-cell">
-                      {formatDate(invoice.created_at)}
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex gap-1">
-                        <button
-                          type="button"
-                          onClick={() => handleDownloadPdf(invoice.id)}
-                          className="dashboard-icon-btn rounded-lg p-2"
-                          aria-label="PDF herunterladen"
-                          title="PDF herunterladen"
-                        >
-                          <Download className="h-4 w-4" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => startEdit(invoice)}
-                          className="dashboard-icon-btn rounded-lg p-2"
-                          aria-label="Bearbeiten"
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </button>
-                        {isAdmin && (
-                          <button
-                            type="button"
-                            onClick={() => handleDelete(invoice.id)}
-                            className="dashboard-icon-btn rounded-lg p-2 text-red-300 hover:text-red-200"
-                            aria-label="Löschen"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+        <InvoiceTable
+          invoices={invoices}
+          variant="full"
+          companyName={companyName}
+          showActions
+          isAdmin={isAdmin}
+          pending={pending}
+          onDownload={handleDownloadPdf}
+          onMarkSent={handleMarkSent}
+          onMarkPaid={handleMarkPaid}
+          onEdit={startEdit}
+          onDelete={handleDelete}
+        />
       </div>
     </div>
   );

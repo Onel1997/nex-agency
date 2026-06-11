@@ -3,7 +3,8 @@ import {
   getClientRevenueRecords,
   getFinanceStats,
 } from "@/lib/dashboard/finance";
-import type { ClientRevenueRecord, FinanceStats } from "@/lib/dashboard/types";
+import { getAllInvoices } from "@/lib/dashboard/invoices";
+import type { ClientRevenueRecord, FinanceStats, InvoiceRecord } from "@/lib/dashboard/types";
 import { FinancePageClient } from "@/components/dashboard/FinancePageClient";
 
 export default async function FinancePage() {
@@ -19,18 +20,22 @@ export default async function FinancePage() {
     openInvoicesCents: 0,
     paidInvoicesCents: 0,
     overdueInvoicesCents: 0,
+    outstandingInvoiceAmountCents: 0,
   };
   let clients: ClientRevenueRecord[] = [];
+  let invoices: InvoiceRecord[] = [];
   let error: string | null = null;
 
   try {
-    const [financeStats, revenueClients] = await Promise.all([
+    const [financeStats, revenueClients, agencyInvoices] = await Promise.all([
       getFinanceStats(),
       getClientRevenueRecords(),
+      getAllInvoices(),
     ]);
 
     if (financeStats) stats = financeStats;
     clients = revenueClients;
+    invoices = agencyInvoices;
   } catch (err) {
     error =
       err instanceof Error
@@ -46,5 +51,5 @@ export default async function FinancePage() {
     );
   }
 
-  return <FinancePageClient stats={stats} clients={clients} />;
+  return <FinancePageClient stats={stats} clients={clients} invoices={invoices} />;
 }

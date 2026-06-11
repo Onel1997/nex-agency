@@ -159,6 +159,7 @@ export async function getFinanceStats(): Promise<FinanceStats | null> {
     openInvoicesCents: invoiceStats.openInvoicesCents,
     paidInvoicesCents: invoiceStats.paidInvoicesCents,
     overdueInvoicesCents: invoiceStats.overdueInvoicesCents,
+    outstandingInvoiceAmountCents: invoiceStats.outstandingInvoiceAmountCents,
   };
 }
 

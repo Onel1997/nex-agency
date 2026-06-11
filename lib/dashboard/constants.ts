@@ -79,6 +79,24 @@ export const INVOICE_OPERATIONAL_STATUSES = [
   "overdue",
 ] as const satisfies readonly InvoiceStatus[];
 
+export const BILLING_CYCLES = ["monthly", "quarterly", "yearly"] as const;
+export type BillingCycle = (typeof BILLING_CYCLES)[number];
+
+export const BILLING_CYCLE_LABELS: Record<BillingCycle, string> = {
+  monthly: "Monatlich",
+  quarterly: "Vierteljährlich",
+  yearly: "Jährlich",
+};
+
+export const INVOICE_TYPES = ["setup", "retainer", "manual"] as const;
+export type InvoiceType = (typeof INVOICE_TYPES)[number];
+
+export const INVOICE_TYPE_LABELS: Record<InvoiceType, string> = {
+  setup: "Setup-Rechnung",
+  retainer: "Retainer-Rechnung",
+  manual: "Manuelle Rechnung",
+};
+
 export const INVOICE_STATUS_LABELS: Record<InvoiceStatus, string> = {
   draft: "Entwurf",
   sent: "Gesendet",

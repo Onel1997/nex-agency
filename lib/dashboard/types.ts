@@ -1,10 +1,12 @@
 import type { TeamMemberStatus, UserRole } from "@/lib/auth/types";
 import type {
   AppointmentStatus,
+  BillingCycle,
   ClientActivityType,
   CommissionStatus,
   CommunicationType,
   InvoiceStatus,
+  InvoiceType,
   LeadStatus,
 } from "./constants";
 
@@ -64,6 +66,10 @@ export interface TeamMemberStats {
 export interface FinanceStats {
   totalRevenueCents: number;
   monthlyRecurringRevenueCents: number;
+  activeRetainersCount: number;
+  retainerRevenueThisMonthCents: number;
+  openRetainerInvoicesCents: number;
+  overdueRetainerInvoicesCents: number;
   outstandingCommissionsCents: number;
   paidCommissionsCents: number;
   outstandingRetainerPaymentsCents: number;
@@ -95,8 +101,10 @@ export interface ClientRevenueRecord {
   responsible_member_id: string | null;
   responsible_member_name: string | null;
   monthly_revenue_cents: number | null;
+  monthly_retainer_cents: number | null;
   setup_fee_cents: number | null;
   contract_start_date: string | null;
+  auto_invoice_enabled: boolean;
   total_revenue_cents: number | null;
   setup_revenue_cents: number;
   retainer_revenue_cents: number;
@@ -208,7 +216,7 @@ export interface ClientRecord {
   phone: string | null;
   website: string | null;
   responsible_member_id: string | null;
-  contract_value_cents: number | null;
+  lead_estimated_value_cents: number | null;
   monthly_retainer_cents: number | null;
   one_time_project_value_cents: number | null;
   currency: string;
@@ -220,6 +228,10 @@ export interface ClientDetailRecord extends ClientRecord {
   monthly_revenue_cents: number | null;
   setup_fee_cents: number | null;
   contract_start_date: string | null;
+  billing_cycle: BillingCycle;
+  next_invoice_date: string | null;
+  last_invoice_date: string | null;
+  auto_invoice_enabled: boolean;
   total_revenue_cents: number | null;
   commission_status: CommissionStatus;
   commission_total_cents: number;
@@ -274,6 +286,10 @@ export interface ClientFile {
 export interface InvoiceRecord {
   id: string;
   client_id: string;
+  contract_id?: string | null;
+  invoice_type?: InvoiceType | null;
+  billing_period_year?: number | null;
+  billing_period_month?: number | null;
   invoice_number: string;
   amount_cents: number;
   subtotal_cents: number;

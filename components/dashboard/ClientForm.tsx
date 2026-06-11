@@ -6,7 +6,7 @@ import { ASSIGNMENT_FIELD_LABEL } from "@/lib/dashboard/assignments";
 
 export interface ClientFormData {
   responsible_member_id: string;
-  contract_value: string;
+  lead_estimated_value: string;
   monthly_retainer: string;
   one_time_project_value: string;
 }
@@ -14,7 +14,7 @@ export interface ClientFormData {
 export function clientToFormData(client: ClientRecord): ClientFormData {
   return {
     responsible_member_id: client.responsible_member_id ?? "",
-    contract_value: centsToEuroInput(client.contract_value_cents),
+    lead_estimated_value: centsToEuroInput(client.lead_estimated_value_cents),
     monthly_retainer: centsToEuroInput(client.monthly_retainer_cents),
     one_time_project_value: centsToEuroInput(client.one_time_project_value_cents),
   };
@@ -73,11 +73,13 @@ export function ClientForm({
             </select>
           </Field>
         )}
-        <Field label="Vertragswert (EUR)">
+        <Field label="Lead-Schätzung (EUR)">
           <input
             inputMode="decimal"
-            value={data.contract_value}
-            onChange={(e) => onChange({ ...data, contract_value: e.target.value })}
+            value={data.lead_estimated_value}
+            onChange={(e) =>
+              onChange({ ...data, lead_estimated_value: e.target.value })
+            }
             className="dashboard-input"
             placeholder="10.000"
           />

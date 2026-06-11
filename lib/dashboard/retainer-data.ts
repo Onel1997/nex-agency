@@ -35,8 +35,10 @@ export const CLIENT_REVENUE_SELECT_WITH_CONTRACT = `
   company_name,
   responsible_member_id,
   monthly_revenue_cents,
+  monthly_retainer_cents,
   setup_fee_cents,
   contract_start_date,
+  auto_invoice_enabled,
   total_revenue_cents,
   commission_status,
   ${CLIENT_COMMISSION_COLUMNS}

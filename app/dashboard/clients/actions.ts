@@ -43,7 +43,7 @@ export async function updateClient(id: string, data: ClientFormData) {
 
   const payload = {
     responsible_member_id: responsibleMemberId,
-    contract_value_cents: parseEuroToCents(data.contract_value),
+    lead_estimated_value_cents: parseEuroToCents(data.lead_estimated_value),
     monthly_retainer_cents: parseEuroToCents(data.monthly_retainer),
     one_time_project_value_cents: parseEuroToCents(data.one_time_project_value),
     currency: "EUR",

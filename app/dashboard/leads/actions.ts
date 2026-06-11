@@ -275,7 +275,7 @@ export async function convertLeadToClient(leadId: string) {
       responsible_member_id: lead.owner_id,
       acquired_by: lead.acquired_by,
       notes: lead.notes,
-      contract_value_cents: lead.estimated_value_cents,
+      lead_estimated_value_cents: lead.estimated_value_cents,
       currency: lead.currency ?? "EUR",
     })
     .select("id")

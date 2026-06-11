@@ -29,6 +29,7 @@ import {
   markInvoiceAsPaid,
   markInvoiceAsSent,
   updateClientNote,
+  updateAutoInvoiceEnabled,
   updateInvoice,
   uploadClientFile,
 } from "@/app/dashboard/clients/[id]/actions";
@@ -44,6 +45,7 @@ import {
   CLIENT_ACTIVITY_TYPE_LABELS,
   COMMUNICATION_TYPE_LABELS,
   COMMUNICATION_TYPES,
+  BILLING_CYCLE_LABELS,
   INVOICE_OPERATIONAL_STATUSES,
   INVOICE_STATUSES,
   INVOICE_STATUS_LABELS,
@@ -58,6 +60,7 @@ import {
   formatFileSize,
   formatWebsite,
 } from "@/lib/dashboard/format";
+import { resolveRetainerAmountCents } from "@/lib/dashboard/billing-cycle";
 import {
   filterInvoicesForClient,
   getContractInvoicePreview,
@@ -94,6 +97,7 @@ interface ClientDetailPageClientProps {
   files: ClientFile[];
   revenue: ClientRevenueRecord | null;
   invoices: InvoiceRecord[];
+  contractInvoices: InvoiceRecord[];
   profile: Profile;
   canEdit: boolean;
   canAssign: boolean;
@@ -108,6 +112,7 @@ export function ClientDetailPageClient({
   files,
   revenue,
   invoices,
+  contractInvoices,
   profile,
   canEdit,
   canAssign,
@@ -120,6 +125,10 @@ export function ClientDetailPageClient({
   const [editOpen, setEditOpen] = useState(false);
   const [, startTransition] = useTransition();
   const clientInvoices = filterInvoicesForClient(invoices, client.id);
+  const scopedContractInvoices = filterInvoicesForClient(
+    contractInvoices,
+    client.id,
+  );
   const activeContract = hasActiveContract(client);
 
   const setTab = useCallback(
@@ -219,7 +228,20 @@ export function ClientDetailPageClient({
         <ContractsTab
           client={client}
           revenue={revenue}
-          invoices={clientInvoices}
+          invoices={scopedContractInvoices}
+          onToggleAutoInvoice={async (enabled) => {
+            try {
+              await updateAutoInvoiceEnabled(client.id, enabled);
+              setToast(
+                enabled
+                  ? "Automatische Rechnungen aktiviert"
+                  : "Automatische Rechnungen pausiert",
+              );
+              refresh();
+            } catch (error) {
+              handleError(error);
+            }
+          }}
           onCreateInvoiceFromContract={async () => {
             try {
               const result = await createInvoiceFromContract(client.id);
@@ -304,7 +326,11 @@ function OverviewTab({
         <InfoItem label="Kundennummer" value={client.customer_number || "—"} />
         <InfoItem label="Ansprechpartner" value={client.contact_name || "—"} />
         <InfoItem label="Verantwortlicher" value={client.responsible_member_name || "—"} />
-        <InfoItem label="Vertragswert" value={formatCents(client.contract_value_cents)} />
+        <InfoItem
+          label="Lead-Schätzung"
+          value={formatCents(client.lead_estimated_value_cents)}
+        />
+        <InfoItem label="Setup-Gebühr" value={formatCents(client.setup_fee_cents)} />
         <InfoItem label="Status">
           <span className="inline-flex rounded-full bg-emerald-500/15 px-2.5 py-0.5 text-xs font-medium text-emerald-200 ring-1 ring-emerald-500/25 ring-inset">
             Aktiv
@@ -872,15 +898,19 @@ function ContractsTab({
   client,
   revenue,
   invoices,
+  onToggleAutoInvoice,
   onCreateInvoiceFromContract,
 }: {
   client: ClientDetailRecord;
   revenue: ClientRevenueRecord | null;
   invoices: InvoiceRecord[];
+  onToggleAutoInvoice: (enabled: boolean) => Promise<void>;
   onCreateInvoiceFromContract: () => Promise<void>;
 }) {
   const [pending, setPending] = useState(false);
+  const [billingPending, setBillingPending] = useState(false);
   const activeContract = hasActiveContract(client);
+  const hasRetainer = resolveRetainerAmountCents(client) > 0;
 
   const handleCreateInvoice = async () => {
     setPending(true);
@@ -889,6 +919,13 @@ function ContractsTab({
     } finally {
       setPending(false);
     }
+  };
+  const handleDownloadPdf = (invoiceId: string) => {
+    window.open(
+      `/api/invoices/${invoiceId}/pdf?clientId=${client.id}`,
+      "_blank",
+      "noopener,noreferrer",
+    );
   };
   const contractStatus = client.contract_start_date ? "Aktiv" : "Offen";
   const paymentStatus =
@@ -943,7 +980,6 @@ function ContractsTab({
           </span>
         </InfoItem>
         <InfoItem label="Zahlungsstatus" value={paymentStatus} />
-        <InfoItem label="Vertragswert" value={formatCents(client.contract_value_cents)} />
         <InfoItem label="Gesamtumsatz" value={formatCents(client.total_revenue_cents)} />
         <InfoItem label="Provision">
           <CommissionStatusBadge status={client.commission_status} />
@@ -953,6 +989,68 @@ function ContractsTab({
           value={formatCents(client.commission_outstanding_cents)}
         />
       </dl>
+
+      {hasRetainer && (
+        <div className="mt-6 border-t border-border pt-6">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <h3 className="text-xs font-medium uppercase tracking-wider text-muted-soft">
+              Retainer-Abrechnung
+            </h3>
+            <span
+              className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset ${
+                client.auto_invoice_enabled
+                  ? "bg-emerald-500/15 text-emerald-200 ring-emerald-500/25"
+                  : "bg-amber-500/15 text-amber-200 ring-amber-500/25"
+              }`}
+            >
+              {client.auto_invoice_enabled ? "Aktiv" : "Pausiert"}
+            </span>
+          </div>
+          <dl className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <InfoItem
+              label="Abrechnungsintervall"
+              value={BILLING_CYCLE_LABELS[client.billing_cycle]}
+            />
+            <InfoItem
+              label="Nächste Rechnung"
+              value={
+                client.next_invoice_date
+                  ? formatDate(`${client.next_invoice_date}T12:00:00`)
+                  : "—"
+              }
+            />
+            <InfoItem
+              label="Letzte Rechnung"
+              value={
+                client.last_invoice_date
+                  ? formatDate(`${client.last_invoice_date}T12:00:00`)
+                  : "—"
+              }
+            />
+            <InfoItem
+              label="Automatische Rechnungen"
+              value={client.auto_invoice_enabled ? "Aktiv" : "Pausiert"}
+            />
+          </dl>
+          <label className="mt-4 inline-flex items-center gap-3 text-sm">
+            <input
+              type="checkbox"
+              checked={client.auto_invoice_enabled}
+              disabled={billingPending}
+              onChange={async (event) => {
+                setBillingPending(true);
+                try {
+                  await onToggleAutoInvoice(event.target.checked);
+                } finally {
+                  setBillingPending(false);
+                }
+              }}
+              className="h-4 w-4 rounded border-border bg-transparent"
+            />
+            <span>Automatische Rechnungen aktiv</span>
+          </label>
+        </div>
+      )}
 
       {revenue && revenue.retainer_periods.length > 0 && (
         <div className="mt-6 border-t border-border pt-6">
@@ -989,7 +1087,11 @@ function ContractsTab({
           Alle Rechnungen, die aus diesem Vertrag bzw. für diesen Kunden erstellt wurden.
         </p>
         <div className="glass-card mt-4 overflow-hidden rounded-2xl">
-          <InvoiceTable invoices={invoices} variant="compact" />
+          <InvoiceTable
+            invoices={invoices}
+            variant="compact"
+            onDownload={handleDownloadPdf}
+          />
         </div>
       </div>
     </div>
@@ -1079,7 +1181,11 @@ function InvoicesTab({
   };
 
   const handleDownloadPdf = (invoiceId: string) => {
-    window.open(`/api/invoices/${invoiceId}/pdf`, "_blank", "noopener,noreferrer");
+    window.open(
+      `/api/invoices/${invoiceId}/pdf?clientId=${client.id}`,
+      "_blank",
+      "noopener,noreferrer",
+    );
   };
 
   const handleMarkSent = async (invoiceId: string) => {
@@ -1132,7 +1238,7 @@ function InvoicesTab({
           {contractPreview && (
             <dl className="mt-4 grid gap-4 sm:grid-cols-3">
               <InfoItem
-                label="Vertragswert"
+                label="Setup-Gebühr"
                 value={formatCents(contractPreview.subtotalCents)}
               />
               <InfoItem

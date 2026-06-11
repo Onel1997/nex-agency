@@ -1,21 +1,24 @@
 import { calculateInvoiceAmounts, type InvoiceAmounts } from "./invoice-math";
 import type { ClientDetailRecord, InvoiceRecord } from "./types";
 
+export interface ContractInvoiceFilter {
+  clientId: string;
+  contractId?: string | null;
+}
+
 type ContractClientFields = Pick<
   ClientDetailRecord,
   | "contract_start_date"
-  | "contract_value_cents"
+  | "lead_estimated_value_cents"
   | "setup_fee_cents"
-  | "monthly_revenue_cents"
   | "monthly_retainer_cents"
 >;
 
 export function getContractSubtotalCents(client: ContractClientFields): number | null {
   const subtotal =
-    client.contract_value_cents ??
     client.setup_fee_cents ??
-    client.monthly_revenue_cents ??
-    client.monthly_retainer_cents;
+    client.monthly_retainer_cents ??
+    client.lead_estimated_value_cents;
 
   if (subtotal == null || subtotal <= 0) return null;
   return subtotal;
@@ -38,4 +41,15 @@ export function filterInvoicesForClient(
   clientId: string,
 ): InvoiceRecord[] {
   return invoices.filter((invoice) => invoice.client_id === clientId);
+}
+
+export function filterContractInvoicesForClient(
+  invoices: InvoiceRecord[],
+  { clientId, contractId }: ContractInvoiceFilter,
+): InvoiceRecord[] {
+  return invoices.filter((invoice) => {
+    if (invoice.client_id !== clientId) return false;
+    if (contractId) return invoice.contract_id === contractId;
+    return true;
+  });
 }

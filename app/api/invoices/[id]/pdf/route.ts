@@ -9,17 +9,22 @@ interface RouteContext {
   params: Promise<{ id: string }>;
 }
 
-export async function GET(_request: Request, context: RouteContext) {
+export async function GET(request: Request, context: RouteContext) {
   const profile = await getProfile();
   if (!profile) {
     return NextResponse.json({ error: "Nicht angemeldet" }, { status: 401 });
   }
 
   const { id } = await context.params;
+  const scopedClientId = new URL(request.url).searchParams.get("clientId");
   const invoice = await getInvoiceWithDetails(id);
 
   if (!invoice) {
     return NextResponse.json({ error: "Rechnung nicht gefunden" }, { status: 404 });
+  }
+
+  if (scopedClientId && invoice.client_id !== scopedClientId) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   const client = await getClientById(invoice.client_id);

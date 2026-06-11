@@ -99,6 +99,30 @@ export function FinancePageClient({ stats, clients, invoices }: FinancePageClien
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
         <KpiCard
+          label="Aktive Retainer"
+          value={String(stats.activeRetainersCount)}
+          icon={CircleDollarSign}
+          trend="Automatische Abrechnung aktiv"
+        />
+        <KpiCard
+          label="Retainer-Umsatz (Monat)"
+          value={formatCents(stats.retainerRevenueThisMonthCents)}
+          icon={Euro}
+          trend="Retainer-Rechnungen diesen Monat"
+        />
+        <KpiCard
+          label="Offene Retainer-Rechnungen"
+          value={formatCents(stats.openRetainerInvoicesCents)}
+          icon={FileCheck2}
+          trend="Entwurf & gesendet"
+        />
+        <KpiCard
+          label="Überfällige Retainer-Rechnungen"
+          value={formatCents(stats.overdueRetainerInvoicesCents)}
+          icon={AlertCircle}
+          trend="Retainer-Rechnungen überfällig"
+        />
+        <KpiCard
           label="Gesamt fakturiert"
           value={formatCents(stats.totalInvoicedCents)}
           icon={Receipt}

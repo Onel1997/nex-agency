@@ -71,7 +71,7 @@ export function DashboardOverview({
                 <tr className="border-b border-border text-xs uppercase tracking-wider text-muted-soft">
                   <th className="py-2 pr-3 font-medium">Firma</th>
                   <th className="py-2 pr-3 font-medium">Verantwortlich</th>
-                  <th className="py-2 font-medium text-right">Vertragswert</th>
+                  <th className="py-2 font-medium text-right">Lead-Schätzung</th>
                 </tr>
               </thead>
               <tbody>
@@ -84,7 +84,7 @@ export function DashboardOverview({
                       {client.responsible_member_name || "—"}
                     </td>
                     <td className="py-2.5 text-right tabular-nums text-foreground">
-                      {formatCents(client.contract_value_cents)}
+                      {formatCents(client.lead_estimated_value_cents)}
                     </td>
                   </tr>
                 ))}

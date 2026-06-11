@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import type { CommissionStatus } from "./constants";
+import type { BillingCycle, CommissionStatus } from "./constants";
 import type { ClientDetailRecord, ClientRecord } from "./types";
 
 function formatMemberName(
@@ -19,7 +19,7 @@ const CLIENT_SELECT = `
   phone,
   website,
   responsible_member_id,
-  contract_value_cents,
+  lead_estimated_value_cents,
   monthly_retainer_cents,
   one_time_project_value_cents,
   currency,
@@ -32,6 +32,10 @@ const CLIENT_DETAIL_SELECT = `
   monthly_revenue_cents,
   setup_fee_cents,
   contract_start_date,
+  billing_cycle,
+  next_invoice_date,
+  last_invoice_date,
+  auto_invoice_enabled,
   total_revenue_cents,
   commission_status,
   commission_total_cents,
@@ -54,7 +58,8 @@ function mapClientRow(row: Record<string, unknown>): ClientRecord {
     phone: (row.phone as string | null) ?? null,
     website: (row.website as string | null) ?? null,
     responsible_member_id: (row.responsible_member_id as string | null) ?? null,
-    contract_value_cents: (row.contract_value_cents as number | null) ?? null,
+    lead_estimated_value_cents:
+      (row.lead_estimated_value_cents as number | null) ?? null,
     monthly_retainer_cents: (row.monthly_retainer_cents as number | null) ?? null,
     one_time_project_value_cents:
       (row.one_time_project_value_cents as number | null) ?? null,
@@ -109,6 +114,10 @@ function mapClientDetailRow(row: Record<string, unknown>): ClientDetailRecord {
     monthly_revenue_cents: (row.monthly_revenue_cents as number | null) ?? null,
     setup_fee_cents: (row.setup_fee_cents as number | null) ?? null,
     contract_start_date: (row.contract_start_date as string | null) ?? null,
+    billing_cycle: ((row.billing_cycle as BillingCycle | null) ?? "monthly") as BillingCycle,
+    next_invoice_date: (row.next_invoice_date as string | null) ?? null,
+    last_invoice_date: (row.last_invoice_date as string | null) ?? null,
+    auto_invoice_enabled: Boolean(row.auto_invoice_enabled),
     total_revenue_cents: (row.total_revenue_cents as number | null) ?? null,
     commission_status: (row.commission_status as CommissionStatus) ?? "none",
     commission_total_cents: (row.commission_total_cents as number) ?? 0,
@@ -132,7 +141,8 @@ export async function getClientDetailById(
   if (
     error &&
     (error.message.includes("commission_total_cents") ||
-      error.message.includes("contract_start_date"))
+      error.message.includes("contract_start_date") ||
+      error.message.includes("billing_cycle"))
   ) {
     ({ data, error } = await supabase
       .from("clients")

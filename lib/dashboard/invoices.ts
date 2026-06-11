@@ -3,10 +3,18 @@ import { isClientHubSchemaMissingError } from "./client-activities";
 import type { InvoiceStatus } from "./constants";
 import { calculateInvoiceAmounts, DEFAULT_VAT_RATE } from "./invoice-math";
 import { syncOverdueInvoices } from "./invoice-overdue";
-import { filterInvoicesForClient } from "./contract-invoices";
+import {
+  filterContractInvoicesForClient,
+  filterInvoicesForClient,
+} from "./contract-invoices";
 import type { InvoiceItemRecord, InvoiceRecord, InvoiceWithDetails } from "./types";
 
-export { filterInvoicesForClient } from "./contract-invoices";
+export { resolveInvoiceType } from "./invoice-type";
+
+export {
+  filterContractInvoicesForClient,
+  filterInvoicesForClient,
+} from "./contract-invoices";
 
 function isPhase10InvoiceSchemaMissingError(message: string) {
   const normalized = message.toLowerCase();
@@ -14,6 +22,7 @@ function isPhase10InvoiceSchemaMissingError(message: string) {
     isClientHubSchemaMissingError(message) ||
     (normalized.includes("does not exist") &&
       (normalized.includes("subtotal_cents") ||
+        normalized.includes("contract_id") ||
         normalized.includes("invoice_items") ||
         normalized.includes("customer_number") ||
         normalized.includes("next_invoice_number") ||
@@ -69,6 +78,10 @@ function mapInvoiceRow(row: Record<string, unknown>): InvoiceRecord {
   return {
     id: row.id as string,
     client_id: row.client_id as string,
+    contract_id: (row.contract_id as string | null | undefined) ?? null,
+    invoice_type: (row.invoice_type as InvoiceRecord["invoice_type"]) ?? null,
+    billing_period_year: (row.billing_period_year as number | null | undefined) ?? null,
+    billing_period_month: (row.billing_period_month as number | null | undefined) ?? null,
     invoice_number: row.invoice_number as string,
     amount_cents: total,
     subtotal_cents: subtotal,
@@ -88,6 +101,10 @@ function mapInvoiceRow(row: Record<string, unknown>): InvoiceRecord {
 const INVOICE_SELECT = `
   id,
   client_id,
+  contract_id,
+  invoice_type,
+  billing_period_year,
+  billing_period_month,
   invoice_number,
   amount_cents,
   subtotal_cents,
@@ -123,6 +140,38 @@ export async function getInvoicesForClient(
   return filterInvoicesForClient(
     (data ?? []).map((row) => mapInvoiceRow(row as Record<string, unknown>)),
     clientId,
+  );
+}
+
+export async function getContractInvoicesForClient(
+  clientId: string,
+  contractId?: string | null,
+): Promise<InvoiceRecord[]> {
+  await syncOverdueInvoices();
+
+  const supabase = await createClient();
+  let query = supabase
+    .from("invoices")
+    .select(INVOICE_SELECT)
+    .eq("client_id", clientId);
+
+  if (contractId) {
+    query = query.eq("contract_id", contractId);
+  }
+
+  const { data, error } = await query.order("created_at", { ascending: false });
+
+  if (error) {
+    if (isPhase10InvoiceSchemaMissingError(error.message)) {
+      const legacy = await getInvoicesForClientLegacy(clientId);
+      return filterContractInvoicesForClient(legacy, { clientId, contractId });
+    }
+    throw new Error(error.message);
+  }
+
+  return filterContractInvoicesForClient(
+    (data ?? []).map((row) => mapInvoiceRow(row as Record<string, unknown>)),
+    { clientId, contractId },
   );
 }
 

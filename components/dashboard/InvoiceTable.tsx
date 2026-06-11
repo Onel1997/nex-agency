@@ -10,7 +10,9 @@ import {
 } from "lucide-react";
 import { InvoiceStatusBadge } from "@/components/dashboard/InvoiceStatusBadge";
 import { formatCents, formatDate } from "@/lib/dashboard/format";
+import { INVOICE_TYPE_LABELS } from "@/lib/dashboard/constants";
 import { formatInvoiceDueDate } from "@/lib/dashboard/invoice-dates";
+import { resolveInvoiceType } from "@/lib/dashboard/invoice-type";
 import type { InvoiceRecord } from "@/lib/dashboard/types";
 
 interface InvoiceTableProps {
@@ -52,15 +54,17 @@ export function InvoiceTable({
   }
 
   const showClient = variant === "agency";
+  const showInvoiceType = variant === "compact";
   const showNetVat = variant === "full";
   const showActionsColumn =
-    (showActions && variant === "full") || (variant === "agency" && Boolean(onDownload));
+    (showActions && variant === "full") ||
+    ((variant === "agency" || variant === "compact") && Boolean(onDownload));
 
   return (
     <div className="overflow-x-auto">
       <table
         className={`dashboard-table w-full text-left text-sm ${
-          variant === "compact" ? "min-w-[640px]" : "min-w-[980px]"
+          variant === "compact" ? "min-w-[760px]" : "min-w-[980px]"
         }`}
       >
         <thead>
@@ -86,6 +90,11 @@ export function InvoiceTable({
             <th className="px-4 py-3.5 text-xs font-medium uppercase tracking-wider text-muted-soft">
               Betrag
             </th>
+            {showInvoiceType && (
+              <th className="px-4 py-3.5 text-xs font-medium uppercase tracking-wider text-muted-soft">
+                Typ
+              </th>
+            )}
             <th className="px-4 py-3.5 text-xs font-medium uppercase tracking-wider text-muted-soft">
               Status
             </th>
@@ -140,6 +149,14 @@ export function InvoiceTable({
               <td className="px-4 py-3 font-medium">
                 {formatCents(invoice.total_amount_cents)}
               </td>
+              {showInvoiceType && (
+                <td className="px-4 py-3 text-muted">
+                  {(() => {
+                    const type = resolveInvoiceType(invoice);
+                    return type ? INVOICE_TYPE_LABELS[type] : "—";
+                  })()}
+                </td>
+              )}
               <td className="px-4 py-3">
                 <InvoiceStatusBadge status={invoice.status} />
               </td>

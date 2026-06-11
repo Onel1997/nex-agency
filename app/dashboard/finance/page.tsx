@@ -13,6 +13,10 @@ export default async function FinancePage() {
   let stats: FinanceStats = {
     totalRevenueCents: 0,
     monthlyRecurringRevenueCents: 0,
+    activeRetainersCount: 0,
+    retainerRevenueThisMonthCents: 0,
+    openRetainerInvoicesCents: 0,
+    overdueRetainerInvoicesCents: 0,
     outstandingCommissionsCents: 0,
     paidCommissionsCents: 0,
     outstandingRetainerPaymentsCents: 0,

@@ -43,7 +43,7 @@ export function ClientsPageClient({
     <div className="space-y-6">
       <DashboardHeader
         title="Kunden"
-        description="Automatisch erstellt bei Lead-Konversion. Verantwortlichkeit und Vertragswerte pflegen."
+        description="Automatisch erstellt bei Lead-Konversion. Verantwortlichkeit und Lead-Schätzungen pflegen."
       />
 
       <DataTable
@@ -81,9 +81,9 @@ export function ClientsPageClient({
             render: (client) => client.responsible_member_name || "—",
           },
           {
-            key: "contract",
-            header: "Vertragswert",
-            render: (client) => formatCents(client.contract_value_cents),
+            key: "lead_estimate",
+            header: "Lead-Schätzung",
+            render: (client) => formatCents(client.lead_estimated_value_cents),
           },
           {
             key: "retainer",

@@ -6,7 +6,10 @@ import { getProfile } from "@/lib/auth/session";
 import { logClientActivity } from "@/lib/dashboard/client-activities";
 import { CLIENT_FILES_BUCKET } from "@/lib/dashboard/client-files";
 import { getClientById, getClientDetailById } from "@/lib/dashboard/clients";
-import { hasActiveContract } from "@/lib/dashboard/contract-invoices";
+import {
+  getContractSubtotalCents,
+  hasActiveContract,
+} from "@/lib/dashboard/contract-invoices";
 import {
   COMMUNICATION_TYPES,
   INVOICE_STATUSES,
@@ -14,9 +17,9 @@ import {
   type InvoiceStatus,
 } from "@/lib/dashboard/constants";
 import { parseEuroToCents } from "@/lib/dashboard/format";
+import { resolveRetainerAmountCents } from "@/lib/dashboard/billing-cycle";
+import { createInvoiceRecord } from "@/lib/dashboard/invoice-create";
 import { calculateInvoiceAmounts } from "@/lib/dashboard/invoice-math";
-import { computeInvoiceDueDate } from "@/lib/dashboard/invoice-dates";
-import { reserveInvoiceNumber } from "@/lib/dashboard/invoices";
 import { createClient } from "@/lib/supabase/server";
 
 const ALLOWED_MIME_TYPES = new Set([
@@ -281,59 +284,36 @@ export async function getClientFileSignedUrl(fileId: string) {
   return data.signedUrl;
 }
 
-async function insertInvoiceWithLineItem(params: {
-  clientId: string;
-  profileId: string;
-  subtotalCents: number;
-  status: InvoiceStatus;
-  description: string;
-}) {
-  const amounts = calculateInvoiceAmounts(params.subtotalCents);
-  const invoiceNumber = await reserveInvoiceNumber();
-  const supabase = await createClient();
+export async function updateAutoInvoiceEnabled(clientId: string, enabled: boolean) {
+  const { profile } = await requireClientAccess(clientId);
+  const client = await getClientDetailById(clientId);
+  if (!client) throw new Error("Kunde nicht gefunden");
 
-  const insertPayload: Record<string, unknown> = {
-    client_id: params.clientId,
-    invoice_number: invoiceNumber,
-    amount_cents: amounts.totalAmountCents,
-    status: params.status,
-    created_by: params.profileId,
-    due_date: computeInvoiceDueDate(),
-  };
-
-  if (amounts.subtotalCents >= 0) {
-    insertPayload.subtotal_cents = amounts.subtotalCents;
-    insertPayload.tax_amount_cents = amounts.taxAmountCents;
-    insertPayload.total_amount_cents = amounts.totalAmountCents;
-    insertPayload.vat_rate = amounts.vatRate;
+  if (resolveRetainerAmountCents(client) <= 0) {
+    throw new Error("Automatische Rechnungen erfordern einen aktiven Retainer-Vertrag");
   }
 
-  const { data: invoice, error } = await supabase
-    .from("invoices")
-    .insert(insertPayload)
-    .select("id, invoice_number")
-    .single();
+  const supabase = await createClient();
+  const updatePayload: Record<string, unknown> = {
+    auto_invoice_enabled: enabled,
+  };
 
+  if (enabled && !client.next_invoice_date) {
+    updatePayload.next_invoice_date = new Date().toISOString().slice(0, 10);
+  }
+
+  const { error } = await supabase.from("clients").update(updatePayload).eq("id", clientId);
   if (error) throw new Error(error.message);
 
-  const { error: itemError } = await supabase.from("invoice_items").insert({
-    invoice_id: invoice.id,
-    description: params.description,
-    quantity: 1,
-    unit_price_cents: amounts.subtotalCents,
-    line_total_cents: amounts.subtotalCents,
-    sort_order: 0,
+  await logClientActivity({
+    clientId,
+    actorId: profile.id,
+    activityType: "contract_changed",
+    description: `${actorName(profile)} hat automatische Rechnungen ${enabled ? "aktiviert" : "pausiert"}`,
+    metadata: { auto_invoice_enabled: enabled },
   });
 
-  if (itemError && !itemError.message.includes("invoice_items")) {
-    throw new Error(itemError.message);
-  }
-
-  return {
-    invoiceId: invoice.id as string,
-    invoiceNumber: invoice.invoice_number as string,
-    totalAmountCents: amounts.totalAmountCents,
-  };
+  revalidateClientHub(clientId);
 }
 
 export async function createInvoice(
@@ -356,12 +336,14 @@ export async function createInvoice(
     throw new Error("Bitte einen gültigen Nettobetrag eingeben");
   }
 
-  const { invoiceNumber, totalAmountCents } = await insertInvoiceWithLineItem({
+  const supabase = await createClient();
+  const { invoiceNumber, totalAmountCents } = await createInvoiceRecord(supabase, {
     clientId,
     profileId: profile.id,
     subtotalCents,
     status: data.status,
     description: "Leistung gemäß Vereinbarung",
+    invoiceType: "manual",
   });
 
   await logClientActivity({
@@ -384,22 +366,20 @@ export async function createInvoiceFromContract(clientId: string) {
     throw new Error("Kein aktiver Vertrag für diesen Kunden hinterlegt");
   }
 
-  const subtotalCents =
-    client.contract_value_cents ??
-    client.setup_fee_cents ??
-    client.monthly_revenue_cents ??
-    client.monthly_retainer_cents;
-
-  if (subtotalCents == null || subtotalCents <= 0) {
+  const subtotalCents = getContractSubtotalCents(client);
+  if (subtotalCents == null) {
     throw new Error("Kein Vertragswert für diesen Kunden hinterlegt");
   }
 
-  const { invoiceNumber, totalAmountCents } = await insertInvoiceWithLineItem({
+  const supabase = await createClient();
+  const { invoiceNumber, totalAmountCents } = await createInvoiceRecord(supabase, {
     clientId,
+    contractId: clientId,
     profileId: profile.id,
     subtotalCents,
     status: "draft",
     description: `Leistung gemäß Vertrag — ${client.company_name}`,
+    invoiceType: "setup",
   });
 
   await logClientActivity({

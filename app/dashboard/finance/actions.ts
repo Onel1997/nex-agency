@@ -19,12 +19,22 @@ import {
   hasActiveRetainer,
   type RetainerPaymentRecord,
 } from "@/lib/dashboard/retainer";
+import { getProfile } from "@/lib/auth/session";
+import { logClientActivity } from "@/lib/dashboard/client-activities";
+import { formatCents } from "@/lib/dashboard/format";
 import { createClient } from "@/lib/supabase/server";
 
-function revalidateFinance() {
+function revalidateFinance(clientId?: string) {
   revalidatePath("/dashboard/finance");
   revalidatePath("/dashboard/performance");
   revalidatePath("/dashboard");
+  if (clientId) {
+    revalidatePath(`/dashboard/clients/${clientId}`);
+  }
+}
+
+function actorName(profile: { full_name: string | null; email: string }) {
+  return profile.full_name?.trim() || profile.email.split("@")[0];
 }
 
 async function purgeRetainerPayments(
@@ -252,7 +262,18 @@ export async function updateClientRevenue(
   }
 
   await syncClientTotalRevenue(supabase, clientId);
-  revalidateFinance();
+
+  const profile = await getProfile();
+  if (profile) {
+    await logClientActivity({
+      clientId,
+      actorId: profile.id,
+      activityType: "contract_changed",
+      description: `${actorName(profile)} hat Vertragsdaten geändert`,
+    });
+  }
+
+  revalidateFinance(clientId);
 }
 
 export async function updateRetainerPaymentStatus(
@@ -296,7 +317,7 @@ export async function updateRetainerPaymentStatus(
   }
 
   await syncClientTotalRevenue(supabase, clientId);
-  revalidateFinance();
+  revalidateFinance(clientId);
 }
 
 export async function payCommission(clientId: string, formData: FormData) {
@@ -380,7 +401,18 @@ export async function payCommission(clientId: string, formData: FormData) {
     throw new Error(payoutInsertError.message);
   }
 
-  revalidateFinance();
+  const profile = await getProfile();
+  if (profile) {
+    await logClientActivity({
+      clientId,
+      actorId: profile.id,
+      activityType: "commission_paid",
+      description: `${actorName(profile)} hat Provision von ${formatCents(payoutCents)} ausgezahlt`,
+      metadata: { amount_cents: payoutCents },
+    });
+  }
+
+  revalidateFinance(clientId);
 }
 
 export async function updateCommissionStatus(

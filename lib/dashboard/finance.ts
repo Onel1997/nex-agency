@@ -1,5 +1,6 @@
-import { canAccessFinanceRoutes } from "@/lib/auth/permissions";
+import { canAccessClient, canAccessFinanceRoutes } from "@/lib/auth/permissions";
 import { getProfile } from "@/lib/auth/session";
+import { getClientById } from "@/lib/dashboard/clients";
 import type { CommissionStatus } from "@/lib/dashboard/constants";
 import { createClient } from "@/lib/supabase/server";
 import { syncCommissionAmounts } from "./commission";
@@ -153,6 +154,32 @@ export async function getFinanceStats(): Promise<FinanceStats | null> {
   };
 }
 
+async function buildClientRevenueRecords(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  clientIds?: string[],
+): Promise<ClientRevenueRecord[]> {
+  const [{ rows }, payments, commissionPayouts] = await Promise.all([
+    fetchClientRevenueRows(supabase),
+    fetchRetainerPayments(supabase),
+    fetchCommissionPayouts(supabase),
+  ]);
+
+  const filteredRows = clientIds
+    ? rows.filter((row) => clientIds.includes(row.id as string))
+    : rows;
+
+  const paymentsByClient = groupPaymentsByClient(payments);
+  const payoutsByClient = groupCommissionPayoutsByClient(commissionPayouts);
+
+  return filteredRows.map((row) =>
+    mapClientRevenueRow(
+      row,
+      paymentsByClient.get(row.id as string) ?? [],
+      payoutsByClient.get(row.id as string) ?? [],
+    ),
+  );
+}
+
 export async function getClientRevenueRecords(): Promise<ClientRevenueRecord[]> {
   const profile = await getProfile();
   if (!profile || !canAccessFinanceRoutes(profile)) {
@@ -160,20 +187,23 @@ export async function getClientRevenueRecords(): Promise<ClientRevenueRecord[]> 
   }
 
   const supabase = await createClient();
-  const [{ rows }, payments, commissionPayouts] = await Promise.all([
-    fetchClientRevenueRows(supabase),
-    fetchRetainerPayments(supabase),
-    fetchCommissionPayouts(supabase),
-  ]);
+  return buildClientRevenueRecords(supabase);
+}
 
-  const paymentsByClient = groupPaymentsByClient(payments);
-  const payoutsByClient = groupCommissionPayoutsByClient(commissionPayouts);
+export async function getClientRevenueRecordById(
+  clientId: string,
+): Promise<ClientRevenueRecord | null> {
+  const profile = await getProfile();
+  if (!profile) return null;
 
-  return rows.map((row) =>
-    mapClientRevenueRow(
-      row,
-      paymentsByClient.get(row.id as string) ?? [],
-      payoutsByClient.get(row.id as string) ?? [],
-    ),
-  );
+  const client = await getClientById(clientId);
+  if (!client) return null;
+
+  if (!canAccessClient(profile, client.responsible_member_id)) {
+    return null;
+  }
+
+  const supabase = await createClient();
+  const records = await buildClientRevenueRecords(supabase, [clientId]);
+  return records[0] ?? null;
 }

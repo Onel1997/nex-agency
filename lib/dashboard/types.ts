@@ -1,7 +1,10 @@
 import type { TeamMemberStatus, UserRole } from "@/lib/auth/types";
 import type {
   AppointmentStatus,
+  ClientActivityType,
   CommissionStatus,
+  CommunicationType,
+  InvoiceStatus,
   LeadStatus,
 } from "./constants";
 
@@ -205,6 +208,73 @@ export interface ClientRecord {
   currency: string;
   created_at: string;
   responsible_member_name: string | null;
+}
+
+export interface ClientDetailRecord extends ClientRecord {
+  monthly_revenue_cents: number | null;
+  setup_fee_cents: number | null;
+  contract_start_date: string | null;
+  total_revenue_cents: number | null;
+  commission_status: CommissionStatus;
+  commission_total_cents: number;
+  commission_paid_cents: number;
+  commission_outstanding_cents: number;
+}
+
+export interface ClientNote {
+  id: string;
+  client_id: string;
+  author_id: string;
+  content: string;
+  created_at: string;
+  updated_at: string;
+  author_name: string | null;
+}
+
+export interface ClientActivity {
+  id: string;
+  client_id: string;
+  actor_id: string | null;
+  activity_type: ClientActivityType;
+  description: string;
+  metadata: Record<string, unknown>;
+  created_at: string;
+  actor_name: string | null;
+}
+
+export interface ClientCommunication {
+  id: string;
+  client_id: string;
+  author_id: string;
+  communication_type: CommunicationType;
+  summary: string;
+  occurred_at: string;
+  created_at: string;
+  author_name: string | null;
+}
+
+export interface ClientFile {
+  id: string;
+  client_id: string;
+  uploaded_by: string;
+  file_name: string;
+  storage_path: string;
+  file_size_bytes: number;
+  mime_type: string;
+  created_at: string;
+  uploader_name: string | null;
+}
+
+export interface InvoiceRecord {
+  id: string;
+  client_id: string;
+  invoice_number: string;
+  amount_cents: number;
+  status: InvoiceStatus;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+  company_name?: string;
 }
 
 export interface AppointmentRow extends Lead {

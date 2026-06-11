@@ -109,6 +109,17 @@ export function getAssignableRoles(currentUserRole: UserRole): UserRole[] {
   return [];
 }
 
+export function canAccessClient(
+  profile: RoleActor & Pick<Profile, "id">,
+  responsibleMemberId: string | null,
+): boolean {
+  if (isManagement(profile)) return true;
+  if (isFieldStaff(profile) && responsibleMemberId === profile.id) {
+    return true;
+  }
+  return false;
+}
+
 export function canEditClientRevenue(
   profile: RoleActor & Pick<Profile, "id">,
   responsibleMemberId: string | null,

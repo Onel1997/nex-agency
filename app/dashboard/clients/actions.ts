@@ -8,14 +8,18 @@ import {
 } from "@/lib/auth/permissions";
 import { getProfile } from "@/lib/auth/session";
 import { logActivity } from "@/lib/dashboard/activity";
+import { logClientActivity } from "@/lib/dashboard/client-activities";
 import { parseEuroToCents } from "@/lib/dashboard/format";
 import { getClientById } from "@/lib/dashboard/clients";
 import { createClient } from "@/lib/supabase/server";
 
-function revalidateClients() {
+function revalidateClients(clientId?: string) {
   revalidatePath("/dashboard");
   revalidatePath("/dashboard/clients");
   revalidatePath("/dashboard/leads");
+  if (clientId) {
+    revalidatePath(`/dashboard/clients/${clientId}`);
+  }
 }
 
 function actorName(profile: { full_name: string | null; email: string }) {
@@ -62,5 +66,13 @@ export async function updateClient(id: string, data: ClientFormData) {
     message: `${actorName(profile)} hat Kunde ${existing.company_name} bearbeitet`,
   });
 
-  revalidateClients();
+  await logClientActivity({
+    clientId: id,
+    actorId: profile.id,
+    activityType: "contract_changed",
+    description: `${actorName(profile)} hat Vertragsdaten von ${existing.company_name} geändert`,
+    metadata: { responsible_member_id: responsibleMemberId },
+  });
+
+  revalidateClients(id);
 }

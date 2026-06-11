@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Pencil, Users } from "lucide-react";
@@ -61,7 +62,12 @@ export function ClientsPageClient({
             key: "company",
             header: "Firma",
             render: (client) => (
-              <span className="font-medium">{client.company_name}</span>
+              <Link
+                href={`/dashboard/clients/${client.id}`}
+                className="font-medium text-foreground transition-colors hover:text-violet-300"
+              >
+                {client.company_name}
+              </Link>
             ),
           },
           {

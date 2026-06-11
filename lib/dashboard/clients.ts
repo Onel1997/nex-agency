@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
-import type { ClientRecord } from "./types";
+import type { CommissionStatus } from "./constants";
+import type { ClientDetailRecord, ClientRecord } from "./types";
 
 function formatMemberName(
   member: { full_name: string | null; email: string } | null | undefined,
@@ -23,6 +24,18 @@ const CLIENT_SELECT = `
   currency,
   created_at,
   responsible_member:profiles!clients_responsible_member_id_fkey(full_name, email)
+`;
+
+const CLIENT_DETAIL_SELECT = `
+  ${CLIENT_SELECT},
+  monthly_revenue_cents,
+  setup_fee_cents,
+  contract_start_date,
+  total_revenue_cents,
+  commission_status,
+  commission_total_cents,
+  commission_paid_cents,
+  commission_outstanding_cents
 `;
 
 function mapClientRow(row: Record<string, unknown>): ClientRecord {
@@ -85,4 +98,56 @@ export async function getClientById(id: string): Promise<ClientRecord | null> {
   if (error) throw new Error(error.message);
   if (!data) return null;
   return mapClientRow(data as Record<string, unknown>);
+}
+
+function mapClientDetailRow(row: Record<string, unknown>): ClientDetailRecord {
+  const base = mapClientRow(row);
+  return {
+    ...base,
+    monthly_revenue_cents: (row.monthly_revenue_cents as number | null) ?? null,
+    setup_fee_cents: (row.setup_fee_cents as number | null) ?? null,
+    contract_start_date: (row.contract_start_date as string | null) ?? null,
+    total_revenue_cents: (row.total_revenue_cents as number | null) ?? null,
+    commission_status: (row.commission_status as CommissionStatus) ?? "none",
+    commission_total_cents: (row.commission_total_cents as number) ?? 0,
+    commission_paid_cents: (row.commission_paid_cents as number) ?? 0,
+    commission_outstanding_cents:
+      (row.commission_outstanding_cents as number) ?? 0,
+  };
+}
+
+export async function getClientDetailById(
+  id: string,
+): Promise<ClientDetailRecord | null> {
+  const supabase = await createClient();
+
+  let { data, error } = await supabase
+    .from("clients")
+    .select(CLIENT_DETAIL_SELECT)
+    .eq("id", id)
+    .maybeSingle();
+
+  if (
+    error &&
+    (error.message.includes("commission_total_cents") ||
+      error.message.includes("contract_start_date"))
+  ) {
+    ({ data, error } = await supabase
+      .from("clients")
+      .select(
+        `
+        ${CLIENT_SELECT},
+        monthly_revenue_cents,
+        setup_fee_cents,
+        total_revenue_cents,
+        commission_status
+      `,
+      )
+      .eq("id", id)
+      .maybeSingle());
+  }
+
+  if (error) throw new Error(error.message);
+  if (!data) return null;
+  return mapClientDetailRow(data as Record<string, unknown>);
 }

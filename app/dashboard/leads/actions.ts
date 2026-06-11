@@ -6,6 +6,7 @@ import { canAssignLeadOwner } from "@/lib/auth/permissions";
 import { getAuthUser, getProfile } from "@/lib/auth/session";
 import { LEAD_STATUS_LABELS, type LeadStatus } from "@/lib/dashboard/constants";
 import { logActivity } from "@/lib/dashboard/activity";
+import { logClientActivity } from "@/lib/dashboard/client-activities";
 import { parseEuroToCents } from "@/lib/dashboard/format";
 import { createClient } from "@/lib/supabase/server";
 
@@ -29,12 +30,15 @@ function toDbPayload(
   };
 }
 
-function revalidateDashboard() {
+function revalidateDashboard(clientId?: string) {
   revalidatePath("/dashboard");
   revalidatePath("/dashboard/leads");
   revalidatePath("/dashboard/appointments");
   revalidatePath("/dashboard/clients");
   revalidatePath("/dashboard/activities");
+  if (clientId) {
+    revalidatePath(`/dashboard/clients/${clientId}`);
+  }
 }
 
 function actorName(profile: { full_name: string | null; email: string }) {
@@ -199,6 +203,23 @@ export async function updateLeadStatus(id: string, status: LeadStatus) {
       },
       message: `${actorName(profile)} hat Status von ${existing.company_name} auf ${LEAD_STATUS_LABELS[status]} geändert`,
     });
+
+    if (status === "won") {
+      const { data: linkedClient } = await supabase
+        .from("clients")
+        .select("id")
+        .eq("lead_id", id)
+        .maybeSingle();
+
+      if (linkedClient) {
+        await logClientActivity({
+          clientId: linkedClient.id,
+          actorId: profile.id,
+          activityType: "lead_won",
+          description: `Lead „${existing.company_name}" gewonnen`,
+        });
+      }
+    }
   }
 
   revalidateDashboard();
@@ -281,5 +302,21 @@ export async function convertLeadToClient(leadId: string) {
     message: `${actorName(profile)} hat Lead ${lead.company_name} in einen Kunden umgewandelt`,
   });
 
-  revalidateDashboard();
+  await logClientActivity({
+    clientId: client.id,
+    actorId: profile.id,
+    activityType: "client_created",
+    description: `${actorName(profile)} hat Kunde „${lead.company_name}" erstellt`,
+    metadata: { lead_id: leadId },
+  });
+
+  await logClientActivity({
+    clientId: client.id,
+    actorId: profile.id,
+    activityType: "lead_won",
+    description: `Lead „${lead.company_name}" gewonnen`,
+    metadata: { lead_id: leadId },
+  });
+
+  revalidateDashboard(client.id);
 }

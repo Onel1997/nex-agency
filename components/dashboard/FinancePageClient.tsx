@@ -142,14 +142,17 @@ export function FinancePageClient({ stats, clients }: FinancePageClientProps) {
             header: "Retainer",
             className: "text-right",
             hideOnMobile: true,
-            render: (client) => (
-              <div>
-                <div>{formatCents(client.retainer_revenue_cents)}</div>
-                <div className="text-xs text-muted-soft">
-                  {client.months_paid} bezahlt / {client.months_open} offen
+            render: (client) =>
+              (client.monthly_revenue_cents ?? 0) > 0 ? (
+                <div>
+                  <div>{formatCents(client.retainer_revenue_cents)}</div>
+                  <div className="text-xs text-muted-soft">
+                    {client.months_paid} bezahlt / {client.months_open} offen
+                  </div>
                 </div>
-              </div>
-            ),
+              ) : (
+                <span className="text-muted-soft">Kein Retainer</span>
+              ),
           },
           {
             key: "total",

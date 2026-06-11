@@ -1,0 +1,85 @@
+"use client";
+
+import { ROLE_LABELS, type UserRole } from "@/lib/auth/types";
+import { formatCents } from "@/lib/dashboard/format";
+import type { PerformanceMemberRow } from "@/lib/dashboard/types";
+import { EmptyState } from "@/components/dashboard/EmptyState";
+import { TrendingUp } from "lucide-react";
+
+interface PerformanceRankingTableProps {
+  members: PerformanceMemberRow[];
+  isTeamView: boolean;
+}
+
+export function PerformanceRankingTable({
+  members,
+  isTeamView,
+}: PerformanceRankingTableProps) {
+  if (members.length === 0) {
+    return (
+      <div className="glass-card rounded-2xl p-6">
+        <EmptyState
+          icon={TrendingUp}
+          title="Keine Performance-Daten"
+          description="Für den gewählten Zeitraum liegen noch keine Kennzahlen vor."
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div className="glass-card rounded-2xl p-6">
+      <h2 className="text-sm font-medium uppercase tracking-wider text-muted-soft">
+        {isTeamView ? "Mitarbeiter-Ranking" : "Meine Performance"}
+      </h2>
+      <p className="mt-2 text-sm text-muted">
+        Sortiert nach Umsatz — Leads, Kunden, Provision und Conversion auf einen Blick.
+      </p>
+
+      <div className="dashboard-table mt-6 overflow-x-auto">
+        <table className="w-full min-w-[760px] text-left text-sm">
+          <thead>
+            <tr className="border-b border-border text-xs uppercase tracking-wider text-muted-soft">
+              <th className="px-3 py-3 font-medium">Mitarbeiter</th>
+              <th className="px-3 py-3 font-medium text-right">Leads</th>
+              <th className="px-3 py-3 font-medium text-right">Kunden</th>
+              <th className="px-3 py-3 font-medium text-right">Umsatz</th>
+              <th className="px-3 py-3 font-medium text-right">Provision</th>
+              <th className="px-3 py-3 font-medium text-right">Conversion</th>
+            </tr>
+          </thead>
+          <tbody>
+            {members.map((member) => (
+              <tr
+                key={member.userId}
+                className="border-b border-border/60 transition-colors hover:bg-white/[0.02]"
+              >
+                <td className="px-3 py-3">
+                  <div className="font-medium text-foreground">{member.fullName}</div>
+                  <div className="text-xs text-muted-soft">
+                    {ROLE_LABELS[member.role as UserRole] ?? member.role}
+                  </div>
+                </td>
+                <td className="px-3 py-3 text-right tabular-nums text-foreground">
+                  {member.leadsCount}
+                </td>
+                <td className="px-3 py-3 text-right tabular-nums text-foreground">
+                  {member.clientsCount}
+                </td>
+                <td className="px-3 py-3 text-right tabular-nums text-foreground">
+                  {formatCents(member.revenueCents)}
+                </td>
+                <td className="px-3 py-3 text-right tabular-nums text-foreground">
+                  {formatCents(member.commissionTotalCents)}
+                </td>
+                <td className="px-3 py-3 text-right tabular-nums text-foreground">
+                  {member.conversionRate.toLocaleString("de-DE")} %
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}

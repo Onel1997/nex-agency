@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import type { Profile } from "@/lib/auth/types";
 import {
   canAccessFinanceRoutes,
+  canAccessPerformanceRoutes,
   isManagement as checkManagement,
   isSuperAdmin as checkSuperAdmin,
 } from "@/lib/auth/permissions";
@@ -63,6 +64,12 @@ export async function requireManagement(): Promise<Profile> {
 export async function requireFinanceAccess(): Promise<Profile> {
   const profile = await requireProfile();
   if (!canAccessFinanceRoutes(profile)) redirect("/dashboard");
+  return profile;
+}
+
+export async function requirePerformanceAccess(): Promise<Profile> {
+  const profile = await requireProfile();
+  if (!canAccessPerformanceRoutes(profile)) redirect("/dashboard");
   return profile;
 }
 

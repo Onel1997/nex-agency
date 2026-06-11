@@ -17,6 +17,7 @@ import { usePathname } from "next/navigation";
 import { useState } from "react";
 import {
   canAccessFinanceRoutes,
+  canAccessPerformanceRoutes,
   canAccessTeamRoutes,
 } from "@/lib/auth/permissions";
 import { UserMenu } from "@/components/dashboard/UserMenu";
@@ -36,8 +37,13 @@ const MANAGEMENT_NAV_ITEMS = [
 
 const FINANCE_NAV_ITEMS = [
   { href: "/dashboard/finance", label: "Finanzen", icon: Euro },
-  { href: "/dashboard/performance", label: "Performance", icon: TrendingUp },
 ] as const;
+
+const PERFORMANCE_NAV_ITEM = {
+  href: "/dashboard/performance",
+  label: "Performance",
+  icon: TrendingUp,
+} as const;
 
 interface DashboardSidebarProps {
   profile: Profile;
@@ -50,6 +56,7 @@ export function DashboardSidebar({ profile }: DashboardSidebarProps) {
     ...BASE_NAV_ITEMS,
     ...(canAccessTeamRoutes(profile) ? MANAGEMENT_NAV_ITEMS : []),
     ...(canAccessFinanceRoutes(profile) ? FINANCE_NAV_ITEMS : []),
+    ...(canAccessPerformanceRoutes(profile) ? [PERFORMANCE_NAV_ITEM] : []),
   ];
 
   const isActive = (href: string, exact?: boolean) =>

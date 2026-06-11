@@ -46,6 +46,12 @@ export function formatRetainerPeriodLabel(year: number, month: number) {
   }).format(new Date(year, month - 1, 1));
 }
 
+export function hasActiveRetainer(
+  monthlyRevenueCents: number | null | undefined,
+): boolean {
+  return (monthlyRevenueCents ?? 0) > 0;
+}
+
 export function getBillingPeriods(
   contractStartDate: string,
   referenceDate: Date = new Date(),
@@ -68,10 +74,11 @@ export function getBillingPeriods(
 
 export function buildRetainerPeriodViews(
   contractStartDate: string | null,
+  monthlyRevenueCents: number | null,
   payments: RetainerPaymentRecord[],
   referenceDate: Date = new Date(),
 ): RetainerPeriodView[] {
-  if (!contractStartDate) return [];
+  if (!contractStartDate || !hasActiveRetainer(monthlyRevenueCents)) return [];
 
   const paymentMap = new Map(
     payments.map((payment) => [
@@ -147,6 +154,7 @@ export function buildRetainerStats(input: {
   const current = startOfMonth(referenceDate);
   const periodViews = buildRetainerPeriodViews(
     input.contract_start_date,
+    monthly,
     payments,
     referenceDate,
   );

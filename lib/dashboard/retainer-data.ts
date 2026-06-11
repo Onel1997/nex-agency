@@ -71,6 +71,7 @@ export const CLIENT_REVENUE_SELECT_WITH_CONTRACT_NO_COMMISSION = `
 
 export const PERFORMANCE_CLIENT_SELECT_WITH_CONTRACT = `
   id,
+  created_at,
   responsible_member_id,
   monthly_revenue_cents,
   setup_fee_cents,
@@ -83,6 +84,7 @@ export const PERFORMANCE_CLIENT_SELECT_WITH_CONTRACT = `
 
 export const PERFORMANCE_CLIENT_SELECT_LEGACY = `
   id,
+  created_at,
   responsible_member_id,
   monthly_revenue_cents,
   setup_fee_cents,
@@ -93,6 +95,7 @@ export const PERFORMANCE_CLIENT_SELECT_LEGACY = `
 
 export const PERFORMANCE_CLIENT_SELECT_WITH_CONTRACT_NO_COMMISSION = `
   id,
+  created_at,
   responsible_member_id,
   monthly_revenue_cents,
   setup_fee_cents,

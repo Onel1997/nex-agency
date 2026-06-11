@@ -125,6 +125,59 @@ export interface TeamPerformanceStats {
   commissionsOutstandingCents: number;
 }
 
+export interface PerformanceKpis {
+  totalLeads: number;
+  wonLeads: number;
+  conversionRate: number;
+  totalRevenueCents: number;
+  outstandingCommissionsCents: number;
+  paidCommissionsCents: number;
+  appointmentsCount: number;
+}
+
+export interface PerformanceMemberRow {
+  userId: string;
+  fullName: string;
+  email: string;
+  role: string;
+  commissionRate: number;
+  leadsCount: number;
+  leadsWon: number;
+  clientsCount: number;
+  revenueCents: number;
+  commissionTotalCents: number;
+  commissionPaidCents: number;
+  commissionOutstandingCents: number;
+  appointmentsCount: number;
+  conversionRate: number;
+}
+
+export interface PerformanceRevenuePoint {
+  label: string;
+  revenueCents: number;
+}
+
+export interface PerformanceLeadStatusSlice {
+  status: string;
+  label: string;
+  count: number;
+}
+
+export interface PerformanceCommissionBars {
+  outstandingCents: number;
+  paidCents: number;
+}
+
+export interface PerformanceDashboardData {
+  period: import("./performance-period").PerformancePeriod;
+  isTeamView: boolean;
+  kpis: PerformanceKpis;
+  members: PerformanceMemberRow[];
+  revenueTrend: PerformanceRevenuePoint[];
+  leadsByStatus: PerformanceLeadStatusSlice[];
+  commissions: PerformanceCommissionBars;
+}
+
 export interface TeamMember {
   id: string;
   email: string;

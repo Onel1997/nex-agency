@@ -3,17 +3,27 @@
 import { useState, useTransition } from "react";
 import { updateMemberCommissionRate } from "@/app/dashboard/finance/actions";
 import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
-import { TeamPerformanceTable } from "@/components/dashboard/TeamPerformanceTable";
 import { Modal } from "@/components/dashboard/Modal";
+import { PerformanceCharts } from "@/components/dashboard/PerformanceCharts";
+import { PerformanceKpiGrid } from "@/components/dashboard/PerformanceKpiGrid";
+import { PerformanceMemberCards } from "@/components/dashboard/PerformanceMemberCards";
+import { PerformancePeriodFilter } from "@/components/dashboard/PerformancePeriodFilter";
+import { PerformanceRankingTable } from "@/components/dashboard/PerformanceRankingTable";
 import { parsePercent } from "@/lib/dashboard/format";
-import type { TeamPerformanceStats } from "@/lib/dashboard/types";
+import type { PerformanceDashboardData, TeamPerformanceStats } from "@/lib/dashboard/types";
 import Link from "next/link";
 
 interface PerformancePageClientProps {
-  stats: TeamPerformanceStats[];
+  data: PerformanceDashboardData;
+  showCommissionEditor: boolean;
+  commissionMembers: TeamPerformanceStats[];
 }
 
-export function PerformancePageClient({ stats }: PerformancePageClientProps) {
+export function PerformancePageClient({
+  data,
+  showCommissionEditor,
+  commissionMembers,
+}: PerformancePageClientProps) {
   const [editingMember, setEditingMember] = useState<TeamPerformanceStats | null>(
     null,
   );
@@ -21,47 +31,71 @@ export function PerformancePageClient({ stats }: PerformancePageClientProps) {
   return (
     <div className="space-y-8">
       <DashboardHeader
-        title="Team-Performance"
-        description="Leistungskennzahlen und Provisionssätze pro Teammitglied."
+        title="Performance"
+        description={
+          data.isTeamView
+            ? "Zentrale Vertriebs- und Team-Auswertung für NexAgency."
+            : "Ihre persönliche Vertriebs- und Performance-Übersicht."
+        }
       />
 
-      <div className="flex justify-end">
-        <Link href="/dashboard/finance" className="dashboard-link text-sm">
-          ← Finanzübersicht
-        </Link>
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <PerformancePeriodFilter activePeriod={data.period} />
+        {showCommissionEditor && (
+          <Link href="/dashboard/finance" className="dashboard-link text-sm">
+            ← Finanzübersicht
+          </Link>
+        )}
       </div>
 
-      <TeamPerformanceTable stats={stats} />
+      <PerformanceKpiGrid kpis={data.kpis} />
 
-      <div className="glass-card rounded-2xl p-6">
-        <h2 className="text-sm font-medium uppercase tracking-wider text-muted-soft">
-          Provisionssätze
-        </h2>
-        <p className="mt-2 text-sm text-muted">
-          Individuelle Provisionssätze für Teammitglieder festlegen.
-        </p>
+      <PerformanceCharts
+        revenueTrend={data.revenueTrend}
+        leadsByStatus={data.leadsByStatus}
+        commissions={data.commissions}
+      />
 
-        <div className="mt-4 divide-y divide-border">
-          {stats.map((member) => (
-            <div
-              key={member.userId}
-              className="flex flex-wrap items-center justify-between gap-3 py-3"
-            >
-              <div>
-                <p className="font-medium text-foreground">{member.fullName}</p>
-                <p className="text-xs text-muted-soft">{member.email}</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setEditingMember(member)}
-                className="dashboard-btn-secondary text-xs"
+      {data.isTeamView && (
+        <PerformanceRankingTable
+          members={data.members}
+          isTeamView={data.isTeamView}
+        />
+      )}
+
+      <PerformanceMemberCards members={data.members} />
+
+      {showCommissionEditor && commissionMembers.length > 0 && (
+        <div className="glass-card rounded-2xl p-6">
+          <h2 className="text-sm font-medium uppercase tracking-wider text-muted-soft">
+            Provisionssätze
+          </h2>
+          <p className="mt-2 text-sm text-muted">
+            Individuelle Provisionssätze für Teammitglieder festlegen.
+          </p>
+
+          <div className="mt-4 divide-y divide-border">
+            {commissionMembers.map((member) => (
+              <div
+                key={member.userId}
+                className="flex flex-wrap items-center justify-between gap-3 py-3"
               >
-                {member.commissionRate}% bearbeiten
-              </button>
-            </div>
-          ))}
+                <div>
+                  <p className="font-medium text-foreground">{member.fullName}</p>
+                  <p className="text-xs text-muted-soft">{member.email}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setEditingMember(member)}
+                  className="dashboard-btn-secondary text-xs"
+                >
+                  {member.commissionRate}% bearbeiten
+                </button>
+              </div>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
       <CommissionRateModal
         member={editingMember}

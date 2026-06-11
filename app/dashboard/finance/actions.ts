@@ -16,6 +16,7 @@ import { parseEuroToCents } from "@/lib/dashboard/format";
 import { isRetainerSchemaMissingError } from "@/lib/dashboard/retainer-data";
 import {
   buildRetainerStats,
+  hasActiveRetainer,
   type RetainerPaymentRecord,
 } from "@/lib/dashboard/retainer";
 import { createClient } from "@/lib/supabase/server";
@@ -24,6 +25,20 @@ function revalidateFinance() {
   revalidatePath("/dashboard/finance");
   revalidatePath("/dashboard/performance");
   revalidatePath("/dashboard");
+}
+
+async function purgeRetainerPayments(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  clientId: string,
+) {
+  const { error } = await supabase
+    .from("client_retainer_payments")
+    .delete()
+    .eq("client_id", clientId);
+
+  if (error && !isRetainerSchemaMissingError(error.message)) {
+    throw new Error(error.message);
+  }
 }
 
 async function getClientPayments(
@@ -232,6 +247,10 @@ export async function updateClientRevenue(
 
   if (error) throw new Error(error.message);
 
+  if (!hasActiveRetainer(monthlyRevenueCents)) {
+    await purgeRetainerPayments(supabase, clientId);
+  }
+
   await syncClientTotalRevenue(supabase, clientId);
   revalidateFinance();
 }
@@ -245,6 +264,17 @@ export async function updateRetainerPaymentStatus(
   await requireFinanceAccess();
 
   const supabase = await createClient();
+  const { data: client, error: clientError } = await supabase
+    .from("clients")
+    .select("monthly_revenue_cents")
+    .eq("id", clientId)
+    .single();
+
+  if (clientError) throw new Error(clientError.message);
+  if (!hasActiveRetainer(client.monthly_revenue_cents as number | null)) {
+    throw new Error("Für Kunden ohne monatlichen Retainer gibt es keine Retainer-Zahlungen.");
+  }
+
   const { error } = await supabase.from("client_retainer_payments").upsert(
     {
       client_id: clientId,

@@ -1,153 +1,509 @@
-import { canAccessFinanceRoutes } from "@/lib/auth/permissions";
+import {
+  canAccessFinanceRoutes,
+  isManagement,
+} from "@/lib/auth/permissions";
 import { getProfile } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
+import { syncCommissionAmounts } from "./commission";
+import { LEAD_STATUS_LABELS, type LeadStatus } from "./constants";
+import {
+  getPerformanceDateRange,
+  isPeriodMonthInRange,
+  isTimestampInRange,
+  type PerformanceDateRange,
+  type PerformancePeriod,
+} from "./performance-period";
 import {
   fetchPerformanceClientRows,
   fetchRetainerPayments,
   groupPaymentsByClient,
 } from "./retainer-data";
-import { syncCommissionAmounts } from "./commission";
-import { buildRetainerStats } from "./retainer";
-import type { TeamPerformanceStats } from "./types";
+import { buildRetainerStats, type RetainerPaymentRecord } from "./retainer";
+import type {
+  PerformanceCommissionBars,
+  PerformanceDashboardData,
+  PerformanceKpis,
+  PerformanceLeadStatusSlice,
+  PerformanceMemberRow,
+  PerformanceRevenuePoint,
+  TeamPerformanceStats,
+} from "./types";
 
-export async function getTeamPerformanceStats(): Promise<TeamPerformanceStats[] | null> {
-  const profile = await getProfile();
-  if (!profile || !canAccessFinanceRoutes(profile)) return null;
+const DONUT_STATUSES: LeadStatus[] = [
+  "new",
+  "contacted",
+  "qualified",
+  "won",
+  "lost",
+];
 
-  const supabase = await createClient();
+interface MemberAccumulator {
+  leadsCount: number;
+  leadsWon: number;
+  clientsCount: number;
+  setupRevenueCents: number;
+  retainerRevenueCents: number;
+  revenueCents: number;
+  commissionTotalCents: number;
+  commissionPaidCents: number;
+  commissionOutstandingCents: number;
+  appointmentsCount: number;
+}
 
-  const [
-    { data: profiles, error: profilesError },
-    { data: leads, error: leadsError },
-    { rows: clients },
-    payments,
-  ] = await Promise.all([
-    supabase
-      .from("profiles")
-      .select("id, full_name, email, role, commission_rate")
-      .eq("status", "active")
-      .not("activated_at", "is", null)
-      .order("full_name"),
-    supabase.from("leads").select("owner_id, created_by, status"),
-    fetchPerformanceClientRows(supabase),
-    fetchRetainerPayments(supabase),
-  ]);
+interface ProfileRow {
+  id: string;
+  full_name: string | null;
+  email: string;
+  role: string;
+  commission_rate: number | null;
+}
 
-  if (profilesError) throw new Error(profilesError.message);
-  if (leadsError) throw new Error(leadsError.message);
+function emptyAccumulator(): MemberAccumulator {
+  return {
+    leadsCount: 0,
+    leadsWon: 0,
+    clientsCount: 0,
+    setupRevenueCents: 0,
+    retainerRevenueCents: 0,
+    revenueCents: 0,
+    commissionTotalCents: 0,
+    commissionPaidCents: 0,
+    commissionOutstandingCents: 0,
+    appointmentsCount: 0,
+  };
+}
 
-  const paymentsByClient = groupPaymentsByClient(payments);
+function getOrCreateAccumulator(
+  map: Map<string, MemberAccumulator>,
+  userId: string,
+) {
+  const current = map.get(userId) ?? emptyAccumulator();
+  map.set(userId, current);
+  return current;
+}
 
-  const statsByUser = new Map<
-    string,
-    {
-      leadsCreated: number;
-      leadsWon: number;
-      clientsOwned: number;
-      setupRevenueCents: number;
-      retainerRevenueCents: number;
-      revenueGeneratedCents: number;
-      commissionsTotalCents: number;
-      commissionsPaidCents: number;
-      commissionsOutstandingCents: number;
-    }
-  >();
+function formatMemberName(profile: ProfileRow) {
+  return profile.full_name?.trim() || profile.email.split("@")[0];
+}
 
-  for (const lead of leads ?? []) {
-    if (lead.created_by) {
-      const current = statsByUser.get(lead.created_by) ?? emptyStats();
-      current.leadsCreated += 1;
-      statsByUser.set(lead.created_by, current);
-    }
+function computeConversionRate(leads: number, clients: number) {
+  if (leads <= 0) return 0;
+  return Math.round((clients / leads) * 1000) / 10;
+}
 
-    if (lead.owner_id && lead.status === "won") {
-      const current = statsByUser.get(lead.owner_id) ?? emptyStats();
-      current.leadsWon += 1;
-      statsByUser.set(lead.owner_id, current);
+function resolveCommissionFields(
+  client: Record<string, unknown>,
+  commissionRate: number,
+) {
+  if (client.commission_total_cents !== undefined) {
+    return {
+      commissionTotalCents: (client.commission_total_cents as number) ?? 0,
+      commissionPaidCents: (client.commission_paid_cents as number) ?? 0,
+      commissionOutstandingCents:
+        (client.commission_outstanding_cents as number) ?? 0,
+    };
+  }
+
+  const synced = syncCommissionAmounts({
+    setupFeeCents: (client.setup_fee_cents as number | null) ?? null,
+    commissionRate,
+    currentTotalCents: 0,
+    currentPaidCents: 0,
+  });
+
+  return {
+    commissionTotalCents: synced.commission_total_cents,
+    commissionPaidCents: synced.commission_paid_cents,
+    commissionOutstandingCents: synced.commission_outstanding_cents,
+  };
+}
+
+function computeClientRevenueInRange(
+  client: Record<string, unknown>,
+  payments: Map<string, RetainerPaymentRecord[]>,
+  range: PerformanceDateRange,
+) {
+  const clientId = client.id as string;
+  const createdAt = client.created_at as string | null;
+  const setupFeeCents = (client.setup_fee_cents as number | null) ?? 0;
+  const monthlyRevenueCents = (client.monthly_revenue_cents as number | null) ?? 0;
+  const clientPayments = payments.get(clientId) ?? [];
+
+  if (range.start === null) {
+    const stats = buildRetainerStats({
+      contract_start_date: (client.contract_start_date as string | null) ?? null,
+      setup_fee_cents: setupFeeCents,
+      monthly_revenue_cents: monthlyRevenueCents,
+      payments: clientPayments,
+    });
+    return {
+      setupRevenueCents: stats.setup_revenue_cents,
+      retainerRevenueCents: stats.retainer_revenue_cents,
+      revenueCents: stats.total_revenue_cents,
+    };
+  }
+
+  const includeSetup = isTimestampInRange(createdAt, range);
+  const setupRevenueCents = includeSetup ? setupFeeCents : 0;
+
+  let retainerRevenueCents = 0;
+  for (const payment of clientPayments) {
+    if (payment.status !== "paid") continue;
+    if (
+      isPeriodMonthInRange(
+        payment.period_year,
+        payment.period_month,
+        range,
+      )
+    ) {
+      retainerRevenueCents += monthlyRevenueCents;
     }
   }
 
-  for (const clientRow of clients) {
+  return {
+    setupRevenueCents,
+    retainerRevenueCents,
+    revenueCents: setupRevenueCents + retainerRevenueCents,
+  };
+}
+
+function clientIncludedInPeriod(
+  createdAt: string | null,
+  range: PerformanceDateRange,
+) {
+  if (range.start === null) return true;
+  return isTimestampInRange(createdAt, range);
+}
+
+function buildRevenueTrend(
+  clients: Record<string, unknown>[],
+  paymentsByClient: ReturnType<typeof groupPaymentsByClient>,
+  range: PerformanceDateRange,
+): PerformanceRevenuePoint[] {
+  const monthTotals = new Map<string, number>();
+
+  const addToMonth = (year: number, month: number, cents: number) => {
+    if (cents <= 0) return;
+    const key = `${year}-${String(month).padStart(2, "0")}`;
+    monthTotals.set(key, (monthTotals.get(key) ?? 0) + cents);
+  };
+
+  for (const client of clients) {
+    const clientId = client.id as string;
+    const createdAt = client.created_at as string | null;
+    const setupFeeCents = (client.setup_fee_cents as number | null) ?? 0;
+    const monthlyRevenueCents = (client.monthly_revenue_cents as number | null) ?? 0;
+    const clientPayments = paymentsByClient.get(clientId) ?? [];
+
+    if (createdAt) {
+      const created = new Date(createdAt);
+      if (!Number.isNaN(created.getTime()) && setupFeeCents > 0) {
+        if (
+          range.start === null ||
+          isTimestampInRange(createdAt, range)
+        ) {
+          addToMonth(
+            created.getFullYear(),
+            created.getMonth() + 1,
+            setupFeeCents,
+          );
+        }
+      }
+    }
+
+    for (const payment of clientPayments) {
+      if (payment.status !== "paid") continue;
+      if (
+        range.start !== null &&
+        !isPeriodMonthInRange(
+          payment.period_year,
+          payment.period_month,
+          range,
+        )
+      ) {
+        continue;
+      }
+      addToMonth(
+        payment.period_year,
+        payment.period_month,
+        monthlyRevenueCents,
+      );
+    }
+  }
+
+  return [...monthTotals.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([key, revenueCents]) => {
+      const [year, month] = key.split("-").map(Number);
+      const label = new Intl.DateTimeFormat("de-DE", {
+        month: "short",
+        year: "numeric",
+      }).format(new Date(year, month - 1, 1));
+      return { label, revenueCents };
+    });
+}
+
+function buildLeadStatusSlices(
+  leads: Array<{ status: string }>,
+): PerformanceLeadStatusSlice[] {
+  const counts = new Map<string, number>();
+  for (const lead of leads) {
+    counts.set(lead.status, (counts.get(lead.status) ?? 0) + 1);
+  }
+
+  return DONUT_STATUSES.map((status) => ({
+    status,
+    label: LEAD_STATUS_LABELS[status],
+    count: counts.get(status) ?? 0,
+  }));
+}
+
+function mapMemberRows(
+  profiles: ProfileRow[],
+  statsByUser: Map<string, MemberAccumulator>,
+): PerformanceMemberRow[] {
+  return profiles
+    .map((profile) => {
+      const counts = statsByUser.get(profile.id) ?? emptyAccumulator();
+      return {
+        userId: profile.id,
+        fullName: formatMemberName(profile),
+        email: profile.email,
+        role: profile.role,
+        commissionRate: Number(profile.commission_rate ?? 0),
+        leadsCount: counts.leadsCount,
+        leadsWon: counts.leadsWon,
+        clientsCount: counts.clientsCount,
+        revenueCents: counts.revenueCents,
+        commissionTotalCents: counts.commissionTotalCents,
+        commissionPaidCents: counts.commissionPaidCents,
+        commissionOutstandingCents: counts.commissionOutstandingCents,
+        appointmentsCount: counts.appointmentsCount,
+        conversionRate: computeConversionRate(
+          counts.leadsCount,
+          counts.clientsCount,
+        ),
+      };
+    })
+    .sort((a, b) => b.revenueCents - a.revenueCents);
+}
+
+function buildKpis(
+  leads: Array<{ status: string }>,
+  members: PerformanceMemberRow[],
+  appointmentsCount: number,
+): PerformanceKpis {
+  const totalLeads = leads.length;
+  const wonLeads = leads.filter((lead) => lead.status === "won").length;
+
+  return {
+    totalLeads,
+    wonLeads,
+    conversionRate:
+      totalLeads > 0
+        ? Math.round((wonLeads / totalLeads) * 1000) / 10
+        : 0,
+    totalRevenueCents: members.reduce(
+      (sum, member) => sum + member.revenueCents,
+      0,
+    ),
+    outstandingCommissionsCents: members.reduce(
+      (sum, member) => sum + member.commissionOutstandingCents,
+      0,
+    ),
+    paidCommissionsCents: members.reduce(
+      (sum, member) => sum + member.commissionPaidCents,
+      0,
+    ),
+    appointmentsCount,
+  };
+}
+
+function buildCommissionBars(members: PerformanceMemberRow[]): PerformanceCommissionBars {
+  return {
+    outstandingCents: members.reduce(
+      (sum, member) => sum + member.commissionOutstandingCents,
+      0,
+    ),
+    paidCents: members.reduce(
+      (sum, member) => sum + member.commissionPaidCents,
+      0,
+    ),
+  };
+}
+
+export async function getPerformanceDashboardData(
+  period: PerformancePeriod = "month",
+): Promise<PerformanceDashboardData | null> {
+  const profile = await getProfile();
+  if (!profile) return null;
+
+  const teamView = isManagement(profile);
+  const range = getPerformanceDateRange(period);
+  const supabase = await createClient();
+
+  const [
+    profilesResult,
+    leadsResult,
+    clientsResult,
+    payments,
+    appointmentsResult,
+  ] = await Promise.all([
+    teamView
+      ? supabase
+          .from("profiles")
+          .select("id, full_name, email, role, commission_rate")
+          .eq("status", "active")
+          .not("activated_at", "is", null)
+          .order("full_name")
+      : Promise.resolve({
+          data: [
+            {
+              id: profile.id,
+              full_name: profile.full_name,
+              email: profile.email,
+              role: profile.role,
+              commission_rate: profile.commission_rate,
+            },
+          ],
+          error: null,
+        }),
+    supabase.from("leads").select("id, owner_id, status, created_at"),
+    fetchPerformanceClientRows(supabase),
+    fetchRetainerPayments(supabase),
+    supabase.from("appointments").select("id, assigned_user_id, start_time"),
+  ]);
+
+  if (profilesResult.error) throw new Error(profilesResult.error.message);
+  if (leadsResult.error) throw new Error(leadsResult.error.message);
+  if (appointmentsResult.error) {
+    throw new Error(appointmentsResult.error.message);
+  }
+
+  const profiles = (profilesResult.data ?? []) as ProfileRow[];
+  const allLeads = leadsResult.data ?? [];
+  const allAppointments = appointmentsResult.data ?? [];
+  const { rows: clientRows } = clientsResult;
+  const paymentsByClient = groupPaymentsByClient(payments);
+
+  const filteredLeads = allLeads.filter((lead) =>
+    isTimestampInRange(lead.created_at, range),
+  );
+  const filteredAppointments = allAppointments.filter((appointment) =>
+    isTimestampInRange(appointment.start_time, range),
+  );
+
+  const statsByUser = new Map<string, MemberAccumulator>();
+
+  for (const lead of filteredLeads) {
+    if (!lead.owner_id) continue;
+    const current = getOrCreateAccumulator(statsByUser, lead.owner_id);
+    current.leadsCount += 1;
+    if (lead.status === "won") current.leadsWon += 1;
+  }
+
+  for (const appointment of filteredAppointments) {
+    if (!appointment.assigned_user_id) continue;
+    const current = getOrCreateAccumulator(
+      statsByUser,
+      appointment.assigned_user_id,
+    );
+    current.appointmentsCount += 1;
+  }
+
+  for (const clientRow of clientRows) {
     const client = clientRow as Record<string, unknown>;
     const responsibleMemberId = client.responsible_member_id as string | null;
     if (!responsibleMemberId) continue;
 
+    const createdAt = client.created_at as string | null;
+    const includeClientCount = clientIncludedInPeriod(createdAt, range);
+    if (!includeClientCount && range.start !== null) {
+      const clientId = client.id as string;
+      const hasRetainerInRange = (paymentsByClient.get(clientId) ?? []).some(
+        (payment) =>
+          payment.status === "paid" &&
+          isPeriodMonthInRange(
+            payment.period_year,
+            payment.period_month,
+            range,
+          ),
+      );
+      if (!hasRetainerInRange && !isTimestampInRange(createdAt, range)) {
+        continue;
+      }
+    }
+
     const member = Array.isArray(client.responsible_member)
       ? client.responsible_member[0]
       : client.responsible_member;
-
     const rate =
       (member as { commission_rate: number } | null)?.commission_rate ?? 0;
-    const clientId = client.id as string;
-    const clientPayments = paymentsByClient.get(clientId) ?? [];
-    const retainerStats = buildRetainerStats({
-      contract_start_date: (client.contract_start_date as string | null) ?? null,
-      setup_fee_cents: (client.setup_fee_cents as number | null) ?? null,
-      monthly_revenue_cents: (client.monthly_revenue_cents as number | null) ?? null,
-      payments: clientPayments,
-    });
-    const revenue = retainerStats.total_revenue_cents;
-    const setupFeeCents = (client.setup_fee_cents as number | null) ?? null;
-    const hasCommissionSchema = client.commission_total_cents !== undefined;
-    const commission = hasCommissionSchema
-      ? {
-          commission_total_cents: (client.commission_total_cents as number) ?? 0,
-          commission_paid_cents: (client.commission_paid_cents as number) ?? 0,
-          commission_outstanding_cents:
-            (client.commission_outstanding_cents as number) ?? 0,
-        }
-      : syncCommissionAmounts({
-          setupFeeCents,
-          commissionRate: rate,
-          currentTotalCents: 0,
-          currentPaidCents: 0,
-        });
+    const revenue = computeClientRevenueInRange(
+      client,
+      paymentsByClient,
+      range,
+    );
+    const commission = resolveCommissionFields(client, rate);
 
-    const current = statsByUser.get(responsibleMemberId) ?? emptyStats();
-    current.clientsOwned += 1;
-    current.setupRevenueCents += retainerStats.setup_revenue_cents;
-    current.retainerRevenueCents += retainerStats.retainer_revenue_cents;
-    current.revenueGeneratedCents += revenue;
-    current.commissionsTotalCents += commission.commission_total_cents;
-    current.commissionsPaidCents += commission.commission_paid_cents;
-    current.commissionsOutstandingCents +=
-      commission.commission_outstanding_cents;
+    const current = getOrCreateAccumulator(statsByUser, responsibleMemberId);
+    if (includeClientCount) current.clientsCount += 1;
+    current.setupRevenueCents += revenue.setupRevenueCents;
+    current.retainerRevenueCents += revenue.retainerRevenueCents;
+    current.revenueCents += revenue.revenueCents;
 
-    statsByUser.set(responsibleMemberId, current);
+    if (includeClientCount || range.start === null) {
+      current.commissionTotalCents += commission.commissionTotalCents;
+      current.commissionPaidCents += commission.commissionPaidCents;
+      current.commissionOutstandingCents +=
+        commission.commissionOutstandingCents;
+    }
   }
 
-  return (profiles ?? []).map((member) => {
-    const counts = statsByUser.get(member.id) ?? emptyStats();
+  const members = mapMemberRows(profiles, statsByUser);
+  const revenueTrend = buildRevenueTrend(
+    clientRows as Record<string, unknown>[],
+    paymentsByClient,
+    range,
+  );
 
-    return {
-      userId: member.id,
-      fullName: member.full_name?.trim() || member.email.split("@")[0],
-      email: member.email,
-      role: member.role,
-      commissionRate: Number(member.commission_rate ?? 0),
-      leadsCreated: counts.leadsCreated,
-      leadsWon: counts.leadsWon,
-      clientsOwned: counts.clientsOwned,
-      setupRevenueCents: counts.setupRevenueCents,
-      retainerRevenueCents: counts.retainerRevenueCents,
-      revenueGeneratedCents: counts.revenueGeneratedCents,
-      commissionsTotalCents: counts.commissionsTotalCents,
-      commissionsPaidCents: counts.commissionsPaidCents,
-      commissionsOutstandingCents: counts.commissionsOutstandingCents,
-    };
-  });
+  return {
+    period,
+    isTeamView: teamView,
+    kpis: buildKpis(
+      filteredLeads,
+      members,
+      filteredAppointments.length,
+    ),
+    members,
+    revenueTrend,
+    leadsByStatus: buildLeadStatusSlices(filteredLeads),
+    commissions: buildCommissionBars(members),
+  };
 }
 
-function emptyStats() {
-  return {
-    leadsCreated: 0,
-    leadsWon: 0,
-    clientsOwned: 0,
+/** @deprecated Use getPerformanceDashboardData — kept for finance commission editor */
+export async function getTeamPerformanceStats(): Promise<TeamPerformanceStats[] | null> {
+  const profile = await getProfile();
+  if (!profile || !canAccessFinanceRoutes(profile)) return null;
+
+  const data = await getPerformanceDashboardData("all");
+  if (!data) return null;
+
+  return data.members.map((member) => ({
+    userId: member.userId,
+    fullName: member.fullName,
+    email: member.email,
+    role: member.role,
+    commissionRate: member.commissionRate,
+    leadsCreated: member.leadsCount,
+    leadsWon: member.leadsWon,
+    clientsOwned: member.clientsCount,
     setupRevenueCents: 0,
     retainerRevenueCents: 0,
-    revenueGeneratedCents: 0,
-    commissionsTotalCents: 0,
-    commissionsPaidCents: 0,
-    commissionsOutstandingCents: 0,
-  };
+    revenueGeneratedCents: member.revenueCents,
+    commissionsTotalCents: member.commissionTotalCents,
+    commissionsPaidCents: member.commissionPaidCents,
+    commissionsOutstandingCents: member.commissionOutstandingCents,
+  }));
 }

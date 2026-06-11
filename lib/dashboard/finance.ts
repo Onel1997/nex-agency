@@ -109,6 +109,7 @@ function mapClientRevenueRow(
     outstanding_retainer_cents: retainerStats.outstanding_retainer_cents,
     retainer_periods: buildRetainerPeriodViews(
       contractStartDate,
+      monthlyRevenueCents,
       payments,
     ),
     commission_status: row.commission_status as CommissionStatus,

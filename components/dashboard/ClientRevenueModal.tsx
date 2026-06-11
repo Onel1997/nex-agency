@@ -13,7 +13,11 @@ import {
   formatDateTime,
   parseEuroToCents,
 } from "@/lib/dashboard/format";
-import { buildRetainerStats } from "@/lib/dashboard/retainer";
+import {
+  buildRetainerPeriodViews,
+  buildRetainerStats,
+  hasActiveRetainer,
+} from "@/lib/dashboard/retainer";
 import { calculateCommissionCents } from "@/lib/dashboard/revenue";
 import type { ClientRevenueRecord } from "@/lib/dashboard/types";
 import { Check, Circle } from "lucide-react";
@@ -65,15 +69,27 @@ export function ClientRevenueModal({
 
   const monthlyRevenueCents = parseEuroToCents(preview.monthlyRevenue);
   const setupFeeCents = parseEuroToCents(preview.setupFee);
+  const retainerActive = hasActiveRetainer(monthlyRevenueCents);
+  const retainerPayments = retainerActive
+    ? client.retainer_periods.map((period) => ({
+        period_year: period.period_year,
+        period_month: period.period_month,
+        status: period.status,
+      }))
+    : [];
+  const previewRetainerPeriods = retainerActive
+    ? buildRetainerPeriodViews(
+        preview.contractStartDate || null,
+        monthlyRevenueCents,
+        retainerPayments,
+      )
+    : [];
+
   const previewStats = buildRetainerStats({
     contract_start_date: preview.contractStartDate || null,
     setup_fee_cents: setupFeeCents,
     monthly_revenue_cents: monthlyRevenueCents,
-    payments: client.retainer_periods.map((period) => ({
-      period_year: period.period_year,
-      period_month: period.period_month,
-      status: period.status,
-    })),
+    payments: retainerPayments,
   });
   const previewTotalRevenueCents = previewStats.total_revenue_cents;
   const previewCommissionCents = calculateCommissionCents(
@@ -183,32 +199,54 @@ export function ClientRevenueModal({
           </Field>
         </div>
 
-        <div className="rounded-xl border border-border bg-black/20 p-4">
-          <h3 className="text-xs font-medium uppercase tracking-wider text-muted-soft">
-            Retainer-Übersicht
-          </h3>
-          <dl className="mt-3 grid gap-3 sm:grid-cols-2">
-            <StatItem label="Monate aktiv" value={String(client.months_active)} />
-            <StatItem label="Monate bezahlt" value={String(client.months_paid)} />
-            <StatItem label="Monate offen" value={String(client.months_open)} />
-            <StatItem
-              label="Nächste Zahlung fällig"
-              value={client.next_payment_due ?? "—"}
-            />
-          </dl>
-        </div>
+        {retainerActive ? (
+          <div className="rounded-xl border border-border bg-black/20 p-4">
+            <h3 className="text-xs font-medium uppercase tracking-wider text-muted-soft">
+              Retainer-Übersicht
+            </h3>
+            <dl className="mt-3 grid gap-3 sm:grid-cols-2">
+              <StatItem
+                label="Monate aktiv"
+                value={String(previewStats.months_active)}
+              />
+              <StatItem
+                label="Monate bezahlt"
+                value={String(previewStats.months_paid)}
+              />
+              <StatItem
+                label="Monate offen"
+                value={String(previewStats.months_open)}
+              />
+              <StatItem
+                label="Nächste Zahlung fällig"
+                value={previewStats.next_payment_due ?? "—"}
+              />
+            </dl>
+          </div>
+        ) : (
+          <div className="rounded-xl border border-border bg-black/20 p-4">
+            <h3 className="text-xs font-medium uppercase tracking-wider text-muted-soft">
+              Retainer-Übersicht
+            </h3>
+            <p className="mt-3 text-sm text-muted">Kein Retainer aktiv</p>
+          </div>
+        )}
 
         <div className="rounded-xl border border-border bg-black/20 p-4">
           <h3 className="text-xs font-medium uppercase tracking-wider text-muted-soft">
             Zahlungsverlauf
           </h3>
-          {client.retainer_periods.length === 0 ? (
+          {!retainerActive ? (
+            <p className="mt-3 text-sm text-muted">
+              Kein monatlicher Retainer hinterlegt — nur Setup-Umsatz und Provision.
+            </p>
+          ) : previewRetainerPeriods.length === 0 ? (
             <p className="mt-3 text-sm text-muted">
               Vertragsbeginn speichern, um Retainer-Monate zu erzeugen.
             </p>
           ) : (
             <ul className="mt-3 space-y-2">
-              {client.retainer_periods.map((period) => (
+              {previewRetainerPeriods.map((period) => (
                 <li
                   key={`${period.period_year}-${period.period_month}`}
                   className="flex items-center justify-between gap-3 rounded-lg border border-border/70 px-3 py-2"
@@ -255,7 +293,9 @@ export function ClientRevenueModal({
             </span>
           </p>
           <p className="mt-1 text-xs text-muted-soft">
-            Setup + (Monatlich × bezahlte Monate)
+            {retainerActive
+              ? "Setup + (Monatlich × bezahlte Monate)"
+              : "Reines Setup-Projekt ohne Retainer"}
           </p>
           <p className="mt-2">
             Aktuelle Setup-Provision ({client.commission_rate}%):{" "}

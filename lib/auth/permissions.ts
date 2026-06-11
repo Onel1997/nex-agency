@@ -61,6 +61,10 @@ export function canAccessFinanceRoutes(profile: RoleActor): boolean {
   return isManagement(profile);
 }
 
+export function canAccessPerformanceRoutes(profile: RoleActor): boolean {
+  return isManagement(profile) || isFieldStaff(profile);
+}
+
 export function canManageCommissions(profile: RoleActor): boolean {
   return isManagement(profile);
 }

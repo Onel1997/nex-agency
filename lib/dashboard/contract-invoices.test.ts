@@ -1,11 +1,15 @@
 import { describe, expect, it } from "vitest";
 import {
+  canCreateSetupInvoice,
   filterContractInvoicesForClient,
   filterInvoicesForClient,
+  findSetupInvoice,
   getContractRetainerCents,
   getContractSubtotalCents,
   getSetupFeeCents,
+  getSetupInvoiceStatusLabel,
   hasActiveContract,
+  hasSetupInvoice,
 } from "./contract-invoices";
 import type { ClientDetailRecord, InvoiceRecord } from "./types";
 
@@ -13,6 +17,7 @@ function invoice(
   id: string,
   clientId: string,
   contractId: string | null = null,
+  overrides: Partial<InvoiceRecord> = {},
 ): InvoiceRecord {
   return {
     id,
@@ -29,6 +34,7 @@ function invoice(
     created_at: "2026-01-01T00:00:00.000Z",
     updated_at: "2026-01-01T00:00:00.000Z",
     due_date: null,
+    ...overrides,
   };
 }
 
@@ -151,6 +157,49 @@ describe("hasActiveContract", () => {
         }),
       ),
     ).toBe(true);
+  });
+});
+
+describe("setup invoice status helpers", () => {
+  it("findet Setup-Rechnung über invoice_type", () => {
+    const invoices = [
+      invoice("007", nicklasId, nicklasId, {
+        invoice_type: "retainer",
+        billing_period_year: 2026,
+        billing_period_month: 5,
+      }),
+      invoice("009", nicklasId, nicklasId, {
+        invoice_type: "setup",
+        status: "paid",
+      }),
+    ];
+
+    expect(findSetupInvoice(invoices)?.invoice_number).toBe("RE-2026-009");
+    expect(hasSetupInvoice(invoices)).toBe(true);
+    expect(getSetupInvoiceStatusLabel(invoices[1]!)).toBe("Bezahlt");
+  });
+
+  it("erlaubt Erstellung nur ohne vorhandene Setup-Rechnung", () => {
+    const client = contractClient();
+    const withoutSetup = [invoice("007", nicklasId, nicklasId, { invoice_type: "retainer" })];
+    const withSetup = [
+      invoice("009", nicklasId, nicklasId, { invoice_type: "setup", status: "draft" }),
+    ];
+
+    expect(canCreateSetupInvoice(client, withoutSetup)).toBe(true);
+    expect(canCreateSetupInvoice(client, withSetup)).toBe(false);
+  });
+
+  it("ignoriert stornierte Setup-Rechnungen", () => {
+    const invoices = [
+      invoice("009", nicklasId, nicklasId, {
+        invoice_type: "setup",
+        status: "cancelled",
+      }),
+    ];
+
+    expect(hasSetupInvoice(invoices)).toBe(false);
+    expect(canCreateSetupInvoice(contractClient(), invoices)).toBe(true);
   });
 });
 

@@ -182,11 +182,13 @@ export interface CommissionPayoutRecord {
   created_at: string;
 }
 
+export type { RetainerPeriodInvoiceRef, RetainerPeriodStatus } from "./retainer";
+
 export interface RetainerPeriodView {
   period_year: number;
   period_month: number;
   label: string;
-  status: "paid" | "open";
+  status: import("./retainer").RetainerPeriodStatus;
   isUpcoming: boolean;
 }
 
@@ -210,6 +212,7 @@ export interface ClientRevenueRecord {
   next_payment_due: string | null;
   outstanding_retainer_cents: number;
   retainer_periods: RetainerPeriodView[];
+  retainer_invoices: import("./retainer").RetainerPeriodInvoiceRef[];
   commission_status: CommissionStatus;
   commission_cents: number;
   commission_total_cents: number;

@@ -2,12 +2,105 @@ import { syncCommissionAmounts } from "./commission";
 import { isCommissionSchemaMissingError } from "./commission";
 import { isContractStatusSchemaMissingError } from "./contract-status";
 import { isRetainerSchemaMissingError } from "./retainer-data";
+import { resolveInvoiceType } from "./invoice-type";
 import {
   buildRetainerStats,
   hasActiveRetainer,
   type RetainerPaymentRecord,
 } from "./retainer";
 import { createClient } from "@/lib/supabase/server";
+
+export interface PaidRetainerInvoiceStats {
+  revenue_cents: number;
+  paid_months: number;
+}
+
+type InvoiceRow = {
+  subtotal_cents?: number | null;
+  amount_cents?: number | null;
+  invoice_type?: string | null;
+  billing_period_year?: number | null;
+  billing_period_month?: number | null;
+  status?: string | null;
+  client_id?: string;
+};
+
+function resolvePaidRetainerInvoiceSubtotalCents(invoice: InvoiceRow): number {
+  return (
+    (invoice.subtotal_cents as number | null) ??
+    (invoice.amount_cents as number | null) ??
+    0
+  );
+}
+
+function isPaidRetainerInvoice(invoice: InvoiceRow): boolean {
+  if (invoice.status !== "paid") return false;
+  return resolveInvoiceType(invoice as import("./types").InvoiceRecord) === "retainer";
+}
+
+export function summarizePaidRetainerInvoices(
+  invoices: InvoiceRow[],
+): PaidRetainerInvoiceStats {
+  const paidPeriods = new Set<string>();
+  let revenueCents = 0;
+
+  for (const invoice of invoices) {
+    if (!isPaidRetainerInvoice(invoice)) continue;
+    if (
+      invoice.billing_period_year == null ||
+      invoice.billing_period_month == null
+    ) {
+      continue;
+    }
+
+    revenueCents += resolvePaidRetainerInvoiceSubtotalCents(invoice);
+    paidPeriods.add(
+      `${invoice.billing_period_year}-${invoice.billing_period_month}`,
+    );
+  }
+
+  return {
+    revenue_cents: revenueCents,
+    paid_months: paidPeriods.size,
+  };
+}
+
+export async function fetchPaidRetainerInvoiceStatsByClient(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  clientIds?: string[],
+): Promise<Map<string, PaidRetainerInvoiceStats>> {
+  let query = supabase
+    .from("invoices")
+    .select(
+      "client_id, subtotal_cents, amount_cents, invoice_type, billing_period_year, billing_period_month, status",
+    )
+    .eq("status", "paid");
+
+  if (clientIds?.length) {
+    query = query.in("client_id", clientIds);
+  }
+
+  const { data, error } = await query;
+  if (error) throw new Error(error.message);
+
+  const invoicesByClient = new Map<string, InvoiceRow[]>();
+
+  for (const invoice of data ?? []) {
+    if (!isPaidRetainerInvoice(invoice)) continue;
+
+    const clientId = invoice.client_id as string;
+    const current = invoicesByClient.get(clientId) ?? [];
+    current.push(invoice);
+    invoicesByClient.set(clientId, current);
+  }
+
+  const statsByClient = new Map<string, PaidRetainerInvoiceStats>();
+  for (const [clientId, invoices] of invoicesByClient) {
+    statsByClient.set(clientId, summarizePaidRetainerInvoices(invoices));
+  }
+
+  return statsByClient;
+}
 
 export async function getClientPayments(
   supabase: Awaited<ReturnType<typeof createClient>>,
@@ -143,14 +236,38 @@ export async function syncClientTotalRevenue(
   const commissionRate =
     (member as { commission_rate: number } | null)?.commission_rate ?? 0;
 
-  const payments = await getClientPayments(supabase, clientId);
+  const retainerInvoices = (
+    await supabase
+      .from("invoices")
+      .select(
+        "billing_period_year, billing_period_month, status, invoice_type",
+      )
+      .eq("client_id", clientId)
+      .neq("status", "cancelled")
+  ).data ?? [];
+
   const retainerStats = buildRetainerStats({
     contract_start_date: (client.contract_start_date as string | null) ?? null,
     contract_status: (client.contract_status as string | null) ?? null,
     setup_fee_cents: (client.setup_fee_cents as number | null) ?? null,
     monthly_revenue_cents: (client.monthly_revenue_cents as number | null) ?? null,
-    payments,
+    retainerInvoices,
   });
+
+  const paidRetainerStats = summarizePaidRetainerInvoices(
+    (
+      await supabase
+        .from("invoices")
+        .select(
+          "subtotal_cents, amount_cents, invoice_type, billing_period_year, billing_period_month, status",
+        )
+        .eq("client_id", clientId)
+        .eq("status", "paid")
+    ).data ?? [],
+  );
+
+  const totalRevenueCents =
+    retainerStats.setup_revenue_cents + paidRetainerStats.revenue_cents;
 
   const setupFeeCents = (client.setup_fee_cents as number | null) ?? 0;
   const hasCommissionSchema = client.commission_total_cents !== undefined;
@@ -167,10 +284,7 @@ export async function syncClientTotalRevenue(
   });
 
   const updatePayload: Record<string, unknown> = {
-    total_revenue_cents:
-      retainerStats.total_revenue_cents > 0
-        ? retainerStats.total_revenue_cents
-        : null,
+    total_revenue_cents: totalRevenueCents > 0 ? totalRevenueCents : null,
     commission_status: commissionSync.commission_status,
   };
 

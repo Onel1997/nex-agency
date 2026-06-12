@@ -1,6 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
-  getBillingPeriodForDate,
   formatBillingPeriodLabel,
   resolveRetainerAmountCents,
 } from "./billing-cycle";
@@ -14,8 +13,12 @@ import {
 import { createInvoiceRecord } from "./invoice-create";
 import { getClientDetailById } from "./clients";
 import { hasRetainerInvoiceForPeriod } from "./recurring-invoices";
-import { getClientPayments } from "./client-revenue-sync";
-import { buildRetainerPeriodViews } from "./retainer";
+import {
+  buildRetainerPeriodViews,
+  formatRetainerPeriodStatus,
+  getNextOpenRetainerPeriod,
+} from "./retainer";
+import { fetchRetainerInvoices, groupRetainerInvoicesByClient } from "./retainer-data";
 
 export interface CreateSetupInvoiceResult {
   invoiceNumber: string;
@@ -71,6 +74,14 @@ export async function createSetupInvoiceForClient(
   return { invoiceNumber, invoiceId };
 }
 
+async function loadClientRetainerInvoices(
+  supabase: SupabaseClient,
+  clientId: string,
+) {
+  const invoices = await fetchRetainerInvoices(supabase);
+  return groupRetainerInvoicesByClient(invoices).get(clientId) ?? [];
+}
+
 export async function createRetainerInvoiceForClient(
   supabase: SupabaseClient,
   params: {
@@ -88,20 +99,34 @@ export async function createRetainerInvoiceForClient(
   }
 
   const retainerCents = getContractRetainerCents(client);
-  const referenceDate = new Date();
 
   let period: { year: number; month: number };
   if (params.billingPeriodYear != null && params.billingPeriodMonth != null) {
     period = { year: params.billingPeriodYear, month: params.billingPeriodMonth };
   } else {
-    const payments = await getClientPayments(supabase, params.clientId);
+    const retainerInvoices = await loadClientRetainerInvoices(supabase, params.clientId);
     const periods = buildRetainerPeriodViews(
       client.contract_start_date,
       client.monthly_revenue_cents ?? client.monthly_retainer_cents,
-      payments,
+      retainerInvoices,
     );
-    const nextOpen = resolveNextOpenRetainerPeriod(client, periods);
-    period = nextOpen ?? getBillingPeriodForDate(referenceDate, client.billing_cycle);
+    const nextOpen = getNextOpenRetainerPeriod(periods);
+
+    if (!nextOpen) {
+      throw new Error("Keine offene Retainer-Periode für eine neue Rechnung");
+    }
+
+    if (nextOpen.status === "invoice_created") {
+      throw new Error(
+        `Für ${nextOpen.label} existiert bereits eine Retainer-Rechnung (${formatRetainerPeriodStatus(nextOpen.status)})`,
+      );
+    }
+
+    if (nextOpen.status !== "open") {
+      throw new Error("Keine offene Retainer-Periode für eine neue Rechnung");
+    }
+
+    period = { year: nextOpen.period_year, month: nextOpen.period_month };
   }
 
   const duplicate = await hasRetainerInvoiceForPeriod(supabase, params.clientId, period);
@@ -125,32 +150,4 @@ export async function createRetainerInvoiceForClient(
   });
 
   return { invoiceNumber, invoiceId };
-}
-
-export function resolveNextOpenRetainerPeriod(
-  client: {
-    contract_start_date: string | null;
-    monthly_revenue_cents: number | null;
-    monthly_retainer_cents: number | null;
-    billing_cycle: import("./constants").BillingCycle;
-  },
-  retainerPeriods: Array<{
-    period_year: number;
-    period_month: number;
-    status: "paid" | "open";
-    isUpcoming?: boolean;
-  }>,
-): { year: number; month: number } | null {
-  if (!client.contract_start_date || resolveRetainerAmountCents(client) <= 0) {
-    return null;
-  }
-
-  const openPeriod = retainerPeriods.find(
-    (period) => period.status === "open" && !period.isUpcoming,
-  );
-  if (openPeriod) {
-    return { year: openPeriod.period_year, month: openPeriod.period_month };
-  }
-
-  return getBillingPeriodForDate(new Date(), client.billing_cycle);
 }

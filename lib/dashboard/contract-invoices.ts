@@ -1,5 +1,7 @@
 import { resolveRetainerAmountCents } from "./billing-cycle";
 import { isContractRevenueActive } from "./contract-status";
+import { INVOICE_STATUS_LABELS, type InvoiceStatus } from "./constants";
+import { resolveInvoiceType } from "./invoice-type";
 import { calculateInvoiceAmounts, type InvoiceAmounts } from "./invoice-math";
 import type { ClientDetailRecord, InvoiceRecord } from "./types";
 
@@ -54,6 +56,35 @@ export function hasActiveContract(client: ContractClientFields): boolean {
 
 export function hasSetupFee(client: ContractClientFields): boolean {
   return getSetupFeeCents(client) != null;
+}
+
+export function findSetupInvoice(invoices: InvoiceRecord[]): InvoiceRecord | null {
+  const setupInvoices = invoices.filter(
+    (invoice) =>
+      resolveInvoiceType(invoice) === "setup" && invoice.status !== "cancelled",
+  );
+
+  if (setupInvoices.length === 0) return null;
+
+  return setupInvoices.sort(
+    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+  )[0];
+}
+
+export function hasSetupInvoice(invoices: InvoiceRecord[]): boolean {
+  return findSetupInvoice(invoices) != null;
+}
+
+export function canCreateSetupInvoice(
+  client: ContractClientFields,
+  invoices: InvoiceRecord[],
+): boolean {
+  return getSetupFeeCents(client) != null && !hasSetupInvoice(invoices);
+}
+
+export function getSetupInvoiceStatusLabel(invoice: InvoiceRecord): string {
+  const status = invoice.status as InvoiceStatus;
+  return INVOICE_STATUS_LABELS[status] ?? invoice.status;
 }
 
 export function hasRetainerContract(client: ContractClientFields): boolean {

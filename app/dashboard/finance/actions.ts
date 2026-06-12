@@ -7,17 +7,12 @@ import {
   isCommissionPayoutsSchemaMissingError,
   isCommissionSchemaMissingError,
 } from "@/lib/dashboard/commission";
-import {
-  syncClientTotalRevenue,
-  markRetainerPeriodPaid,
-} from "@/lib/dashboard/client-revenue-sync";
+import { syncClientTotalRevenue } from "@/lib/dashboard/client-revenue-sync";
 import {
   COMMISSION_STATUSES,
   type CommissionStatus,
 } from "@/lib/dashboard/constants";
 import { parseEuroToCents } from "@/lib/dashboard/format";
-import { hasActiveRetainer } from "@/lib/dashboard/retainer";
-import { isRetainerSchemaMissingError } from "@/lib/dashboard/retainer-data";
 import { getProfile } from "@/lib/auth/session";
 import { logClientActivity } from "@/lib/dashboard/client-activities";
 import { formatCents } from "@/lib/dashboard/format";
@@ -79,50 +74,6 @@ export async function updateClientRevenue(
     }
   }
 
-  revalidateFinance(clientId);
-}
-
-export async function updateRetainerPaymentStatus(
-  clientId: string,
-  periodYear: number,
-  periodMonth: number,
-  status: "paid" | "open",
-) {
-  await requireFinanceAccess();
-
-  const supabase = await createClient();
-  const { data: client, error: clientError } = await supabase
-    .from("clients")
-    .select("monthly_revenue_cents")
-    .eq("id", clientId)
-    .single();
-
-  if (clientError) throw new Error(clientError.message);
-  if (!hasActiveRetainer(client.monthly_revenue_cents as number | null)) {
-    throw new Error("Für Kunden ohne monatlichen Retainer gibt es keine Retainer-Zahlungen.");
-  }
-
-  const { error } = await supabase.from("client_retainer_payments").upsert(
-    {
-      client_id: clientId,
-      period_year: periodYear,
-      period_month: periodMonth,
-      status,
-      paid_at: status === "paid" ? new Date().toISOString() : null,
-    },
-    { onConflict: "client_id,period_year,period_month" },
-  );
-
-  if (error) {
-    if (isRetainerSchemaMissingError(error.message)) {
-      throw new Error(
-        "Retainer-Zahlungen sind erst nach Anwenden der Datenbank-Migration verfügbar.",
-      );
-    }
-    throw new Error(error.message);
-  }
-
-  await syncClientTotalRevenue(supabase, clientId);
   revalidateFinance(clientId);
 }
 

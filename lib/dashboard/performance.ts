@@ -15,10 +15,14 @@ import {
 } from "./performance-period";
 import {
   fetchPerformanceClientRows,
-  fetchRetainerPayments,
-  groupPaymentsByClient,
+  fetchRetainerInvoices,
+  groupRetainerInvoicesByClient,
 } from "./retainer-data";
-import { buildRetainerStats, type RetainerPaymentRecord } from "./retainer";
+import {
+  buildRetainerStats,
+  listPaidRetainerPeriods,
+  type RetainerPeriodInvoiceRef,
+} from "./retainer";
 import type {
   PerformanceCommissionBars,
   PerformanceDashboardData,
@@ -120,21 +124,21 @@ function resolveCommissionFields(
 
 function computeClientRevenueInRange(
   client: Record<string, unknown>,
-  payments: Map<string, RetainerPaymentRecord[]>,
+  retainerInvoicesByClient: Map<string, RetainerPeriodInvoiceRef[]>,
   range: PerformanceDateRange,
 ) {
   const clientId = client.id as string;
   const createdAt = client.created_at as string | null;
   const setupFeeCents = (client.setup_fee_cents as number | null) ?? 0;
   const monthlyRevenueCents = (client.monthly_revenue_cents as number | null) ?? 0;
-  const clientPayments = payments.get(clientId) ?? [];
+  const clientInvoices = retainerInvoicesByClient.get(clientId) ?? [];
 
   if (range.start === null) {
     const stats = buildRetainerStats({
       contract_start_date: (client.contract_start_date as string | null) ?? null,
       setup_fee_cents: setupFeeCents,
       monthly_revenue_cents: monthlyRevenueCents,
-      payments: clientPayments,
+      retainerInvoices: clientInvoices,
     });
     return {
       setupRevenueCents: stats.setup_revenue_cents,
@@ -147,12 +151,11 @@ function computeClientRevenueInRange(
   const setupRevenueCents = includeSetup ? setupFeeCents : 0;
 
   let retainerRevenueCents = 0;
-  for (const payment of clientPayments) {
-    if (payment.status !== "paid") continue;
+  for (const period of listPaidRetainerPeriods(clientInvoices)) {
     if (
       isPeriodMonthInRange(
-        payment.period_year,
-        payment.period_month,
+        period.period_year,
+        period.period_month,
         range,
       )
     ) {
@@ -177,7 +180,7 @@ function clientIncludedInPeriod(
 
 function buildRevenueTrend(
   clients: Record<string, unknown>[],
-  paymentsByClient: ReturnType<typeof groupPaymentsByClient>,
+  retainerInvoicesByClient: Map<string, RetainerPeriodInvoiceRef[]>,
   range: PerformanceDateRange,
 ): PerformanceRevenuePoint[] {
   const monthTotals = new Map<string, number>();
@@ -193,7 +196,7 @@ function buildRevenueTrend(
     const createdAt = client.created_at as string | null;
     const setupFeeCents = (client.setup_fee_cents as number | null) ?? 0;
     const monthlyRevenueCents = (client.monthly_revenue_cents as number | null) ?? 0;
-    const clientPayments = paymentsByClient.get(clientId) ?? [];
+    const clientInvoices = retainerInvoicesByClient.get(clientId) ?? [];
 
     if (createdAt) {
       const created = new Date(createdAt);
@@ -211,21 +214,20 @@ function buildRevenueTrend(
       }
     }
 
-    for (const payment of clientPayments) {
-      if (payment.status !== "paid") continue;
+    for (const period of listPaidRetainerPeriods(clientInvoices)) {
       if (
         range.start !== null &&
         !isPeriodMonthInRange(
-          payment.period_year,
-          payment.period_month,
+          period.period_year,
+          period.period_month,
           range,
         )
       ) {
         continue;
       }
       addToMonth(
-        payment.period_year,
-        payment.period_month,
+        period.period_year,
+        period.period_month,
         monthlyRevenueCents,
       );
     }
@@ -346,7 +348,7 @@ export async function getPerformanceDashboardData(
     profilesResult,
     leadsResult,
     clientsResult,
-    payments,
+    retainerInvoices,
     appointmentsResult,
   ] = await Promise.all([
     teamView
@@ -370,7 +372,7 @@ export async function getPerformanceDashboardData(
         }),
     supabase.from("leads").select("id, owner_id, status, created_at"),
     fetchPerformanceClientRows(supabase),
-    fetchRetainerPayments(supabase),
+    fetchRetainerInvoices(supabase),
     supabase.from("appointments").select("id, assigned_user_id, start_time"),
   ]);
 
@@ -384,7 +386,7 @@ export async function getPerformanceDashboardData(
   const allLeads = leadsResult.data ?? [];
   const allAppointments = appointmentsResult.data ?? [];
   const { rows: clientRows } = clientsResult;
-  const paymentsByClient = groupPaymentsByClient(payments);
+  const retainerInvoicesByClient = groupRetainerInvoicesByClient(retainerInvoices);
 
   const filteredLeads = allLeads.filter((lead) =>
     isTimestampInRange(lead.created_at, range),
@@ -420,14 +422,14 @@ export async function getPerformanceDashboardData(
     const includeClientCount = clientIncludedInPeriod(createdAt, range);
     if (!includeClientCount && range.start !== null) {
       const clientId = client.id as string;
-      const hasRetainerInRange = (paymentsByClient.get(clientId) ?? []).some(
-        (payment) =>
-          payment.status === "paid" &&
-          isPeriodMonthInRange(
-            payment.period_year,
-            payment.period_month,
-            range,
-          ),
+      const hasRetainerInRange = listPaidRetainerPeriods(
+        retainerInvoicesByClient.get(clientId) ?? [],
+      ).some((period) =>
+        isPeriodMonthInRange(
+          period.period_year,
+          period.period_month,
+          range,
+        ),
       );
       if (!hasRetainerInRange && !isTimestampInRange(createdAt, range)) {
         continue;
@@ -441,7 +443,7 @@ export async function getPerformanceDashboardData(
       (member as { commission_rate: number } | null)?.commission_rate ?? 0;
     const revenue = computeClientRevenueInRange(
       client,
-      paymentsByClient,
+      retainerInvoicesByClient,
       range,
     );
     const commission = resolveCommissionFields(client, rate);
@@ -463,7 +465,7 @@ export async function getPerformanceDashboardData(
   const members = mapMemberRows(profiles, statsByUser);
   const revenueTrend = buildRevenueTrend(
     clientRows as Record<string, unknown>[],
-    paymentsByClient,
+    retainerInvoicesByClient,
     range,
   );
 

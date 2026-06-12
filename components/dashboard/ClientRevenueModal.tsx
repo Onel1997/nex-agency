@@ -13,7 +13,9 @@ import {
 import {
   buildRetainerPeriodViews,
   buildRetainerStats,
+  formatRetainerPeriodStatus,
   hasActiveRetainer,
+  retainerPeriodStatusClassName,
 } from "@/lib/dashboard/retainer";
 import { calculateCommissionCents } from "@/lib/dashboard/revenue";
 import {
@@ -24,11 +26,13 @@ import {
   type CommissionStatus,
   type ContractStatus,
 } from "@/lib/dashboard/constants";
-import type { ClientRevenueRecord } from "@/lib/dashboard/types";
+import type { ClientRevenueRecord, InvoiceRecord } from "@/lib/dashboard/types";
+import { hasSetupInvoice } from "@/lib/dashboard/contract-invoices";
 import { Check, Circle } from "lucide-react";
 
 interface ClientRevenueModalProps {
   client: ClientRevenueRecord | null;
+  invoices?: InvoiceRecord[];
   open: boolean;
   payoutOpen?: boolean;
   onClose: () => void;
@@ -37,6 +41,7 @@ interface ClientRevenueModalProps {
 
 export function ClientRevenueModal({
   client,
+  invoices = [],
   open,
   payoutOpen = false,
   onClose,
@@ -86,18 +91,13 @@ export function ClientRevenueModal({
   const monthlyRevenueCents = parseEuroToCents(preview.monthlyRevenue);
   const setupFeeCents = parseEuroToCents(preview.setupFee);
   const retainerActive = hasActiveRetainer(monthlyRevenueCents);
-  const retainerPayments = retainerActive
-    ? client.retainer_periods.map((period) => ({
-        period_year: period.period_year,
-        period_month: period.period_month,
-        status: period.status,
-      }))
-    : [];
+  const canOfferSetupInvoice =
+    (setupFeeCents ?? 0) > 0 && !hasSetupInvoice(invoices);
   const previewRetainerPeriods = retainerActive
     ? buildRetainerPeriodViews(
         preview.contractStartDate || null,
         monthlyRevenueCents,
-        retainerPayments,
+        client.retainer_invoices ?? [],
       )
     : [];
 
@@ -106,7 +106,7 @@ export function ClientRevenueModal({
     contract_status: preview.contractStatus,
     setup_fee_cents: setupFeeCents,
     monthly_revenue_cents: monthlyRevenueCents,
-    payments: retainerPayments,
+    retainerInvoices: client.retainer_invoices ?? [],
   });
   const previewTotalRevenueCents = previewStats.total_revenue_cents;
   const previewCommissionCents = calculateCommissionCents(
@@ -245,7 +245,7 @@ export function ClientRevenueModal({
             </label>
           )}
 
-          {(parseEuroToCents(preview.setupFee) ?? 0) > 0 && (
+          {canOfferSetupInvoice && (
             <label className="flex items-center gap-3 sm:col-span-2">
               <input
                 type="checkbox"
@@ -307,11 +307,9 @@ export function ClientRevenueModal({
                     <span className="text-foreground">{period.label}</span>
                   </div>
                   <span
-                    className={`text-xs ${
-                      period.status === "paid" ? "text-emerald-300" : "text-amber-300"
-                    }`}
+                    className={`text-xs ${retainerPeriodStatusClassName(period.status)}`}
                   >
-                    {period.status === "paid" ? "Bezahlt" : "Offen"}
+                    {formatRetainerPeriodStatus(period.status)}
                   </span>
                 </li>
               ))}

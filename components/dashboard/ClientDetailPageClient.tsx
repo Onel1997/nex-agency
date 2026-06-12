@@ -39,6 +39,7 @@ import { ClientModal } from "@/components/dashboard/ClientModal";
 import { ClientRevenueModal } from "@/components/dashboard/ClientRevenueModal";
 import { CommissionPayoutModal } from "@/components/dashboard/CommissionPayoutModal";
 import { CommissionStatusBadge } from "@/components/dashboard/CommissionStatusBadge";
+import { InvoiceStatusBadge } from "@/components/dashboard/InvoiceStatusBadge";
 import { InvoiceTable } from "@/components/dashboard/InvoiceTable";
 import { Toast } from "@/components/dashboard/Toast";
 import type { Profile } from "@/lib/auth/types";
@@ -65,7 +66,14 @@ import {
 } from "@/lib/dashboard/format";
 import { resolveRetainerAmountCents } from "@/lib/dashboard/billing-cycle";
 import {
+  formatRetainerPeriodStatus,
+  getNextOpenRetainerPeriod,
+  retainerPeriodStatusClassName,
+} from "@/lib/dashboard/retainer";
+import {
+  canCreateSetupInvoice,
   filterInvoicesForClient,
+  findSetupInvoice,
   getRetainerInvoicePreview,
   getSetupInvoicePreview,
   hasActiveContract,
@@ -288,6 +296,7 @@ export function ClientDetailPageClient({
       {contractModalOpen && revenue && (
         <ClientRevenueModal
           client={revenue}
+          invoices={clientInvoices}
           open={contractModalOpen}
           payoutOpen={Boolean(payoutClient)}
           onClose={() => setContractModalOpen(false)}
@@ -1035,7 +1044,7 @@ function ContractsTab({
             Retainer-Perioden
           </h3>
           <p className="mt-1 text-sm text-muted">
-            Status wird über bezahlte Retainer-Rechnungen aktualisiert.
+            Status wird aus Retainer-Rechnungen abgeleitet.
           </p>
           <ul className="mt-3 space-y-2">
             {revenue.retainer_periods.map((period) => (
@@ -1044,14 +1053,8 @@ function ContractsTab({
                 className="flex items-center justify-between rounded-lg bg-white/[0.02] px-3 py-2 text-sm"
               >
                 <span>{period.label}</span>
-                <span
-                  className={
-                    period.status === "paid"
-                      ? "text-emerald-300"
-                      : "text-amber-300"
-                  }
-                >
-                  {period.status === "paid" ? "Bezahlt" : "Offen"}
+                <span className={retainerPeriodStatusClassName(period.status)}>
+                  {formatRetainerPeriodStatus(period.status)}
                 </span>
               </li>
             ))}
@@ -1092,8 +1095,13 @@ function InvoicesTab({
   const [pending, setPending] = useState(false);
   const setupPreview = getSetupInvoicePreview(client);
   const retainerPreview = getRetainerInvoicePreview(client);
-  const canCreateSetup = hasSetupFee(client);
+  const setupInvoice = findSetupInvoice(invoices);
+  const canCreateSetup = canCreateSetupInvoice(client, invoices);
   const canCreateRetainer = hasRetainerContract(client);
+  const nextOpenRetainerPeriod = revenue
+    ? getNextOpenRetainerPeriod(revenue.retainer_periods)
+    : null;
+  const canCreateRetainerInvoice = nextOpenRetainerPeriod?.status === "open";
 
   const resetForm = () => {
     setAmount("");
@@ -1214,7 +1222,7 @@ function InvoicesTab({
           </p>
 
           <div className="mt-4 grid gap-4 lg:grid-cols-2">
-            {canCreateSetup && setupPreview && (
+            {hasSetupFee(client) && setupPreview && (
               <div className="rounded-xl border border-border/60 bg-white/[0.02] p-4">
                 <h3 className="text-xs font-medium uppercase tracking-wider text-muted-soft">
                   Setup-Rechnung
@@ -1227,15 +1235,22 @@ function InvoicesTab({
                     value={formatCents(setupPreview.totalAmountCents)}
                   />
                 </dl>
-                <button
-                  type="button"
-                  disabled={pending}
-                  onClick={() => handleCreateFromContract("setup")}
-                  className="dashboard-btn-primary mt-4 inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm"
-                >
-                  <Receipt className="h-4 w-4" />
-                  {pending ? "Wird erstellt…" : "Setup-Rechnung erstellen"}
-                </button>
+                {canCreateSetup ? (
+                  <button
+                    type="button"
+                    disabled={pending}
+                    onClick={() => handleCreateFromContract("setup")}
+                    className="dashboard-btn-primary mt-4 inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm"
+                  >
+                    <Receipt className="h-4 w-4" />
+                    {pending ? "Wird erstellt…" : "Setup-Rechnung erstellen"}
+                  </button>
+                ) : setupInvoice ? (
+                  <div className="mt-4 flex flex-wrap items-center gap-2 text-sm">
+                    <span className="text-muted">{setupInvoice.invoice_number}</span>
+                    <InvoiceStatusBadge status={setupInvoice.status as InvoiceStatus} />
+                  </div>
+                ) : null}
               </div>
             )}
 
@@ -1255,14 +1270,16 @@ function InvoicesTab({
                     value={formatCents(retainerPreview.totalAmountCents)}
                   />
                 </dl>
-                {revenue?.next_payment_due && (
+                {nextOpenRetainerPeriod && (
                   <p className="mt-2 text-xs text-muted-soft">
-                    Nächste offene Periode: {revenue.next_payment_due}
+                    Nächste offene Periode: {nextOpenRetainerPeriod.label}
+                    {" · "}
+                    {formatRetainerPeriodStatus(nextOpenRetainerPeriod.status)}
                   </p>
                 )}
                 <button
                   type="button"
-                  disabled={pending}
+                  disabled={pending || !canCreateRetainerInvoice}
                   onClick={() => handleCreateFromContract("retainer")}
                   className="dashboard-btn-primary mt-4 inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm"
                 >

@@ -1,5 +1,6 @@
 import { canAccessClient, canAccessFinanceRoutes } from "@/lib/auth/permissions";
 import { getProfile } from "@/lib/auth/session";
+import { fetchPaidRetainerInvoiceStatsByClient } from "@/lib/dashboard/client-revenue-sync";
 import { getClientById } from "@/lib/dashboard/clients";
 import type { CommissionStatus } from "@/lib/dashboard/constants";
 import { createClient } from "@/lib/supabase/server";
@@ -7,14 +8,14 @@ import { syncCommissionAmounts } from "./commission";
 import {
   fetchClientRevenueRows,
   fetchCommissionPayouts,
-  fetchRetainerPayments,
+  fetchRetainerInvoices,
   groupCommissionPayoutsByClient,
-  groupPaymentsByClient,
+  groupRetainerInvoicesByClient,
 } from "./retainer-data";
 import {
   buildRetainerPeriodViews,
   buildRetainerStats,
-  type RetainerPaymentRecord,
+  type RetainerPeriodInvoiceRef,
 } from "./retainer";
 import { resolveRetainerAmountCents } from "./billing-cycle";
 import { resolveContractStatus } from "./contract-status";
@@ -76,8 +77,12 @@ function resolveCommissionFields(
 
 function mapClientRevenueRow(
   row: Record<string, unknown>,
-  payments: RetainerPaymentRecord[],
+  retainerInvoices: RetainerPeriodInvoiceRef[],
   commissionPayouts: import("./types").CommissionPayoutRecord[],
+  paidRetainerStats: import("./client-revenue-sync").PaidRetainerInvoiceStats = {
+    revenue_cents: 0,
+    paid_months: 0,
+  },
 ): ClientRevenueRecord {
   const responsibleMember = Array.isArray(row.responsible_member)
     ? row.responsible_member[0]
@@ -102,9 +107,10 @@ function mapClientRevenueRow(
     contract_status: contractStatus,
     setup_fee_cents: setupFeeCents,
     monthly_revenue_cents: monthlyRevenueCents,
-    payments,
+    retainerInvoices,
   });
-  const totalRevenue = retainerStats.total_revenue_cents;
+  const totalRevenue =
+    retainerStats.setup_revenue_cents + paidRetainerStats.revenue_cents;
 
   return {
     id: row.id as string,
@@ -119,17 +125,18 @@ function mapClientRevenueRow(
     auto_invoice_enabled: autoInvoiceEnabled,
     total_revenue_cents: totalRevenue > 0 ? totalRevenue : null,
     setup_revenue_cents: retainerStats.setup_revenue_cents,
-    retainer_revenue_cents: retainerStats.retainer_revenue_cents,
+    retainer_revenue_cents: paidRetainerStats.revenue_cents,
     months_active: retainerStats.months_active,
-    months_paid: retainerStats.months_paid,
+    months_paid: paidRetainerStats.paid_months,
     months_open: retainerStats.months_open,
     next_payment_due: retainerStats.next_payment_due,
     outstanding_retainer_cents: retainerStats.outstanding_retainer_cents,
     retainer_periods: buildRetainerPeriodViews(
       contractStartDate,
       monthlyRevenueCents,
-      payments,
+      retainerInvoices,
     ),
+    retainer_invoices: retainerInvoices,
     commission_status: row.commission_status as CommissionStatus,
     commission_rate: commissionRate,
     commission_cents: commissionFields.commission_total_cents,
@@ -267,24 +274,27 @@ async function buildClientRevenueRecords(
   supabase: Awaited<ReturnType<typeof createClient>>,
   clientIds?: string[],
 ): Promise<ClientRevenueRecord[]> {
-  const [{ rows }, payments, commissionPayouts] = await Promise.all([
-    fetchClientRevenueRows(supabase),
-    fetchRetainerPayments(supabase),
-    fetchCommissionPayouts(supabase),
-  ]);
+  const [{ rows }, retainerInvoices, commissionPayouts, paidRetainerStatsByClient] =
+    await Promise.all([
+      fetchClientRevenueRows(supabase),
+      fetchRetainerInvoices(supabase),
+      fetchCommissionPayouts(supabase),
+      fetchPaidRetainerInvoiceStatsByClient(supabase, clientIds),
+    ]);
 
   const filteredRows = clientIds
     ? rows.filter((row) => clientIds.includes(row.id as string))
     : rows;
 
-  const paymentsByClient = groupPaymentsByClient(payments);
+  const invoicesByClient = groupRetainerInvoicesByClient(retainerInvoices);
   const payoutsByClient = groupCommissionPayoutsByClient(commissionPayouts);
 
   return filteredRows.map((row) =>
     mapClientRevenueRow(
       row,
-      paymentsByClient.get(row.id as string) ?? [],
+      invoicesByClient.get(row.id as string) ?? [],
       payoutsByClient.get(row.id as string) ?? [],
+      paidRetainerStatsByClient.get(row.id as string),
     ),
   );
 }

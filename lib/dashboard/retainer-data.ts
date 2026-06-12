@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { RetainerPaymentRecord } from "./retainer";
+import type { RetainerPaymentRecord, RetainerPeriodInvoiceRef } from "./retainer";
 import { isContractStatusSchemaMissingError } from "./contract-status";
 
 import {
@@ -272,6 +272,58 @@ export function groupPaymentsByClient(
   }
 
   return paymentsByClient;
+}
+
+export interface RetainerInvoiceRecord extends RetainerPeriodInvoiceRef {
+  client_id: string;
+}
+
+export async function fetchRetainerInvoices(
+  supabase: SupabaseClient,
+): Promise<RetainerInvoiceRecord[]> {
+  const { data, error } = await supabase
+    .from("invoices")
+    .select(
+      "client_id, billing_period_year, billing_period_month, status, invoice_type",
+    )
+    .neq("status", "cancelled");
+
+  if (error) {
+    if (
+      error.message.includes("invoice_type") ||
+      error.message.includes("billing_period_year")
+    ) {
+      return [];
+    }
+    throw new Error(error.message);
+  }
+
+  return (data ?? []).map((invoice) => ({
+    client_id: invoice.client_id as string,
+    billing_period_year: (invoice.billing_period_year as number | null) ?? null,
+    billing_period_month: (invoice.billing_period_month as number | null) ?? null,
+    status: invoice.status as string,
+    invoice_type: (invoice.invoice_type as string | null) ?? null,
+  }));
+}
+
+export function groupRetainerInvoicesByClient(
+  invoices: RetainerInvoiceRecord[],
+): Map<string, RetainerPeriodInvoiceRef[]> {
+  const invoicesByClient = new Map<string, RetainerPeriodInvoiceRef[]>();
+
+  for (const invoice of invoices) {
+    const current = invoicesByClient.get(invoice.client_id) ?? [];
+    current.push({
+      billing_period_year: invoice.billing_period_year,
+      billing_period_month: invoice.billing_period_month,
+      status: invoice.status,
+      invoice_type: invoice.invoice_type,
+    });
+    invoicesByClient.set(invoice.client_id, current);
+  }
+
+  return invoicesByClient;
 }
 
 export async function fetchCommissionPayouts(

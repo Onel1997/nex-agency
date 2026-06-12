@@ -35,7 +35,9 @@ export function PerformancePageClient({
         description={
           data.isTeamView
             ? "Zentrale Vertriebs- und Team-Auswertung für NexAgency."
-            : "Ihre persönliche Vertriebs- und Performance-Übersicht."
+            : data.viewerIsFreelancer
+              ? "Ihre persönliche Projekt- und Auszahlungsübersicht."
+              : "Ihre persönliche Vertriebs- und Performance-Übersicht."
         }
       />
 
@@ -48,13 +50,19 @@ export function PerformancePageClient({
         )}
       </div>
 
-      <PerformanceKpiGrid kpis={data.kpis} />
-
-      <PerformanceCharts
-        revenueTrend={data.revenueTrend}
-        leadsByStatus={data.leadsByStatus}
-        commissions={data.commissions}
+      <PerformanceKpiGrid
+        kpis={data.kpis}
+        freelancerKpis={data.freelancerKpis}
+        viewerIsFreelancer={data.viewerIsFreelancer}
       />
+
+      {!data.viewerIsFreelancer && (
+        <PerformanceCharts
+          revenueTrend={data.revenueTrend}
+          leadsByStatus={data.leadsByStatus}
+          commissions={data.commissions}
+        />
+      )}
 
       {data.isTeamView && (
         <PerformanceRankingTable

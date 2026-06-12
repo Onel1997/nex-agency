@@ -4,7 +4,10 @@ import {
   isClientFreelancerPayoutsSchemaMissingError,
   isClientFreelancerSchemaMissingError,
 } from "./client-freelancer-payout";
-import type { FreelancerRecord } from "./types";
+import { getClientFreelancerPayoutsByFreelancerId } from "./client-freelancer-payout-history";
+import { getOrCreateFreelancerProfile } from "./freelancer-profiles";
+import { getFreelancerProfileInvoicesByProfileId } from "./freelancer-profile-invoices";
+import type { FreelancerDetailData, FreelancerRecord } from "./types";
 import { createClient } from "@/lib/supabase/server";
 
 export function isFreelancerSchemaMissingError(message: string): boolean {
@@ -28,6 +31,8 @@ interface FreelancerProfileRow {
   email: string;
   full_name: string | null;
   commission_rate: number;
+  status: string;
+  role: string;
   created_at: string;
   updated_at: string;
 }
@@ -36,6 +41,7 @@ interface FreelancerClientAggregate {
   total_earned_cents: number;
   total_paid_out_cents: number;
   outstanding_cents: number;
+  project_volume_cents: number;
   assigned_project_names: string[];
   last_payout_at: string | null;
 }
@@ -44,6 +50,7 @@ const EMPTY_AGGREGATE: FreelancerClientAggregate = {
   total_earned_cents: 0,
   total_paid_out_cents: 0,
   outstanding_cents: 0,
+  project_volume_cents: 0,
   assigned_project_names: [],
   last_payout_at: null,
 };
@@ -53,6 +60,12 @@ function formatFreelancerDisplayName(profile: {
   email: string;
 }): string {
   return profile.full_name?.trim() || profile.email.split("@")[0];
+}
+
+function resolveProjectVolumeCents(client: Record<string, unknown>) {
+  const oneTime = (client.one_time_project_value_cents as number | null) ?? 0;
+  if (oneTime > 0) return oneTime;
+  return (client.setup_fee_cents as number | null) ?? 0;
 }
 
 function mapProfileToFreelancerRecord(
@@ -75,7 +88,7 @@ function mapProfileToFreelancerRecord(
     iban: null,
     bic: null,
     default_commission_rate: Number(profile.commission_rate ?? 0),
-    is_active: true,
+    is_active: profile.status === "active",
     last_payout_at: aggregate.last_payout_at,
     created_at: profile.created_at,
     updated_at: profile.updated_at,
@@ -84,6 +97,9 @@ function mapProfileToFreelancerRecord(
     outstanding_cents: aggregate.outstanding_cents,
     assigned_project_count: aggregate.assigned_project_names.length,
     assigned_project_names: aggregate.assigned_project_names,
+    project_volume_cents: aggregate.project_volume_cents,
+    profile_status: profile.status,
+    role: profile.role,
   };
 }
 
@@ -92,7 +108,7 @@ async function fetchActiveFreelancerProfiles(
 ): Promise<FreelancerProfileRow[]> {
   const { data, error } = await supabase
     .from("profiles")
-    .select("id, email, full_name, commission_rate, created_at, updated_at")
+    .select("id, email, full_name, commission_rate, status, role, created_at, updated_at")
     .eq("role", "freelancer")
     .eq("status", "active")
     .not("activated_at", "is", null)
@@ -110,7 +126,7 @@ async function fetchFreelancerClientAggregatesByProfileId(
   const clientsResult = await supabase
     .from("clients")
     .select(
-      "assigned_freelancer_id, company_name, freelancer_payout_cents, freelancer_paid_cents, freelancer_outstanding_cents",
+      "assigned_freelancer_id, company_name, setup_fee_cents, one_time_project_value_cents, freelancer_payout_cents, freelancer_paid_cents, freelancer_outstanding_cents",
     )
     .not("assigned_freelancer_id", "is", null);
 
@@ -131,6 +147,7 @@ async function fetchFreelancerClientAggregatesByProfileId(
     current.total_earned_cents += (client.freelancer_payout_cents as number) ?? 0;
     current.total_paid_out_cents += (client.freelancer_paid_cents as number) ?? 0;
     current.outstanding_cents += (client.freelancer_outstanding_cents as number) ?? 0;
+    current.project_volume_cents += resolveProjectVolumeCents(client);
 
     const companyName = String(client.company_name ?? "").trim();
     if (companyName) {
@@ -283,6 +300,7 @@ function mapVendorFreelancerRow(
     ...stats,
     assigned_project_count: 0,
     assigned_project_names: [],
+    project_volume_cents: 0,
   };
 }
 
@@ -356,7 +374,7 @@ export async function getFreelancerById(
   const supabase = await createClient();
   const { data: freelancerProfile, error } = await supabase
     .from("profiles")
-    .select("id, email, full_name, commission_rate, created_at, updated_at")
+    .select("id, email, full_name, commission_rate, status, role, created_at, updated_at")
     .eq("id", id)
     .eq("role", "freelancer")
     .maybeSingle();
@@ -374,4 +392,24 @@ export async function getFreelancerById(
   }
 
   return getVendorFreelancerById(supabase, id);
+}
+
+export async function getFreelancerDetailData(
+  id: string,
+): Promise<FreelancerDetailData | null> {
+  const freelancer = await getFreelancerById(id);
+  if (!freelancer || freelancer.role !== "freelancer") return null;
+
+  const [billingProfile, payouts, invoices] = await Promise.all([
+    getOrCreateFreelancerProfile(id),
+    getClientFreelancerPayoutsByFreelancerId(id),
+    getFreelancerProfileInvoicesByProfileId(id),
+  ]);
+
+  return {
+    freelancer,
+    billingProfile,
+    payouts,
+    invoices,
+  };
 }

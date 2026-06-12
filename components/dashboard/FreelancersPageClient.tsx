@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Banknote, Euro, Users, Wallet } from "lucide-react";
 import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
 import { DataTable } from "@/components/dashboard/DataTable";
@@ -19,6 +20,8 @@ export function FreelancersPageClient({
   freelancers,
   stats,
 }: FreelancersPageClientProps) {
+  const router = useRouter();
+
   return (
     <div className="space-y-10">
       <div className="space-y-3">
@@ -62,17 +65,16 @@ export function FreelancersPageClient({
       </div>
 
       <DataTable
+        onRowClick={(freelancer) =>
+          router.push(`/dashboard/finance/freelancers/${freelancer.id}`)
+        }
+        getRowAriaLabel={(freelancer) => `Freelancer ${freelancer.name} öffnen`}
         columns={[
           {
             key: "name",
             header: "Freelancer",
             render: (freelancer) => (
-              <Link
-                href={`/dashboard/finance/freelancers/${freelancer.id}`}
-                className="font-medium text-foreground hover:text-violet-300"
-              >
-                {freelancer.name}
-              </Link>
+              <span className="font-medium text-foreground">{freelancer.name}</span>
             ),
           },
           {

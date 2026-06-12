@@ -2,7 +2,6 @@
 
 import { revalidatePath } from "next/cache";
 import { requireFinanceAccess } from "@/lib/auth/session";
-import { getProfile } from "@/lib/auth/session";
 import {
   FREELANCER_INVOICE_STATUSES,
   type FreelancerInvoiceStatus,
@@ -11,6 +10,11 @@ import { parseEuroToCents } from "@/lib/dashboard/format";
 import { calculateInvoiceAmounts } from "@/lib/dashboard/invoice-math";
 import { computeInvoiceDueDate } from "@/lib/dashboard/invoice-dates";
 import { isFreelancerSchemaMissingError } from "@/lib/dashboard/freelancers";
+import {
+  updateFreelancerProfileRecord,
+  type FreelancerProfileInput,
+} from "@/lib/dashboard/freelancer-profiles";
+import { getProfile } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 
 function revalidateFreelancerPaths(freelancerId?: string) {
@@ -32,6 +36,31 @@ function readOptionalNumber(formData: FormData, key: string): number | null {
   if (!value) return null;
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
+}
+
+export async function updateFreelancerBillingProfile(
+  profileId: string,
+  formData: FormData,
+) {
+  await requireFinanceAccess();
+
+  const input: FreelancerProfileInput = {
+    iban: readOptionalString(formData, "iban"),
+    bic: readOptionalString(formData, "bic"),
+    bank_name: readOptionalString(formData, "bank_name"),
+    street: readOptionalString(formData, "street"),
+    postal_code: readOptionalString(formData, "postal_code"),
+    city: readOptionalString(formData, "city"),
+    country: readOptionalString(formData, "country"),
+    tax_number: readOptionalString(formData, "tax_number"),
+    vat_id: readOptionalString(formData, "vat_id"),
+    business_name: readOptionalString(formData, "business_name"),
+    invoice_prefix: readOptionalString(formData, "invoice_prefix"),
+    notes: readOptionalString(formData, "notes"),
+  };
+
+  await updateFreelancerProfileRecord(profileId, input);
+  revalidateFreelancerPaths(profileId);
 }
 
 export async function createFreelancer(formData: FormData) {

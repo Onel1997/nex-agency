@@ -121,6 +121,68 @@ export interface FreelancerRecord {
   outstanding_cents: number;
   assigned_project_count: number;
   assigned_project_names: string[];
+  project_volume_cents: number;
+  profile_status?: string | null;
+  role?: string | null;
+}
+
+export interface FreelancerProfileRecord {
+  id: string;
+  profile_id: string;
+  iban: string | null;
+  bic: string | null;
+  bank_name: string | null;
+  street: string | null;
+  postal_code: string | null;
+  city: string | null;
+  country: string | null;
+  tax_number: string | null;
+  vat_id: string | null;
+  business_name: string | null;
+  invoice_prefix: string;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ClientFreelancerPayoutHistoryRecord {
+  id: string;
+  client_id: string;
+  freelancer_id: string;
+  amount_cents: number;
+  paid_at: string;
+  status: string;
+  created_at: string;
+  client_name?: string;
+}
+
+export interface FreelancerProfileInvoiceRecord {
+  id: string;
+  freelancer_profile_id: string;
+  client_id: string;
+  payout_id: string | null;
+  invoice_number: string;
+  amount_cents: number;
+  invoice_date: string;
+  status: string;
+  pdf_url: string | null;
+  created_at: string;
+  client_name?: string;
+}
+
+export interface FreelancerProfileInvoiceWithDetails extends FreelancerProfileInvoiceRecord {
+  profile: FreelancerProfileRecord;
+  freelancer_name: string;
+  freelancer_email: string | null;
+  client_name: string;
+  business_name: string | null;
+}
+
+export interface FreelancerDetailData {
+  freelancer: FreelancerRecord;
+  billingProfile: FreelancerProfileRecord;
+  payouts: ClientFreelancerPayoutHistoryRecord[];
+  invoices: FreelancerProfileInvoiceRecord[];
 }
 
 export interface FreelancerInvoiceRecord {
@@ -274,6 +336,14 @@ export interface PerformanceKpis {
   appointmentsCount: number;
 }
 
+export interface PerformanceFreelancerKpis {
+  projectsCount: number;
+  projectVolumeCents: number;
+  earnedCents: number;
+  paidCents: number;
+  outstandingCents: number;
+}
+
 export interface PerformanceMemberRow {
   userId: string;
   fullName: string;
@@ -289,6 +359,11 @@ export interface PerformanceMemberRow {
   commissionOutstandingCents: number;
   appointmentsCount: number;
   conversionRate: number;
+  projectsCount: number;
+  projectVolumeCents: number;
+  freelancerEarnedCents: number;
+  freelancerPaidCents: number;
+  freelancerOutstandingCents: number;
 }
 
 export interface PerformanceRevenuePoint {
@@ -310,7 +385,9 @@ export interface PerformanceCommissionBars {
 export interface PerformanceDashboardData {
   period: import("./performance-period").PerformancePeriod;
   isTeamView: boolean;
+  viewerIsFreelancer: boolean;
   kpis: PerformanceKpis;
+  freelancerKpis: PerformanceFreelancerKpis | null;
   members: PerformanceMemberRow[];
   revenueTrend: PerformanceRevenuePoint[];
   leadsByStatus: PerformanceLeadStatusSlice[];

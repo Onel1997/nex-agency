@@ -12,6 +12,7 @@ import {
   isClientFreelancerPayoutsSchemaMissingError,
   isClientFreelancerSchemaMissingError,
 } from "@/lib/dashboard/client-freelancer-payout";
+import { createFreelancerProfileInvoiceForPayout } from "@/lib/dashboard/freelancer-profile-invoices";
 import { syncClientTotalRevenue } from "@/lib/dashboard/client-revenue-sync";
 import {
   COMMISSION_STATUSES,
@@ -306,14 +307,17 @@ export async function payFreelancerPayout(clientId: string, formData: FormData) 
 
   if (error) throw new Error(error.message);
 
-  const { error: payoutInsertError } = await supabase
+  const { data: payoutRow, error: payoutInsertError } = await supabase
     .from("client_freelancer_payouts")
     .insert({
       client_id: clientId,
       freelancer_id: freelancerId,
       amount_cents: payoutCents,
       paid_at: paidAt,
-    });
+      status: "paid",
+    })
+    .select("id")
+    .single();
 
   if (payoutInsertError) {
     if (isClientFreelancerPayoutsSchemaMissingError(payoutInsertError.message)) {
@@ -322,6 +326,16 @@ export async function payFreelancerPayout(clientId: string, formData: FormData) 
       );
     }
     throw new Error(payoutInsertError.message);
+  }
+
+  if (payoutRow?.id) {
+    await createFreelancerProfileInvoiceForPayout({
+      profileId: freelancerId,
+      clientId,
+      payoutId: payoutRow.id as string,
+      amountCents: payoutCents,
+      paidAt,
+    });
   }
 
   const profile = await getProfile();
@@ -336,4 +350,6 @@ export async function payFreelancerPayout(clientId: string, formData: FormData) 
   }
 
   revalidateFinance(clientId);
+  revalidatePath("/dashboard/finance/freelancers");
+  revalidatePath(`/dashboard/finance/freelancers/${freelancerId}`);
 }

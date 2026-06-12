@@ -4,7 +4,8 @@ import { ROLE_LABELS, type UserRole } from "@/lib/auth/types";
 import { formatCents } from "@/lib/dashboard/format";
 import type { PerformanceMemberRow } from "@/lib/dashboard/types";
 import {
-  CalendarDays,
+  Briefcase,
+  FolderKanban,
   Target,
   TrendingUp,
   Users,
@@ -13,6 +14,10 @@ import {
 
 interface PerformanceMemberCardsProps {
   members: PerformanceMemberRow[];
+}
+
+function isFreelancer(role: string) {
+  return role === "freelancer";
 }
 
 export function PerformanceMemberCards({ members }: PerformanceMemberCardsProps) {
@@ -43,30 +48,60 @@ export function PerformanceMemberCards({ members }: PerformanceMemberCardsProps)
               </div>
             </div>
 
-            <dl className="mt-5 grid grid-cols-2 gap-3 text-sm">
-              <Metric label="Leads" value={String(member.leadsCount)} icon={Target} />
-              <Metric label="Kunden" value={String(member.clientsCount)} icon={Users} />
-              <Metric
-                label="Umsatz"
-                value={formatCents(member.revenueCents)}
-                icon={TrendingUp}
-              />
-              <Metric
-                label="Offene Provision"
-                value={formatCents(member.commissionOutstandingCents)}
-                icon={Wallet}
-              />
-              <Metric
-                label="Ausgezahlte Provision"
-                value={formatCents(member.commissionPaidCents)}
-                icon={Wallet}
-              />
-              <Metric
-                label="Termine"
-                value={String(member.appointmentsCount)}
-                icon={CalendarDays}
-              />
-            </dl>
+            {isFreelancer(member.role) ? (
+              <dl className="mt-5 grid grid-cols-2 gap-3 text-sm">
+                <Metric
+                  label="Projekte"
+                  value={String(member.projectsCount)}
+                  icon={FolderKanban}
+                />
+                <Metric
+                  label="Projektvolumen"
+                  value={formatCents(member.projectVolumeCents)}
+                  icon={Briefcase}
+                />
+                <Metric
+                  label="Verdient"
+                  value={formatCents(member.freelancerEarnedCents)}
+                  icon={TrendingUp}
+                />
+                <Metric
+                  label="Ausgezahlt"
+                  value={formatCents(member.freelancerPaidCents)}
+                  icon={Wallet}
+                />
+                <Metric
+                  label="Offen"
+                  value={formatCents(member.freelancerOutstandingCents)}
+                  icon={Wallet}
+                />
+              </dl>
+            ) : (
+              <dl className="mt-5 grid grid-cols-2 gap-3 text-sm">
+                <Metric label="Leads" value={String(member.leadsCount)} icon={Target} />
+                <Metric label="Kunden" value={String(member.clientsCount)} icon={Users} />
+                <Metric
+                  label="Umsatz"
+                  value={formatCents(member.revenueCents)}
+                  icon={TrendingUp}
+                />
+                <Metric
+                  label="Conversion"
+                  value={`${member.conversionRate.toLocaleString("de-DE")} %`}
+                  icon={Target}
+                />
+                <Metric
+                  label="Offene Provision"
+                  value={formatCents(member.commissionOutstandingCents)}
+                  icon={Wallet}
+                />
+                <Metric
+                  label="Ausgezahlte Provision"
+                  value={formatCents(member.commissionPaidCents)}
+                  icon={Wallet}
+                />
+              </dl>
+            )}
           </article>
         ))}
       </div>

@@ -1,14 +1,50 @@
 -- Rename contract_value_cents → lead_estimated_value_cents (values unchanged)
+-- Idempotent: safe on fresh DBs (after phase4a) and on DBs where rename already applied.
 
-ALTER TABLE public.clients
-  RENAME COLUMN contract_value_cents TO lead_estimated_value_cents;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'clients'
+      AND column_name = 'contract_value_cents'
+  )
+  AND NOT EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'clients'
+      AND column_name = 'lead_estimated_value_cents'
+  ) THEN
+    ALTER TABLE public.clients
+      RENAME COLUMN contract_value_cents TO lead_estimated_value_cents;
+  END IF;
+END $$;
 
 ALTER TABLE public.clients
   DROP CONSTRAINT IF EXISTS clients_contract_value_cents_check;
 
-ALTER TABLE public.clients
-  ADD CONSTRAINT clients_lead_estimated_value_cents_check
-  CHECK (lead_estimated_value_cents IS NULL OR lead_estimated_value_cents >= 0);
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'clients'
+      AND column_name = 'lead_estimated_value_cents'
+  )
+  AND NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'clients_lead_estimated_value_cents_check'
+      AND conrelid = 'public.clients'::regclass
+  ) THEN
+    ALTER TABLE public.clients
+      ADD CONSTRAINT clients_lead_estimated_value_cents_check
+      CHECK (lead_estimated_value_cents IS NULL OR lead_estimated_value_cents >= 0);
+  END IF;
+END $$;
 
 CREATE OR REPLACE FUNCTION public.sync_client_from_lead()
 RETURNS TRIGGER

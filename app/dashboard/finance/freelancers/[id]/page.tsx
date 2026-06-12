@@ -1,7 +1,6 @@
 import { notFound } from "next/navigation";
 import { FreelancerDetailPageClient } from "@/components/dashboard/FreelancerDetailPageClient";
-import { getFreelancerById } from "@/lib/dashboard/freelancers";
-import { getFreelancerInvoicesByFreelancerId } from "@/lib/dashboard/freelancer-invoices";
+import { getFreelancerDetailData } from "@/lib/dashboard/freelancers";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -9,15 +8,9 @@ interface PageProps {
 
 export default async function FreelancerDetailPage({ params }: PageProps) {
   const { id } = await params;
+  const data = await getFreelancerDetailData(id);
 
-  const [freelancer, invoices] = await Promise.all([
-    getFreelancerById(id),
-    getFreelancerInvoicesByFreelancerId(id),
-  ]);
+  if (!data) notFound();
 
-  if (!freelancer) notFound();
-
-  return (
-    <FreelancerDetailPageClient freelancer={freelancer} invoices={invoices} />
-  );
+  return <FreelancerDetailPageClient data={data} />;
 }

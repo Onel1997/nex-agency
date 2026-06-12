@@ -119,10 +119,12 @@ export const PERFORMANCE_CLIENT_SELECT_WITH_CONTRACT = `
   responsible_member_id,
   monthly_revenue_cents,
   setup_fee_cents,
+  one_time_project_value_cents,
   contract_start_date,
   total_revenue_cents,
   commission_status,
   ${CLIENT_COMMISSION_COLUMNS}
+  ${CLIENT_FREELANCER_COLUMNS}
   responsible_member:profiles!clients_responsible_member_id_fkey(commission_rate)
 `;
 
@@ -143,9 +145,11 @@ export const PERFORMANCE_CLIENT_SELECT_WITH_CONTRACT_NO_COMMISSION = `
   responsible_member_id,
   monthly_revenue_cents,
   setup_fee_cents,
+  one_time_project_value_cents,
   contract_start_date,
   total_revenue_cents,
   commission_status,
+  ${CLIENT_FREELANCER_COLUMNS}
   responsible_member:profiles!clients_responsible_member_id_fkey(commission_rate)
 `;
 

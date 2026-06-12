@@ -11,6 +11,10 @@ interface PerformanceRankingTableProps {
   isTeamView: boolean;
 }
 
+function isFreelancer(role: string) {
+  return role === "freelancer";
+}
+
 export function PerformanceRankingTable({
   members,
   isTeamView,
@@ -33,11 +37,12 @@ export function PerformanceRankingTable({
         {isTeamView ? "Mitarbeiter-Ranking" : "Meine Performance"}
       </h2>
       <p className="mt-2 text-sm text-muted">
-        Sortiert nach Umsatz — Leads, Kunden, Provision und Conversion auf einen Blick.
+        Vertriebs- und Freelancer-Kennzahlen je Rolle — sortiert nach Umsatz bzw.
+        Freelancer-Verdienst.
       </p>
 
       <div className="dashboard-table mt-6 overflow-x-auto">
-        <table className="w-full min-w-[760px] text-left text-sm">
+        <table className="w-full min-w-[980px] text-left text-sm">
           <thead>
             <tr className="border-b border-border text-xs uppercase tracking-wider text-muted-soft">
               <th className="px-3 py-3 font-medium">Mitarbeiter</th>
@@ -46,37 +51,59 @@ export function PerformanceRankingTable({
               <th className="px-3 py-3 font-medium text-right">Umsatz</th>
               <th className="px-3 py-3 font-medium text-right">Provision</th>
               <th className="px-3 py-3 font-medium text-right">Conversion</th>
+              <th className="px-3 py-3 font-medium text-right">Projekte</th>
+              <th className="px-3 py-3 font-medium text-right">Verdienst</th>
+              <th className="px-3 py-3 font-medium text-right">Ausgezahlt</th>
             </tr>
           </thead>
           <tbody>
-            {members.map((member) => (
-              <tr
-                key={member.userId}
-                className="border-b border-border/60 transition-colors hover:bg-white/[0.02]"
-              >
-                <td className="px-3 py-3">
-                  <div className="font-medium text-foreground">{member.fullName}</div>
-                  <div className="text-xs text-muted-soft">
-                    {ROLE_LABELS[member.role as UserRole] ?? member.role}
-                  </div>
-                </td>
-                <td className="px-3 py-3 text-right tabular-nums text-foreground">
-                  {member.leadsCount}
-                </td>
-                <td className="px-3 py-3 text-right tabular-nums text-foreground">
-                  {member.clientsCount}
-                </td>
-                <td className="px-3 py-3 text-right tabular-nums text-foreground">
-                  {formatCents(member.revenueCents)}
-                </td>
-                <td className="px-3 py-3 text-right tabular-nums text-foreground">
-                  {formatCents(member.commissionTotalCents)}
-                </td>
-                <td className="px-3 py-3 text-right tabular-nums text-foreground">
-                  {member.conversionRate.toLocaleString("de-DE")} %
-                </td>
-              </tr>
-            ))}
+            {members.map((member) => {
+              const freelancer = isFreelancer(member.role);
+
+              return (
+                <tr
+                  key={member.userId}
+                  className="border-b border-border/60 transition-colors hover:bg-white/[0.02]"
+                >
+                  <td className="px-3 py-3">
+                    <div className="font-medium text-foreground">{member.fullName}</div>
+                    <div className="text-xs text-muted-soft">
+                      {ROLE_LABELS[member.role as UserRole] ?? member.role}
+                    </div>
+                  </td>
+                  <td className="px-3 py-3 text-right tabular-nums text-foreground">
+                    {freelancer ? "—" : member.leadsCount}
+                  </td>
+                  <td className="px-3 py-3 text-right tabular-nums text-foreground">
+                    {freelancer ? "—" : member.clientsCount}
+                  </td>
+                  <td className="px-3 py-3 text-right tabular-nums text-foreground">
+                    {freelancer ? "—" : formatCents(member.revenueCents)}
+                  </td>
+                  <td className="px-3 py-3 text-right tabular-nums text-foreground">
+                    {freelancer ? "—" : formatCents(member.commissionTotalCents)}
+                  </td>
+                  <td className="px-3 py-3 text-right tabular-nums text-foreground">
+                    {freelancer
+                      ? "—"
+                      : `${member.conversionRate.toLocaleString("de-DE")} %`}
+                  </td>
+                  <td className="px-3 py-3 text-right tabular-nums text-foreground">
+                    {freelancer ? member.projectsCount : "—"}
+                  </td>
+                  <td className="px-3 py-3 text-right tabular-nums text-foreground">
+                    {freelancer
+                      ? formatCents(member.freelancerEarnedCents)
+                      : "—"}
+                  </td>
+                  <td className="px-3 py-3 text-right tabular-nums text-foreground">
+                    {freelancer
+                      ? formatCents(member.freelancerPaidCents)
+                      : "—"}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>

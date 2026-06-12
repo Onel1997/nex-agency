@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Script from "next/script";
 import { Geist, Geist_Mono } from "next/font/google";
 import { SCROLL_UNLOCK_INLINE_SCRIPT } from "@/lib/scrollUnlockScript";
 import "./globals.css";
@@ -30,8 +31,12 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} antialiased`}
     >
       <body className="min-h-screen overflow-x-hidden bg-background text-foreground">
-        <script
-          dangerouslySetInnerHTML={{ __html: SCROLL_UNLOCK_INLINE_SCRIPT }}
+        <Script
+          id="scroll-restoration"
+          strategy="afterInteractive"
+          dangerouslySetInnerHTML={{
+            __html: SCROLL_UNLOCK_INLINE_SCRIPT,
+          }}
         />
         {children}
       </body>

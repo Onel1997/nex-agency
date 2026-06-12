@@ -2,7 +2,10 @@ import { describe, expect, it } from "vitest";
 import {
   filterContractInvoicesForClient,
   filterInvoicesForClient,
+  getContractRetainerCents,
   getContractSubtotalCents,
+  getSetupFeeCents,
+  hasActiveContract,
 } from "./contract-invoices";
 import type { ClientDetailRecord, InvoiceRecord } from "./types";
 
@@ -60,30 +63,62 @@ function contractClient(
     Pick<
       ClientDetailRecord,
       | "contract_start_date"
+      | "contract_status"
       | "lead_estimated_value_cents"
       | "setup_fee_cents"
       | "monthly_retainer_cents"
+      | "monthly_revenue_cents"
     >
   > = {},
 ) {
   return {
     contract_start_date: "2026-05-01",
+    contract_status: "active" as const,
     lead_estimated_value_cents: 500_000,
     setup_fee_cents: 450_000,
     monthly_retainer_cents: null,
+    monthly_revenue_cents: null,
     ...overrides,
   };
 }
+
+describe("getSetupFeeCents", () => {
+  it("liefert nur die Setup-Gebühr", () => {
+    expect(getSetupFeeCents(contractClient())).toBe(450_000);
+  });
+
+  it("ignoriert Retainer-Beträge", () => {
+    expect(
+      getSetupFeeCents(
+        contractClient({ setup_fee_cents: null, monthly_revenue_cents: 120_000 }),
+      ),
+    ).toBeNull();
+  });
+});
+
+describe("getContractRetainerCents", () => {
+  it("bevorzugt monthly_revenue_cents", () => {
+    expect(
+      getContractRetainerCents(
+        contractClient({
+          setup_fee_cents: 450_000,
+          monthly_revenue_cents: 10_000,
+          monthly_retainer_cents: 5_000,
+        }),
+      ),
+    ).toBe(10_000);
+  });
+});
 
 describe("getContractSubtotalCents", () => {
   it("priorisiert setup_fee_cents vor Lead-Schätzung (Pablo-Fall)", () => {
     expect(getContractSubtotalCents(contractClient())).toBe(450_000);
   });
 
-  it("nutzt monthly_retainer_cents wenn keine Setup-Gebühr gesetzt ist", () => {
+  it("nutzt Retainer wenn keine Setup-Gebühr gesetzt ist", () => {
     expect(
       getContractSubtotalCents(
-        contractClient({ setup_fee_cents: null, monthly_retainer_cents: 120_000 }),
+        contractClient({ setup_fee_cents: null, monthly_revenue_cents: 120_000 }),
       ),
     ).toBe(120_000);
   });
@@ -94,10 +129,28 @@ describe("getContractSubtotalCents", () => {
         contractClient({
           setup_fee_cents: null,
           monthly_retainer_cents: null,
+          monthly_revenue_cents: null,
           lead_estimated_value_cents: 500_000,
         }),
       ),
     ).toBe(500_000);
+  });
+});
+
+describe("hasActiveContract", () => {
+  it("erkennt Vertrag mit Setup-Gebühr", () => {
+    expect(hasActiveContract(contractClient())).toBe(true);
+  });
+
+  it("erkennt Retainer-Vertrag ohne Setup", () => {
+    expect(
+      hasActiveContract(
+        contractClient({
+          setup_fee_cents: null,
+          monthly_revenue_cents: 1_000,
+        }),
+      ),
+    ).toBe(true);
   });
 });
 

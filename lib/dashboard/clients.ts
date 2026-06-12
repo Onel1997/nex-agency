@@ -1,5 +1,9 @@
 import { createClient } from "@/lib/supabase/server";
 import type { BillingCycle, CommissionStatus } from "./constants";
+import {
+  isContractStatusSchemaMissingError,
+  resolveContractStatus,
+} from "./contract-status";
 import type { ClientDetailRecord, ClientRecord } from "./types";
 
 function formatMemberName(
@@ -27,7 +31,7 @@ const CLIENT_SELECT = `
   responsible_member:profiles!clients_responsible_member_id_fkey(full_name, email)
 `;
 
-const CLIENT_DETAIL_SELECT = `
+const CLIENT_DETAIL_SELECT_WITHOUT_CONTRACT_STATUS = `
   ${CLIENT_SELECT},
   monthly_revenue_cents,
   setup_fee_cents,
@@ -41,6 +45,20 @@ const CLIENT_DETAIL_SELECT = `
   commission_total_cents,
   commission_paid_cents,
   commission_outstanding_cents
+`;
+
+function isClientDetailSchemaMissingError(message: string): boolean {
+  const normalized = message.toLowerCase();
+  return (
+    isContractStatusSchemaMissingError(message) ||
+    normalized.includes("commission_total_cents") ||
+    normalized.includes("contract_start_date") ||
+    normalized.includes("billing_cycle")
+  );
+}
+const CLIENT_DETAIL_SELECT = `
+  ${CLIENT_DETAIL_SELECT_WITHOUT_CONTRACT_STATUS},
+  contract_status
 `;
 
 function mapClientRow(row: Record<string, unknown>): ClientRecord {
@@ -114,6 +132,7 @@ function mapClientDetailRow(row: Record<string, unknown>): ClientDetailRecord {
     monthly_revenue_cents: (row.monthly_revenue_cents as number | null) ?? null,
     setup_fee_cents: (row.setup_fee_cents as number | null) ?? null,
     contract_start_date: (row.contract_start_date as string | null) ?? null,
+    contract_status: resolveContractStatus(row),
     billing_cycle: ((row.billing_cycle as BillingCycle | null) ?? "monthly") as BillingCycle,
     next_invoice_date: (row.next_invoice_date as string | null) ?? null,
     last_invoice_date: (row.last_invoice_date as string | null) ?? null,
@@ -138,12 +157,15 @@ export async function getClientDetailById(
     .eq("id", id)
     .maybeSingle();
 
-  if (
-    error &&
-    (error.message.includes("commission_total_cents") ||
-      error.message.includes("contract_start_date") ||
-      error.message.includes("billing_cycle"))
-  ) {
+  if (error && isContractStatusSchemaMissingError(error.message)) {
+    ({ data, error } = await supabase
+      .from("clients")
+      .select(CLIENT_DETAIL_SELECT_WITHOUT_CONTRACT_STATUS)
+      .eq("id", id)
+      .maybeSingle());
+  }
+
+  if (error && isClientDetailSchemaMissingError(error.message)) {
     ({ data, error } = await supabase
       .from("clients")
       .select(

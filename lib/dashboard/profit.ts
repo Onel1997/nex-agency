@@ -6,6 +6,8 @@ import type {
   ProfitBreakdown,
 } from "./types";
 
+import { isContractRevenueActive } from "./contract-status";
+
 function parseDate(value: string): Date {
   return new Date(`${value.slice(0, 10)}T12:00:00`);
 }
@@ -54,6 +56,8 @@ export function sumCustomerRevenueFromClients(
   let total = 0;
 
   for (const client of clients) {
+    if (!isContractRevenueActive(client)) continue;
+
     const setup = client.setup_fee_cents ?? 0;
     if (setup > 0 && client.contract_start_date) {
       const setupDate = parseDate(client.contract_start_date);
@@ -91,20 +95,21 @@ export function sumCommissionFromClients(
   period: ProfitPeriod,
 ): number {
   if (period === "total") {
-    return clients.reduce((sum, client) => sum + client.commission_paid_cents, 0);
+    return clients.reduce((sum, client) => sum + client.commission_total_cents, 0);
   }
 
   let total = 0;
 
   for (const client of clients) {
-    if (client.commission_paid_cents <= 0) continue;
+    if (client.commission_total_cents <= 0) continue;
+    if (!isContractRevenueActive(client)) continue;
 
     const setup = client.setup_fee_cents ?? 0;
     if (setup <= 0 || !client.contract_start_date) continue;
 
     const setupDate = parseDate(client.contract_start_date);
     if (isInPeriod(setupDate, period)) {
-      total += client.commission_paid_cents;
+      total += client.commission_total_cents;
     }
   }
 

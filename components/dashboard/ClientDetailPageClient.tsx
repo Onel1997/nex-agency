@@ -20,7 +20,8 @@ import {
   createClientCommunication,
   createClientNote,
   createInvoice,
-  createInvoiceFromContract,
+  createRetainerInvoice,
+  createSetupInvoice,
   deleteClientCommunication,
   deleteClientFile,
   deleteClientNote,
@@ -29,13 +30,14 @@ import {
   markInvoiceAsPaid,
   markInvoiceAsSent,
   updateClientNote,
-  updateAutoInvoiceEnabled,
   updateInvoice,
   uploadClientFile,
 } from "@/app/dashboard/clients/[id]/actions";
 import { updateClient } from "@/app/dashboard/clients/actions";
 import type { ClientFormData } from "@/components/dashboard/ClientForm";
 import { ClientModal } from "@/components/dashboard/ClientModal";
+import { ClientRevenueModal } from "@/components/dashboard/ClientRevenueModal";
+import { CommissionPayoutModal } from "@/components/dashboard/CommissionPayoutModal";
 import { CommissionStatusBadge } from "@/components/dashboard/CommissionStatusBadge";
 import { InvoiceTable } from "@/components/dashboard/InvoiceTable";
 import { Toast } from "@/components/dashboard/Toast";
@@ -46,6 +48,7 @@ import {
   COMMUNICATION_TYPE_LABELS,
   COMMUNICATION_TYPES,
   BILLING_CYCLE_LABELS,
+  CONTRACT_STATUS_LABELS,
   INVOICE_OPERATIONAL_STATUSES,
   INVOICE_STATUSES,
   INVOICE_STATUS_LABELS,
@@ -63,8 +66,11 @@ import {
 import { resolveRetainerAmountCents } from "@/lib/dashboard/billing-cycle";
 import {
   filterInvoicesForClient,
-  getContractInvoicePreview,
+  getRetainerInvoicePreview,
+  getSetupInvoicePreview,
   hasActiveContract,
+  hasRetainerContract,
+  hasSetupFee,
 } from "@/lib/dashboard/contract-invoices";
 import type {
   ClientActivity,
@@ -97,7 +103,6 @@ interface ClientDetailPageClientProps {
   files: ClientFile[];
   revenue: ClientRevenueRecord | null;
   invoices: InvoiceRecord[];
-  contractInvoices: InvoiceRecord[];
   profile: Profile;
   canEdit: boolean;
   canAssign: boolean;
@@ -112,7 +117,6 @@ export function ClientDetailPageClient({
   files,
   revenue,
   invoices,
-  contractInvoices,
   profile,
   canEdit,
   canAssign,
@@ -123,12 +127,10 @@ export function ClientDetailPageClient({
   const activeTab = (searchParams.get("tab") as TabId) || "overview";
   const [toast, setToast] = useState<string | null>(null);
   const [editOpen, setEditOpen] = useState(false);
+  const [contractModalOpen, setContractModalOpen] = useState(false);
+  const [payoutClient, setPayoutClient] = useState<ClientRevenueRecord | null>(null);
   const [, startTransition] = useTransition();
   const clientInvoices = filterInvoicesForClient(invoices, client.id);
-  const scopedContractInvoices = filterInvoicesForClient(
-    contractInvoices,
-    client.id,
-  );
   const activeContract = hasActiveContract(client);
 
   const setTab = useCallback(
@@ -228,43 +230,37 @@ export function ClientDetailPageClient({
         <ContractsTab
           client={client}
           revenue={revenue}
-          invoices={scopedContractInvoices}
-          onToggleAutoInvoice={async (enabled) => {
-            try {
-              await updateAutoInvoiceEnabled(client.id, enabled);
-              setToast(
-                enabled
-                  ? "Automatische Rechnungen aktiviert"
-                  : "Automatische Rechnungen pausiert",
-              );
-              refresh();
-            } catch (error) {
-              handleError(error);
+          canEdit={canEdit}
+          onEditContract={() => {
+            if (!revenue) {
+              setToast("Vertragsdaten konnten nicht geladen werden");
+              return;
             }
-          }}
-          onCreateInvoiceFromContract={async () => {
-            try {
-              const result = await createInvoiceFromContract(client.id);
-              setToast(`Rechnung ${result.invoiceNumber} aus Vertrag erstellt`);
-              setTab("invoices");
-              refresh();
-            } catch (error) {
-              handleError(error);
-            }
+            setContractModalOpen(true);
           }}
         />
       )}
       {activeTab === "invoices" && (
         <InvoicesTab
           client={client}
+          revenue={revenue}
           companyName={client.company_name}
           invoices={clientInvoices}
           activeContract={activeContract}
           isAdmin={isManagement(profile)}
-          onCreateInvoiceFromContract={async () => {
+          onCreateSetupInvoice={async () => {
             try {
-              const result = await createInvoiceFromContract(client.id);
-              setToast(`Rechnung ${result.invoiceNumber} aus Vertrag erstellt`);
+              const result = await createSetupInvoice(client.id);
+              setToast(`Setup-Rechnung ${result.invoiceNumber} erstellt`);
+              refresh();
+            } catch (error) {
+              handleError(error);
+            }
+          }}
+          onCreateRetainerInvoice={async () => {
+            try {
+              const result = await createRetainerInvoice(client.id);
+              setToast(`Retainer-Rechnung ${result.invoiceNumber} erstellt`);
               refresh();
             } catch (error) {
               handleError(error);
@@ -288,6 +284,22 @@ export function ClientDetailPageClient({
           teamMembers={teamMembers}
         />
       )}
+
+      {contractModalOpen && revenue && (
+        <ClientRevenueModal
+          client={revenue}
+          open={contractModalOpen}
+          payoutOpen={Boolean(payoutClient)}
+          onClose={() => setContractModalOpen(false)}
+          onRequestPayout={(selected) => setPayoutClient(selected)}
+        />
+      )}
+
+      <CommissionPayoutModal
+        client={payoutClient}
+        open={Boolean(payoutClient)}
+        onClose={() => setPayoutClient(null)}
+      />
 
       <Toast message={toast} onDismiss={() => setToast(null)} />
     </div>
@@ -897,37 +909,16 @@ function CommunicationTab({
 function ContractsTab({
   client,
   revenue,
-  invoices,
-  onToggleAutoInvoice,
-  onCreateInvoiceFromContract,
+  canEdit,
+  onEditContract,
 }: {
   client: ClientDetailRecord;
   revenue: ClientRevenueRecord | null;
-  invoices: InvoiceRecord[];
-  onToggleAutoInvoice: (enabled: boolean) => Promise<void>;
-  onCreateInvoiceFromContract: () => Promise<void>;
+  canEdit: boolean;
+  onEditContract: () => void;
 }) {
-  const [pending, setPending] = useState(false);
-  const [billingPending, setBillingPending] = useState(false);
-  const activeContract = hasActiveContract(client);
   const hasRetainer = resolveRetainerAmountCents(client) > 0;
-
-  const handleCreateInvoice = async () => {
-    setPending(true);
-    try {
-      await onCreateInvoiceFromContract();
-    } finally {
-      setPending(false);
-    }
-  };
-  const handleDownloadPdf = (invoiceId: string) => {
-    window.open(
-      `/api/invoices/${invoiceId}/pdf?clientId=${client.id}`,
-      "_blank",
-      "noopener,noreferrer",
-    );
-  };
-  const contractStatus = client.contract_start_date ? "Aktiv" : "Offen";
+  const contractStatus = revenue?.contract_status ?? client.contract_status ?? "draft";
   const paymentStatus =
     revenue && revenue.outstanding_retainer_cents > 0
       ? "Offene Zahlungen"
@@ -941,18 +932,21 @@ function ContractsTab({
         <h2 className="text-sm font-medium uppercase tracking-wider text-muted-soft">
           Vertragsübersicht
         </h2>
-        {activeContract && (
+        {canEdit && (
           <button
             type="button"
-            disabled={pending}
-            onClick={handleCreateInvoice}
+            onClick={onEditContract}
             className="dashboard-btn-primary inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm"
           >
-            <Receipt className="h-4 w-4" />
-            {pending ? "Wird erstellt…" : "Rechnung aus Vertrag erstellen"}
+            <Pencil className="h-4 w-4" />
+            Vertrag bearbeiten
           </button>
         )}
       </div>
+      <p className="mt-2 text-sm text-muted">
+        Setup-Gebühr, Retainer, Vertragsbeginn und Provision werden hier gepflegt.
+        Rechnungen erstellen Sie im Tab Rechnungen.
+      </p>
       <dl className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <InfoItem
           label="Setup-Gebühr"
@@ -976,7 +970,7 @@ function ContractsTab({
         />
         <InfoItem label="Vertragsstatus">
           <span className="inline-flex rounded-full bg-violet-500/15 px-2.5 py-0.5 text-xs font-medium text-violet-200 ring-1 ring-violet-500/25 ring-inset">
-            {contractStatus}
+            {CONTRACT_STATUS_LABELS[contractStatus]}
           </span>
         </InfoItem>
         <InfoItem label="Zahlungsstatus" value={paymentStatus} />
@@ -1032,23 +1026,6 @@ function ContractsTab({
               value={client.auto_invoice_enabled ? "Aktiv" : "Pausiert"}
             />
           </dl>
-          <label className="mt-4 inline-flex items-center gap-3 text-sm">
-            <input
-              type="checkbox"
-              checked={client.auto_invoice_enabled}
-              disabled={billingPending}
-              onChange={async (event) => {
-                setBillingPending(true);
-                try {
-                  await onToggleAutoInvoice(event.target.checked);
-                } finally {
-                  setBillingPending(false);
-                }
-              }}
-              className="h-4 w-4 rounded border-border bg-transparent"
-            />
-            <span>Automatische Rechnungen aktiv</span>
-          </label>
         </div>
       )}
 
@@ -1057,6 +1034,9 @@ function ContractsTab({
           <h3 className="text-xs font-medium uppercase tracking-wider text-muted-soft">
             Retainer-Perioden
           </h3>
+          <p className="mt-1 text-sm text-muted">
+            Status wird über bezahlte Retainer-Rechnungen aktualisiert.
+          </p>
           <ul className="mt-3 space-y-2">
             {revenue.retainer_periods.map((period) => (
               <li
@@ -1078,42 +1058,30 @@ function ContractsTab({
           </ul>
         </div>
       )}
-
-      <div className="mt-6 border-t border-border pt-6">
-        <h3 className="text-xs font-medium uppercase tracking-wider text-muted-soft">
-          Vertragsrechnungen
-        </h3>
-        <p className="mt-1 text-sm text-muted">
-          Alle Rechnungen, die aus diesem Vertrag bzw. für diesen Kunden erstellt wurden.
-        </p>
-        <div className="glass-card mt-4 overflow-hidden rounded-2xl">
-          <InvoiceTable
-            invoices={invoices}
-            variant="compact"
-            onDownload={handleDownloadPdf}
-          />
-        </div>
-      </div>
     </div>
   );
 }
 
 function InvoicesTab({
   client,
+  revenue,
   companyName,
   invoices,
   activeContract,
   isAdmin,
-  onCreateInvoiceFromContract,
+  onCreateSetupInvoice,
+  onCreateRetainerInvoice,
   onError,
   onSuccess,
 }: {
   client: ClientDetailRecord;
+  revenue: ClientRevenueRecord | null;
   companyName: string;
   invoices: InvoiceRecord[];
   activeContract: boolean;
   isAdmin: boolean;
-  onCreateInvoiceFromContract: () => Promise<void>;
+  onCreateSetupInvoice: () => Promise<void>;
+  onCreateRetainerInvoice: () => Promise<void>;
   onError: (error: unknown) => void;
   onSuccess: (message: string) => void;
 }) {
@@ -1122,7 +1090,10 @@ function InvoicesTab({
   const [amount, setAmount] = useState("");
   const [status, setStatus] = useState<InvoiceStatus>("draft");
   const [pending, setPending] = useState(false);
-  const contractPreview = getContractInvoicePreview(client);
+  const setupPreview = getSetupInvoicePreview(client);
+  const retainerPreview = getRetainerInvoicePreview(client);
+  const canCreateSetup = hasSetupFee(client);
+  const canCreateRetainer = hasRetainerContract(client);
 
   const resetForm = () => {
     setAmount("");
@@ -1212,10 +1183,14 @@ function InvoicesTab({
     }
   };
 
-  const handleCreateFromContract = async () => {
+  const handleCreateFromContract = async (type: "setup" | "retainer") => {
     setPending(true);
     try {
-      await onCreateInvoiceFromContract();
+      if (type === "setup") {
+        await onCreateSetupInvoice();
+      } else {
+        await onCreateRetainerInvoice();
+      }
     } catch (error) {
       onError(error);
     } finally {
@@ -1231,37 +1206,71 @@ function InvoicesTab({
     <div className="space-y-4">
       {activeContract ? (
         <div className="glass-card rounded-2xl p-6">
-          <p className="text-sm text-muted">
-            Rechnungen werden automatisch aus Verträgen erstellt.
+          <h2 className="text-sm font-medium uppercase tracking-wider text-muted-soft">
+            Rechnungen aus Vertrag
+          </h2>
+          <p className="mt-2 text-sm text-muted">
+            Erstellen Sie Setup- und Retainer-Rechnungen auf Basis der Vertragsdaten.
           </p>
 
-          {contractPreview && (
-            <dl className="mt-4 grid gap-4 sm:grid-cols-3">
-              <InfoItem
-                label="Setup-Gebühr"
-                value={formatCents(contractPreview.subtotalCents)}
-              />
-              <InfoItem
-                label="MwSt."
-                value={formatCents(contractPreview.taxAmountCents)}
-              />
-              <InfoItem
-                label="Gesamtbetrag"
-                value={formatCents(contractPreview.totalAmountCents)}
-              />
-            </dl>
-          )}
+          <div className="mt-4 grid gap-4 lg:grid-cols-2">
+            {canCreateSetup && setupPreview && (
+              <div className="rounded-xl border border-border/60 bg-white/[0.02] p-4">
+                <h3 className="text-xs font-medium uppercase tracking-wider text-muted-soft">
+                  Setup-Rechnung
+                </h3>
+                <dl className="mt-3 grid gap-2 sm:grid-cols-3">
+                  <InfoItem label="Netto" value={formatCents(setupPreview.subtotalCents)} />
+                  <InfoItem label="MwSt." value={formatCents(setupPreview.taxAmountCents)} />
+                  <InfoItem
+                    label="Gesamt"
+                    value={formatCents(setupPreview.totalAmountCents)}
+                  />
+                </dl>
+                <button
+                  type="button"
+                  disabled={pending}
+                  onClick={() => handleCreateFromContract("setup")}
+                  className="dashboard-btn-primary mt-4 inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm"
+                >
+                  <Receipt className="h-4 w-4" />
+                  {pending ? "Wird erstellt…" : "Setup-Rechnung erstellen"}
+                </button>
+              </div>
+            )}
 
-          <div className="mt-4">
-            <button
-              type="button"
-              disabled={pending}
-              onClick={handleCreateFromContract}
-              className="dashboard-btn-primary inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm"
-            >
-              <Receipt className="h-4 w-4" />
-              {pending ? "Wird erstellt…" : "Rechnung aus Vertrag erstellen"}
-            </button>
+            {canCreateRetainer && retainerPreview && (
+              <div className="rounded-xl border border-border/60 bg-white/[0.02] p-4">
+                <h3 className="text-xs font-medium uppercase tracking-wider text-muted-soft">
+                  Retainer-Rechnung
+                </h3>
+                <dl className="mt-3 grid gap-2 sm:grid-cols-3">
+                  <InfoItem
+                    label="Netto / Monat"
+                    value={formatCents(retainerPreview.subtotalCents)}
+                  />
+                  <InfoItem label="MwSt." value={formatCents(retainerPreview.taxAmountCents)} />
+                  <InfoItem
+                    label="Gesamt"
+                    value={formatCents(retainerPreview.totalAmountCents)}
+                  />
+                </dl>
+                {revenue?.next_payment_due && (
+                  <p className="mt-2 text-xs text-muted-soft">
+                    Nächste offene Periode: {revenue.next_payment_due}
+                  </p>
+                )}
+                <button
+                  type="button"
+                  disabled={pending}
+                  onClick={() => handleCreateFromContract("retainer")}
+                  className="dashboard-btn-primary mt-4 inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm"
+                >
+                  <Receipt className="h-4 w-4" />
+                  {pending ? "Wird erstellt…" : "Retainer-Rechnung erzeugen"}
+                </button>
+              </div>
+            )}
           </div>
         </div>
       ) : (

@@ -1,15 +1,24 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { canAccessClient, isManagement } from "@/lib/auth/permissions";
+import { canAccessClient, canEditClientRevenue, isManagement } from "@/lib/auth/permissions";
 import { getProfile } from "@/lib/auth/session";
 import { logClientActivity } from "@/lib/dashboard/client-activities";
 import { CLIENT_FILES_BUCKET } from "@/lib/dashboard/client-files";
+import {
+  parseClientContractFormData,
+  saveClientContractData,
+} from "@/lib/dashboard/client-contract-save";
+import { markRetainerPeriodPaid } from "@/lib/dashboard/client-revenue-sync";
 import { getClientById, getClientDetailById } from "@/lib/dashboard/clients";
 import {
-  getContractSubtotalCents,
+  getContractRetainerCents,
   hasActiveContract,
 } from "@/lib/dashboard/contract-invoices";
+import {
+  createRetainerInvoiceForClient,
+  createSetupInvoiceForClient,
+} from "@/lib/dashboard/invoice-contract-actions";
 import {
   COMMUNICATION_TYPES,
   INVOICE_STATUSES,
@@ -357,45 +366,141 @@ export async function createInvoice(
   revalidateClientHub(clientId);
 }
 
-export async function createInvoiceFromContract(clientId: string) {
-  const { profile } = await requireClientAccess(clientId);
-  const client = await getClientDetailById(clientId);
-  if (!client) throw new Error("Kunde nicht gefunden");
+export async function updateClientContract(clientId: string, formData: FormData) {
+  const { profile, client } = await requireClientAccess(clientId);
 
-  if (!hasActiveContract(client)) {
-    throw new Error("Kein aktiver Vertrag für diesen Kunden hinterlegt");
+  if (!canEditClientRevenue(profile, client.responsible_member_id)) {
+    throw new Error("Keine Berechtigung zum Bearbeiten von Vertragsdaten");
   }
 
-  const subtotalCents = getContractSubtotalCents(client);
-  if (subtotalCents == null) {
-    throw new Error("Kein Vertragswert für diesen Kunden hinterlegt");
-  }
-
+  const input = parseClientContractFormData(formData);
   const supabase = await createClient();
-  const { invoiceNumber, totalAmountCents } = await createInvoiceRecord(supabase, {
+
+  const { setupInvoice } = await saveClientContractData(
+    supabase,
     clientId,
-    contractId: clientId,
+    input,
+    profile.id,
+  );
+
+  await logClientActivity({
+    clientId,
+    actorId: profile.id,
+    activityType: "contract_changed",
+    description: `${actorName(profile)} hat Vertragsdaten geändert`,
+  });
+
+  if (setupInvoice) {
+    await logClientActivity({
+      clientId,
+      actorId: profile.id,
+      activityType: "invoice_created",
+      description: `${actorName(profile)} hat Setup-Rechnung ${setupInvoice.invoiceNumber} beim Speichern des Vertrags erstellt`,
+      metadata: {
+        invoice_number: setupInvoice.invoiceNumber,
+        source: "contract_save",
+      },
+    });
+  }
+
+  revalidateClientHub(clientId);
+}
+
+export async function createSetupInvoice(clientId: string) {
+  const { profile } = await requireClientAccess(clientId);
+  const supabase = await createClient();
+
+  const result = await createSetupInvoiceForClient(supabase, {
+    clientId,
     profileId: profile.id,
-    subtotalCents,
-    status: "draft",
-    description: `Leistung gemäß Vertrag — ${client.company_name}`,
-    invoiceType: "setup",
+  });
+
+  if (!result) {
+    throw new Error("Setup-Rechnung konnte nicht erstellt werden");
+  }
+
+  await logClientActivity({
+    clientId,
+    actorId: profile.id,
+    activityType: "invoice_created",
+    description: `${actorName(profile)} hat Setup-Rechnung ${result.invoiceNumber} erstellt`,
+    metadata: {
+      invoice_number: result.invoiceNumber,
+      source: "setup",
+    },
+  });
+
+  revalidateClientHub(clientId);
+  return { invoiceNumber: result.invoiceNumber };
+}
+
+export async function createRetainerInvoice(
+  clientId: string,
+  billingPeriod?: { year: number; month: number },
+) {
+  const { profile } = await requireClientAccess(clientId);
+  const supabase = await createClient();
+
+  const result = await createRetainerInvoiceForClient(supabase, {
+    clientId,
+    profileId: profile.id,
+    billingPeriodYear: billingPeriod?.year,
+    billingPeriodMonth: billingPeriod?.month,
   });
 
   await logClientActivity({
     clientId,
     actorId: profile.id,
     activityType: "invoice_created",
-    description: `${actorName(profile)} hat Rechnung ${invoiceNumber} aus Vertrag erstellt`,
+    description: `${actorName(profile)} hat Retainer-Rechnung ${result.invoiceNumber} erstellt`,
     metadata: {
-      invoice_number: invoiceNumber,
-      amount_cents: totalAmountCents,
-      source: "contract",
+      invoice_number: result.invoiceNumber,
+      source: "retainer",
     },
   });
 
   revalidateClientHub(clientId);
-  return { invoiceNumber };
+  return { invoiceNumber: result.invoiceNumber };
+}
+
+/** @deprecated Use createSetupInvoice */
+export async function createInvoiceFromContract(clientId: string) {
+  return createSetupInvoice(clientId);
+}
+
+async function applyInvoicePaidSideEffects(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  invoiceId: string,
+  clientId: string,
+) {
+  const { data: invoice, error } = await supabase
+    .from("invoices")
+    .select(
+      "invoice_type, billing_period_year, billing_period_month, subtotal_cents",
+    )
+    .eq("id", invoiceId)
+    .single();
+
+  if (error || !invoice) return;
+
+  const invoiceType =
+    (invoice.invoice_type as import("@/lib/dashboard/constants").InvoiceType | null) ??
+    (invoice.billing_period_year != null && invoice.billing_period_month != null
+      ? "retainer"
+      : null);
+
+  if (
+    invoiceType === "retainer" &&
+    invoice.billing_period_year != null &&
+    invoice.billing_period_month != null
+  ) {
+    await markRetainerPeriodPaid(
+      supabase,
+      clientId,
+      invoice.billing_period_year as number,
+      invoice.billing_period_month as number,
+    );
+  }
 }
 
 export async function updateInvoice(
@@ -453,6 +558,11 @@ export async function updateInvoice(
   const invoiceNumber = existing.invoice_number as string;
 
   if (existing.status !== "paid" && data.status === "paid") {
+    await applyInvoicePaidSideEffects(
+      supabase,
+      invoiceId,
+      existing.client_id as string,
+    );
     await logClientActivity({
       clientId: existing.client_id as string,
       actorId: profile.id,
@@ -531,6 +641,12 @@ export async function markInvoiceAsPaid(invoiceId: string) {
     .eq("id", invoiceId);
 
   if (error) throw new Error(error.message);
+
+  await applyInvoicePaidSideEffects(
+    supabase,
+    invoiceId,
+    existing.client_id as string,
+  );
 
   const invoiceNumber = existing.invoice_number as string;
   await logClientActivity({

@@ -4,6 +4,7 @@ import type {
   BillingCycle,
   ClientActivityType,
   CommissionStatus,
+  ContractStatus,
   CommunicationType,
   ExpenseCategory,
   FreelancerInvoiceStatus,
@@ -198,6 +199,7 @@ export interface ClientRevenueRecord {
   monthly_retainer_cents: number | null;
   setup_fee_cents: number | null;
   contract_start_date: string | null;
+  contract_status: ContractStatus;
   auto_invoice_enabled: boolean;
   total_revenue_cents: number | null;
   setup_revenue_cents: number;
@@ -322,6 +324,7 @@ export interface ClientDetailRecord extends ClientRecord {
   monthly_revenue_cents: number | null;
   setup_fee_cents: number | null;
   contract_start_date: string | null;
+  contract_status: ContractStatus;
   billing_cycle: BillingCycle;
   next_invoice_date: string | null;
   last_invoice_date: string | null;

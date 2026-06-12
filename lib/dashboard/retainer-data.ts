@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { RetainerPaymentRecord } from "./retainer";
+import { isContractStatusSchemaMissingError } from "./contract-status";
 
 import {
   isCommissionPayoutsSchemaMissingError,
@@ -31,6 +32,23 @@ const CLIENT_COMMISSION_COLUMNS = `
 `;
 
 export const CLIENT_REVENUE_SELECT_WITH_CONTRACT = `
+  id,
+  company_name,
+  responsible_member_id,
+  monthly_revenue_cents,
+  monthly_retainer_cents,
+  setup_fee_cents,
+  contract_start_date,
+  contract_status,
+  auto_invoice_enabled,
+  total_revenue_cents,
+  commission_status,
+  ${CLIENT_COMMISSION_COLUMNS}
+  currency,
+  ${CLIENT_REVENUE_MEMBER_SELECT}
+`;
+
+export const CLIENT_REVENUE_SELECT_WITH_CONTRACT_NO_STATUS = `
   id,
   company_name,
   responsible_member_id,
@@ -113,6 +131,7 @@ async function fetchClientRowsWithFallback(
   withContractNoCommission: string,
   legacy: string,
   orderBy?: string,
+  withContractNoStatus?: string,
 ): Promise<{ rows: Record<string, unknown>[]; hasRetainerSchema: boolean; hasCommissionSchema: boolean }> {
   const fullResult = orderBy
     ? await supabase.from("clients").select(withContract).order(orderBy)
@@ -124,6 +143,23 @@ async function fetchClientRowsWithFallback(
       hasRetainerSchema: true,
       hasCommissionSchema: true,
     };
+  }
+
+  if (
+    withContractNoStatus &&
+    isContractStatusSchemaMissingError(fullResult.error.message)
+  ) {
+    const noStatusResult = orderBy
+      ? await supabase.from("clients").select(withContractNoStatus).order(orderBy)
+      : await supabase.from("clients").select(withContractNoStatus);
+
+    if (!noStatusResult.error) {
+      return {
+        rows: (noStatusResult.data ?? []) as unknown as Record<string, unknown>[],
+        hasRetainerSchema: true,
+        hasCommissionSchema: true,
+      };
+    }
   }
 
   if (isCommissionSchemaMissingError(fullResult.error.message)) {
@@ -173,6 +209,7 @@ export async function fetchClientRevenueRows(
     CLIENT_REVENUE_SELECT_WITH_CONTRACT_NO_COMMISSION,
     CLIENT_REVENUE_SELECT_LEGACY,
     "company_name",
+    CLIENT_REVENUE_SELECT_WITH_CONTRACT_NO_STATUS,
   );
 }
 

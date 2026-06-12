@@ -1,3 +1,6 @@
+import { isContractRevenueActive } from "./contract-status";
+import type { ContractStatus } from "./constants";
+
 export type RetainerPaymentStatus = "paid" | "open";
 
 export interface RetainerPaymentRecord {
@@ -123,20 +126,22 @@ export function computeRetainerTotalRevenueCents(
 
 export function buildRetainerStats(input: {
   contract_start_date: string | null;
+  contract_status?: ContractStatus | string | null;
   setup_fee_cents: number | null;
   monthly_revenue_cents: number | null;
   payments: RetainerPaymentRecord[];
   referenceDate?: Date;
 }): RetainerStats {
-  const setup = input.setup_fee_cents ?? 0;
-  const monthly = input.monthly_revenue_cents ?? 0;
+  const revenueActive = isContractRevenueActive(input);
+  const setup = revenueActive ? (input.setup_fee_cents ?? 0) : 0;
+  const monthly = revenueActive ? (input.monthly_revenue_cents ?? 0) : 0;
   const payments = input.payments;
   const paidMonths = countPaidRetainerMonths(payments);
   const retainerRevenue = monthly * paidMonths;
   const totalRevenue =
     computeRetainerTotalRevenueCents(setup, monthly, paidMonths) ?? 0;
 
-  if (!input.contract_start_date || monthly <= 0) {
+  if (!revenueActive || !input.contract_start_date || monthly <= 0) {
     return {
       contract_start_date: input.contract_start_date,
       months_active: paidMonths > 0 ? paidMonths : monthly > 0 ? 0 : 0,

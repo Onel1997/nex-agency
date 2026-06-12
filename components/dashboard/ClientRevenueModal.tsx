@@ -2,10 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
-import {
-  updateClientRevenue,
-  updateRetainerPaymentStatus,
-} from "@/app/dashboard/finance/actions";
+import { updateClientContract } from "@/app/dashboard/clients/[id]/actions";
 import { Modal } from "@/components/dashboard/Modal";
 import {
   centsToEuroInput,
@@ -19,6 +16,14 @@ import {
   hasActiveRetainer,
 } from "@/lib/dashboard/retainer";
 import { calculateCommissionCents } from "@/lib/dashboard/revenue";
+import {
+  COMMISSION_STATUSES,
+  COMMISSION_STATUS_LABELS,
+  CONTRACT_STATUSES,
+  CONTRACT_STATUS_LABELS,
+  type CommissionStatus,
+  type ContractStatus,
+} from "@/lib/dashboard/constants";
 import type { ClientRevenueRecord } from "@/lib/dashboard/types";
 import { Check, Circle } from "lucide-react";
 
@@ -44,6 +49,10 @@ export function ClientRevenueModal({
     monthlyRevenue: "",
     setupFee: "",
     contractStartDate: "",
+    contractStatus: "draft" as ContractStatus,
+    autoInvoiceEnabled: false,
+    commissionStatus: "none" as CommissionStatus,
+    createSetupInvoice: false,
   });
 
   const clientId = client?.id;
@@ -54,6 +63,10 @@ export function ClientRevenueModal({
       monthlyRevenue: centsToEuroInput(client.monthly_revenue_cents),
       setupFee: centsToEuroInput(client.setup_fee_cents),
       contractStartDate: client.contract_start_date ?? "",
+      contractStatus: client.contract_status,
+      autoInvoiceEnabled: client.auto_invoice_enabled,
+      commissionStatus: client.commission_status,
+      createSetupInvoice: false,
     });
     setError(null);
   }, [
@@ -62,6 +75,9 @@ export function ClientRevenueModal({
     client?.monthly_revenue_cents,
     client?.setup_fee_cents,
     client?.contract_start_date,
+    client?.contract_status,
+    client?.auto_invoice_enabled,
+    client?.commission_status,
     client,
   ]);
 
@@ -87,6 +103,7 @@ export function ClientRevenueModal({
 
   const previewStats = buildRetainerStats({
     contract_start_date: preview.contractStartDate || null,
+    contract_status: preview.contractStatus,
     setup_fee_cents: setupFeeCents,
     monthly_revenue_cents: monthlyRevenueCents,
     payments: retainerPayments,
@@ -103,6 +120,10 @@ export function ClientRevenueModal({
       monthlyRevenue: String(formData.get("monthly_revenue") ?? ""),
       setupFee: String(formData.get("setup_fee") ?? ""),
       contractStartDate: String(formData.get("contract_start_date") ?? ""),
+      contractStatus: String(formData.get("contract_status") ?? "draft") as ContractStatus,
+      autoInvoiceEnabled: formData.get("auto_invoice_enabled") === "on",
+      commissionStatus: String(formData.get("commission_status") ?? "none") as CommissionStatus,
+      createSetupInvoice: formData.get("create_setup_invoice") === "on",
     });
   };
 
@@ -110,33 +131,11 @@ export function ClientRevenueModal({
     setError(null);
     startTransition(async () => {
       try {
-        await updateClientRevenue(client.id, formData);
+        await updateClientContract(client.id, formData);
         onClose();
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Speichern fehlgeschlagen");
-      }
-    });
-  };
-
-  const handlePaymentToggle = (
-    periodYear: number,
-    periodMonth: number,
-    nextStatus: "paid" | "open",
-  ) => {
-    setError(null);
-    startTransition(async () => {
-      try {
-        await updateRetainerPaymentStatus(
-          client.id,
-          periodYear,
-          periodMonth,
-          nextStatus,
-        );
         router.refresh();
       } catch (err) {
-        setError(
-          err instanceof Error ? err.message : "Zahlungsstatus konnte nicht gespeichert werden",
-        );
+        setError(err instanceof Error ? err.message : "Speichern fehlgeschlagen");
       }
     });
   };
@@ -145,13 +144,14 @@ export function ClientRevenueModal({
     <Modal
       open={open}
       onClose={onClose}
-      title={`Vertrag & Umsatz — ${client.company_name}`}
+      title={`Vertrag — ${client.company_name}`}
       size="lg"
       closeOnEscape={!payoutOpen}
       closeOnBackdrop={!payoutOpen}
     >
       <p className="mb-4 text-sm text-muted">
-        Setup-Gebühr, monatlicher Retainer, Vertragsbeginn und Zahlungsverlauf verwalten.
+        Zentrale Vertragsverwaltung. Rechnungen erstellen und verwalten Sie im Tab
+        Rechnungen.
       </p>
       {error && (
         <div className="mb-4 rounded-xl bg-red-500/10 px-4 py-3 text-sm text-red-300 ring-1 ring-red-500/20">
@@ -177,7 +177,7 @@ export function ClientRevenueModal({
             />
           </Field>
 
-          <Field label="Monatlicher Betrag (EUR)">
+          <Field label="Monatlicher Retainer (EUR)">
             <input
               name="monthly_revenue"
               type="text"
@@ -188,15 +188,82 @@ export function ClientRevenueModal({
             />
           </Field>
 
-          <Field label="Vertragsbeginn" className="sm:col-span-2">
+          <Field label="Vertragsbeginn">
             <input
               name="contract_start_date"
               type="date"
               defaultValue={client.contract_start_date ?? ""}
               className="dashboard-input"
-              required
             />
           </Field>
+
+          <Field label="Vertragsstatus">
+            <select
+              name="contract_status"
+              defaultValue={client.contract_status}
+              className="dashboard-input"
+            >
+              {CONTRACT_STATUSES.map((status) => (
+                <option key={status} value={status}>
+                  {CONTRACT_STATUS_LABELS[status]}
+                </option>
+              ))}
+            </select>
+          </Field>
+
+          <Field label="Provision (Status)">
+            <select
+              name="commission_status"
+              defaultValue={client.commission_status}
+              className="dashboard-input"
+            >
+              {COMMISSION_STATUSES.map((status) => (
+                <option key={status} value={status}>
+                  {COMMISSION_STATUS_LABELS[status]}
+                </option>
+              ))}
+            </select>
+          </Field>
+
+          {retainerActive && (
+            <label className="flex items-center gap-3 self-end">
+              <input
+                type="checkbox"
+                name="auto_invoice_enabled"
+                checked={preview.autoInvoiceEnabled}
+                onChange={(event) =>
+                  setPreview((current) => ({
+                    ...current,
+                    autoInvoiceEnabled: event.target.checked,
+                  }))
+                }
+                className="h-4 w-4 rounded border-border bg-transparent"
+              />
+              <span className="text-sm text-muted">
+                Automatische Retainer-Abrechnung aktiv
+              </span>
+            </label>
+          )}
+
+          {(parseEuroToCents(preview.setupFee) ?? 0) > 0 && (
+            <label className="flex items-center gap-3 sm:col-span-2">
+              <input
+                type="checkbox"
+                name="create_setup_invoice"
+                checked={preview.createSetupInvoice}
+                onChange={(event) =>
+                  setPreview((current) => ({
+                    ...current,
+                    createSetupInvoice: event.target.checked,
+                  }))
+                }
+                className="h-4 w-4 rounded border-border bg-transparent"
+              />
+              <span className="text-sm text-muted">
+                Setup-Rechnung sofort erstellen (Entwurf)
+              </span>
+            </label>
+          )}
         </div>
 
         {retainerActive ? (
@@ -205,46 +272,26 @@ export function ClientRevenueModal({
               Retainer-Übersicht
             </h3>
             <dl className="mt-3 grid gap-3 sm:grid-cols-2">
-              <StatItem
-                label="Monate aktiv"
-                value={String(previewStats.months_active)}
-              />
-              <StatItem
-                label="Monate bezahlt"
-                value={String(previewStats.months_paid)}
-              />
-              <StatItem
-                label="Monate offen"
-                value={String(previewStats.months_open)}
-              />
+              <StatItem label="Monate aktiv" value={String(previewStats.months_active)} />
+              <StatItem label="Monate bezahlt" value={String(previewStats.months_paid)} />
+              <StatItem label="Monate offen" value={String(previewStats.months_open)} />
               <StatItem
                 label="Nächste Zahlung fällig"
                 value={previewStats.next_payment_due ?? "—"}
               />
             </dl>
           </div>
-        ) : (
+        ) : null}
+
+        {retainerActive && previewRetainerPeriods.length > 0 && (
           <div className="rounded-xl border border-border bg-black/20 p-4">
             <h3 className="text-xs font-medium uppercase tracking-wider text-muted-soft">
-              Retainer-Übersicht
+              Retainer-Perioden
             </h3>
-            <p className="mt-3 text-sm text-muted">Kein Retainer aktiv</p>
-          </div>
-        )}
-
-        <div className="rounded-xl border border-border bg-black/20 p-4">
-          <h3 className="text-xs font-medium uppercase tracking-wider text-muted-soft">
-            Zahlungsverlauf
-          </h3>
-          {!retainerActive ? (
-            <p className="mt-3 text-sm text-muted">
-              Kein monatlicher Retainer hinterlegt — nur Setup-Umsatz und Provision.
+            <p className="mt-1 text-xs text-muted-soft">
+              Bezahlt-Status wird automatisch gesetzt, wenn Retainer-Rechnungen als
+              bezahlt markiert werden.
             </p>
-          ) : previewRetainerPeriods.length === 0 ? (
-            <p className="mt-3 text-sm text-muted">
-              Vertragsbeginn speichern, um Retainer-Monate zu erzeugen.
-            </p>
-          ) : (
             <ul className="mt-3 space-y-2">
               {previewRetainerPeriods.map((period) => (
                 <li
@@ -258,29 +305,19 @@ export function ClientRevenueModal({
                       <Circle className="h-4 w-4 text-muted-soft" />
                     )}
                     <span className="text-foreground">{period.label}</span>
-                    <span className="text-xs text-muted-soft">
-                      {period.status === "paid" ? "bezahlt" : "offen"}
-                    </span>
                   </div>
-                  <button
-                    type="button"
-                    disabled={isPending}
-                    onClick={() =>
-                      handlePaymentToggle(
-                        period.period_year,
-                        period.period_month,
-                        period.status === "paid" ? "open" : "paid",
-                      )
-                    }
-                    className="dashboard-btn-secondary px-3 py-1 text-xs"
+                  <span
+                    className={`text-xs ${
+                      period.status === "paid" ? "text-emerald-300" : "text-amber-300"
+                    }`}
                   >
-                    {period.status === "paid" ? "Als offen" : "Als bezahlt"}
-                  </button>
+                    {period.status === "paid" ? "Bezahlt" : "Offen"}
+                  </span>
                 </li>
               ))}
             </ul>
-          )}
-        </div>
+          </div>
+        )}
 
         <div className="rounded-xl bg-white/[0.03] px-4 py-3 text-sm text-muted">
           <p>
@@ -293,12 +330,10 @@ export function ClientRevenueModal({
             </span>
           </p>
           <p className="mt-1 text-xs text-muted-soft">
-            {retainerActive
-              ? "Setup + (Monatlich × bezahlte Monate)"
-              : "Reines Setup-Projekt ohne Retainer"}
+            Setup (aktiver Vertrag) + bezahlte Retainer-Perioden
           </p>
           <p className="mt-2">
-            Aktuelle Setup-Provision ({client.commission_rate}%):{" "}
+            Setup-Provision ({client.commission_rate}%):{" "}
             <span className="font-medium text-foreground">
               {previewCommissionCents > 0
                 ? (previewCommissionCents / 100).toLocaleString("de-DE", {
@@ -312,7 +347,7 @@ export function ClientRevenueModal({
 
         <div className="rounded-xl border border-border bg-black/20 p-4">
           <h3 className="text-xs font-medium uppercase tracking-wider text-muted-soft">
-            Provisionsverwaltung
+            Provisionsauszahlung
           </h3>
           <dl className="mt-3 grid gap-3 sm:grid-cols-3">
             <StatItem
@@ -360,12 +395,6 @@ export function ClientRevenueModal({
           >
             Provision auszahlen
           </button>
-          {client.commission_total_cents > 0 &&
-            client.commission_outstanding_cents <= 0 && (
-              <p className="mt-2 text-xs text-muted-soft">
-                Keine offene Provision — Auszahlung bereits vollständig erfasst.
-              </p>
-            )}
         </div>
 
         <div className="flex justify-end gap-3 border-t border-border pt-4">

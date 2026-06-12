@@ -10,8 +10,8 @@ export function resolveRetainerAmountCents(client: {
   monthly_revenue_cents?: number | null;
 }): number {
   return (
-    client.monthly_retainer_cents ??
     client.monthly_revenue_cents ??
+    client.monthly_retainer_cents ??
     0
   );
 }

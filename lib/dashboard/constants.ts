@@ -61,6 +61,22 @@ export const COMMISSION_STATUS_LABELS: Record<CommissionStatus, string> = {
   paid: "Bezahlt",
 };
 
+export const CONTRACT_STATUSES = [
+  "draft",
+  "active",
+  "paused",
+  "terminated",
+] as const;
+
+export type ContractStatus = (typeof CONTRACT_STATUSES)[number];
+
+export const CONTRACT_STATUS_LABELS: Record<ContractStatus, string> = {
+  draft: "Entwurf",
+  active: "Aktiv",
+  paused: "Pausiert",
+  terminated: "Beendet",
+};
+
 export const INVOICE_STATUSES = [
   "draft",
   "sent",

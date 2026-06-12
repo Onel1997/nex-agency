@@ -16,11 +16,7 @@ import { getClientFiles } from "@/lib/dashboard/client-files";
 import { getClientNotes } from "@/lib/dashboard/client-notes";
 import { getClientDetailById } from "@/lib/dashboard/clients";
 import { getClientRevenueRecordById } from "@/lib/dashboard/finance";
-import { hasActiveContract } from "@/lib/dashboard/contract-invoices";
-import {
-  getContractInvoicesForClient,
-  getInvoicesForClient,
-} from "@/lib/dashboard/invoices";
+import { getInvoicesForClient } from "@/lib/dashboard/invoices";
 import { getAssignableTeamMembers } from "@/lib/dashboard/team";
 
 interface ClientDetailPageProps {
@@ -39,9 +35,7 @@ export default async function ClientDetailPage({ params }: ClientDetailPageProps
     notFound();
   }
 
-  const contractId = hasActiveContract(client) ? client.id : null;
-
-  const [notes, activities, communications, files, revenue, invoices, contractInvoices, teamMembers] =
+  const [notes, activities, communications, files, revenue, invoices, teamMembers] =
     await Promise.all([
       getClientNotes(id),
       getClientActivities(id),
@@ -49,7 +43,6 @@ export default async function ClientDetailPage({ params }: ClientDetailPageProps
       getClientFiles(id),
       getClientRevenueRecordById(id),
       getInvoicesForClient(id),
-      getContractInvoicesForClient(id, contractId),
       getAssignableTeamMembers(),
     ]);
 
@@ -77,7 +70,6 @@ export default async function ClientDetailPage({ params }: ClientDetailPageProps
           files={files}
           revenue={revenue}
           invoices={invoices}
-          contractInvoices={contractInvoices}
           profile={profile}
           canEdit={canEditClientRevenue(profile, client.responsible_member_id)}
           canAssign={canAssignClientOwner(profile)}

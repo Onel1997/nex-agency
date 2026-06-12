@@ -17,6 +17,7 @@ import {
   type RetainerPaymentRecord,
 } from "./retainer";
 import { resolveRetainerAmountCents } from "./billing-cycle";
+import { resolveContractStatus } from "./contract-status";
 import { resolveInvoiceType } from "./invoice-type";
 import { computeExpenseStats, getAllExpenses } from "./expenses";
 import {
@@ -93,10 +94,12 @@ function mapClientRevenueRow(
   const monthlyRetainerCents = (row.monthly_retainer_cents as number | null) ?? null;
   const setupFeeCents = (row.setup_fee_cents as number | null) ?? null;
   const contractStartDate = (row.contract_start_date as string | null) ?? null;
+  const contractStatus = resolveContractStatus(row);
   const autoInvoiceEnabled = Boolean(row.auto_invoice_enabled);
   const commissionFields = resolveCommissionFields(row, commissionRate);
   const retainerStats = buildRetainerStats({
     contract_start_date: contractStartDate,
+    contract_status: contractStatus,
     setup_fee_cents: setupFeeCents,
     monthly_revenue_cents: monthlyRevenueCents,
     payments,
@@ -112,6 +115,7 @@ function mapClientRevenueRow(
     monthly_retainer_cents: monthlyRetainerCents,
     setup_fee_cents: setupFeeCents,
     contract_start_date: contractStartDate,
+    contract_status: contractStatus,
     auto_invoice_enabled: autoInvoiceEnabled,
     total_revenue_cents: totalRevenue > 0 ? totalRevenue : null,
     setup_revenue_cents: retainerStats.setup_revenue_cents,
@@ -139,6 +143,7 @@ function mapClientRevenueRow(
 
 function isActiveRetainerClient(client: ClientRevenueRecord): boolean {
   return (
+    client.contract_status === "active" &&
     Boolean(client.contract_start_date) &&
     (client.monthly_revenue_cents ?? 0) > 0
   );

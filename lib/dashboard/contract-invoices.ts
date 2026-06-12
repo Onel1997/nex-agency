@@ -1,3 +1,5 @@
+import { resolveRetainerAmountCents } from "./billing-cycle";
+import { isContractRevenueActive } from "./contract-status";
 import { calculateInvoiceAmounts, type InvoiceAmounts } from "./invoice-math";
 import type { ClientDetailRecord, InvoiceRecord } from "./types";
 
@@ -9,31 +11,76 @@ export interface ContractInvoiceFilter {
 type ContractClientFields = Pick<
   ClientDetailRecord,
   | "contract_start_date"
+  | "contract_status"
   | "lead_estimated_value_cents"
   | "setup_fee_cents"
   | "monthly_retainer_cents"
+  | "monthly_revenue_cents"
 >;
 
-export function getContractSubtotalCents(client: ContractClientFields): number | null {
-  const subtotal =
-    client.setup_fee_cents ??
-    client.monthly_retainer_cents ??
-    client.lead_estimated_value_cents;
+/** Net setup fee for setup invoices — never falls back to retainer amounts. */
+export function getSetupFeeCents(client: ContractClientFields): number | null {
+  const setup = client.setup_fee_cents;
+  if (setup != null && setup > 0) return setup;
+  return null;
+}
 
-  if (subtotal == null || subtotal <= 0) return null;
-  return subtotal;
+/** Monthly retainer from contract fields (monthly_revenue_cents preferred). */
+export function getContractRetainerCents(client: ContractClientFields): number {
+  return resolveRetainerAmountCents({
+    monthly_retainer_cents: client.monthly_retainer_cents,
+    monthly_revenue_cents: client.monthly_revenue_cents,
+  });
+}
+
+/** @deprecated Use getSetupFeeCents for setup invoices. */
+export function getContractSubtotalCents(client: ContractClientFields): number | null {
+  const setup = getSetupFeeCents(client);
+  if (setup != null) return setup;
+
+  const retainer = getContractRetainerCents(client);
+  if (retainer > 0) return retainer;
+
+  const estimate = client.lead_estimated_value_cents;
+  if (estimate != null && estimate > 0) return estimate;
+
+  return null;
 }
 
 export function hasActiveContract(client: ContractClientFields): boolean {
-  return Boolean(client.contract_start_date) && getContractSubtotalCents(client) != null;
+  if (!isContractRevenueActive(client)) return false;
+  return getSetupFeeCents(client) != null || getContractRetainerCents(client) > 0;
 }
 
+export function hasSetupFee(client: ContractClientFields): boolean {
+  return getSetupFeeCents(client) != null;
+}
+
+export function hasRetainerContract(client: ContractClientFields): boolean {
+  return isContractRevenueActive(client) && getContractRetainerCents(client) > 0;
+}
+
+export function getSetupInvoicePreview(
+  client: ContractClientFields,
+): InvoiceAmounts | null {
+  const subtotalCents = getSetupFeeCents(client);
+  if (subtotalCents == null) return null;
+  return calculateInvoiceAmounts(subtotalCents);
+}
+
+export function getRetainerInvoicePreview(
+  client: ContractClientFields,
+): InvoiceAmounts | null {
+  const subtotalCents = getContractRetainerCents(client);
+  if (subtotalCents <= 0) return null;
+  return calculateInvoiceAmounts(subtotalCents);
+}
+
+/** @deprecated Use getSetupInvoicePreview */
 export function getContractInvoicePreview(
   client: ContractClientFields,
 ): InvoiceAmounts | null {
-  const subtotalCents = getContractSubtotalCents(client);
-  if (subtotalCents == null) return null;
-  return calculateInvoiceAmounts(subtotalCents);
+  return getSetupInvoicePreview(client) ?? getRetainerInvoicePreview(client);
 }
 
 export function filterInvoicesForClient(

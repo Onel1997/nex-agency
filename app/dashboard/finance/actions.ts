@@ -6,23 +6,26 @@ import {
   applyCommissionPayout,
   isCommissionPayoutsSchemaMissingError,
   isCommissionSchemaMissingError,
-  syncCommissionAmounts,
 } from "@/lib/dashboard/commission";
+import {
+  syncClientTotalRevenue,
+  markRetainerPeriodPaid,
+} from "@/lib/dashboard/client-revenue-sync";
 import {
   COMMISSION_STATUSES,
   type CommissionStatus,
 } from "@/lib/dashboard/constants";
 import { parseEuroToCents } from "@/lib/dashboard/format";
+import { hasActiveRetainer } from "@/lib/dashboard/retainer";
 import { isRetainerSchemaMissingError } from "@/lib/dashboard/retainer-data";
-import {
-  buildRetainerStats,
-  hasActiveRetainer,
-  type RetainerPaymentRecord,
-} from "@/lib/dashboard/retainer";
 import { getProfile } from "@/lib/auth/session";
 import { logClientActivity } from "@/lib/dashboard/client-activities";
 import { formatCents } from "@/lib/dashboard/format";
 import { createClient } from "@/lib/supabase/server";
+import {
+  parseClientContractFormData,
+  saveClientContractData,
+} from "@/lib/dashboard/client-contract-save";
 
 function revalidateFinance(clientId?: string) {
   revalidatePath("/dashboard/finance");
@@ -37,231 +40,21 @@ function actorName(profile: { full_name: string | null; email: string }) {
   return profile.full_name?.trim() || profile.email.split("@")[0];
 }
 
-async function purgeRetainerPayments(
-  supabase: Awaited<ReturnType<typeof createClient>>,
-  clientId: string,
-) {
-  const { error } = await supabase
-    .from("client_retainer_payments")
-    .delete()
-    .eq("client_id", clientId);
-
-  if (error && !isRetainerSchemaMissingError(error.message)) {
-    throw new Error(error.message);
-  }
-}
-
-async function getClientPayments(
-  supabase: Awaited<ReturnType<typeof createClient>>,
-  clientId: string,
-): Promise<RetainerPaymentRecord[]> {
-  const { data, error } = await supabase
-    .from("client_retainer_payments")
-    .select("period_year, period_month, status, paid_at")
-    .eq("client_id", clientId);
-
-  if (error) {
-    if (isRetainerSchemaMissingError(error.message)) return [];
-    throw new Error(error.message);
-  }
-
-  return (data ?? []).map((payment) => ({
-    period_year: payment.period_year as number,
-    period_month: payment.period_month as number,
-    status: payment.status as RetainerPaymentRecord["status"],
-    paid_at: (payment.paid_at as string | null) ?? null,
-  }));
-}
-
-async function fetchClientForCommissionSync(
-  supabase: Awaited<ReturnType<typeof createClient>>,
-  clientId: string,
-) {
-  let clientResult = await supabase
-    .from("clients")
-    .select(
-      `
-      setup_fee_cents,
-      monthly_revenue_cents,
-      contract_start_date,
-      commission_status,
-      commission_total_cents,
-      commission_paid_cents,
-      responsible_member:profiles!clients_responsible_member_id_fkey(commission_rate)
-    `,
-    )
-    .eq("id", clientId)
-    .single();
-
-  if (
-    clientResult.error &&
-    isCommissionSchemaMissingError(clientResult.error.message)
-  ) {
-    clientResult = await supabase
-      .from("clients")
-      .select(
-        `
-        setup_fee_cents,
-        monthly_revenue_cents,
-        contract_start_date,
-        commission_status,
-        responsible_member:profiles!clients_responsible_member_id_fkey(commission_rate)
-      `,
-      )
-      .eq("id", clientId)
-      .single();
-  }
-
-  if (
-    clientResult.error &&
-    isRetainerSchemaMissingError(clientResult.error.message)
-  ) {
-    clientResult = await supabase
-      .from("clients")
-      .select(
-        `
-        setup_fee_cents,
-        monthly_revenue_cents,
-        commission_status,
-        commission_total_cents,
-        commission_paid_cents,
-        responsible_member:profiles!clients_responsible_member_id_fkey(commission_rate)
-      `,
-      )
-      .eq("id", clientId)
-      .single();
-
-    if (
-      clientResult.error &&
-      isCommissionSchemaMissingError(clientResult.error.message)
-    ) {
-      clientResult = await supabase
-        .from("clients")
-        .select(
-          `
-          setup_fee_cents,
-          monthly_revenue_cents,
-          commission_status,
-          responsible_member:profiles!clients_responsible_member_id_fkey(commission_rate)
-        `,
-        )
-        .eq("id", clientId)
-        .single();
-    }
-  }
-
-  return clientResult;
-}
-
-async function syncClientTotalRevenue(
-  supabase: Awaited<ReturnType<typeof createClient>>,
-  clientId: string,
-) {
-  const clientResult = await fetchClientForCommissionSync(supabase, clientId);
-  if (clientResult.error) throw new Error(clientResult.error.message);
-  const client = clientResult.data;
-
-  const member = Array.isArray(client.responsible_member)
-    ? client.responsible_member[0]
-    : client.responsible_member;
-  const commissionRate =
-    (member as { commission_rate: number } | null)?.commission_rate ?? 0;
-
-  const payments = await getClientPayments(supabase, clientId);
-  const retainerStats = buildRetainerStats({
-    contract_start_date: (client.contract_start_date as string | null) ?? null,
-    setup_fee_cents: (client.setup_fee_cents as number | null) ?? null,
-    monthly_revenue_cents: (client.monthly_revenue_cents as number | null) ?? null,
-    payments,
-  });
-
-  const setupFeeCents = (client.setup_fee_cents as number | null) ?? 0;
-  const hasCommissionSchema = client.commission_total_cents !== undefined;
-
-  const commissionSync = syncCommissionAmounts({
-    setupFeeCents: client.setup_fee_cents as number | null,
-    commissionRate,
-    currentTotalCents: hasCommissionSchema
-      ? ((client.commission_total_cents as number) ?? 0)
-      : 0,
-    currentPaidCents: hasCommissionSchema
-      ? ((client.commission_paid_cents as number) ?? 0)
-      : 0,
-  });
-
-  const updatePayload: Record<string, unknown> = {
-    total_revenue_cents:
-      retainerStats.total_revenue_cents > 0
-        ? retainerStats.total_revenue_cents
-        : null,
-    commission_status: commissionSync.commission_status,
-  };
-
-  if (hasCommissionSchema) {
-    updatePayload.commission_total_cents = commissionSync.commission_total_cents;
-    updatePayload.commission_paid_cents = commissionSync.commission_paid_cents;
-    updatePayload.commission_outstanding_cents =
-      commissionSync.commission_outstanding_cents;
-  } else if (setupFeeCents <= 0) {
-    updatePayload.commission_status = "none";
-  }
-
-  const { error: updateError } = await supabase
-    .from("clients")
-    .update(updatePayload)
-    .eq("id", clientId);
-
-  if (updateError) throw new Error(updateError.message);
-}
-
 export async function updateClientRevenue(
   clientId: string,
   formData: FormData,
 ) {
   await requireFinanceAccess();
 
-  const monthlyRevenueCents = parseEuroToCents(
-    String(formData.get("monthly_revenue") ?? ""),
-  );
-  const setupFeeCents = parseEuroToCents(String(formData.get("setup_fee") ?? ""));
-  const contractStartDate = String(formData.get("contract_start_date") ?? "").trim();
-
+  const input = parseClientContractFormData(formData);
   const supabase = await createClient();
-  const updatePayload: {
-    monthly_revenue_cents: number | null;
-    setup_fee_cents: number | null;
-    contract_start_date?: string | null;
-  } = {
-    monthly_revenue_cents: monthlyRevenueCents,
-    setup_fee_cents: setupFeeCents,
-  };
 
-  if (contractStartDate) {
-    updatePayload.contract_start_date = contractStartDate;
-  }
-
-  let { error } = await supabase
-    .from("clients")
-    .update(updatePayload)
-    .eq("id", clientId);
-
-  if (error && isRetainerSchemaMissingError(error.message)) {
-    ({ error } = await supabase
-      .from("clients")
-      .update({
-        monthly_revenue_cents: monthlyRevenueCents,
-        setup_fee_cents: setupFeeCents,
-      })
-      .eq("id", clientId));
-  }
-
-  if (error) throw new Error(error.message);
-
-  if (!hasActiveRetainer(monthlyRevenueCents)) {
-    await purgeRetainerPayments(supabase, clientId);
-  }
-
-  await syncClientTotalRevenue(supabase, clientId);
+  const { setupInvoice } = await saveClientContractData(
+    supabase,
+    clientId,
+    input,
+    (await getProfile())?.id,
+  );
 
   const profile = await getProfile();
   if (profile) {
@@ -271,6 +64,19 @@ export async function updateClientRevenue(
       activityType: "contract_changed",
       description: `${actorName(profile)} hat Vertragsdaten geändert`,
     });
+
+    if (setupInvoice) {
+      await logClientActivity({
+        clientId,
+        actorId: profile.id,
+        activityType: "invoice_created",
+        description: `${actorName(profile)} hat Setup-Rechnung ${setupInvoice.invoiceNumber} beim Speichern des Vertrags erstellt`,
+        metadata: {
+          invoice_number: setupInvoice.invoiceNumber,
+          source: "contract_save",
+        },
+      });
+    }
   }
 
   revalidateFinance(clientId);

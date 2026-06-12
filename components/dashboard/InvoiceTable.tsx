@@ -45,7 +45,7 @@ export function InvoiceTable({
   if (invoices.length === 0) {
     const emptyMessage =
       variant === "agency"
-        ? "Noch keine Rechnungen vorhanden. Umsatz aus Verträgen wird unabhängig davon erfasst — Rechnungen unter Kunde → Rechnungen erstellen."
+        ? "Es wurden noch keine Rechnungen erstellt. Umsatzdaten können bereits aus Verträgen stammen."
         : variant === "compact"
           ? "Noch keine Vertragsrechnungen vorhanden."
           : "Noch keine Rechnungen vorhanden.";

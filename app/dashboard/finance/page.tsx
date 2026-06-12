@@ -1,15 +1,6 @@
-import {
-  getClientRevenueRecords,
-  getFinanceStats,
-  getProfitBreakdowns,
-} from "@/lib/dashboard/finance";
-import { getAllInvoices } from "@/lib/dashboard/invoices";
-import type {
-  ClientRevenueRecord,
-  FinanceStats,
-  InvoiceRecord,
-  ProfitBreakdown,
-} from "@/lib/dashboard/types";
+import { getFinanceStats, getProfitBreakdowns } from "@/lib/dashboard/finance";
+import { getRecentInvoices } from "@/lib/dashboard/invoices";
+import type { FinanceStats, InvoiceRecord, ProfitBreakdown } from "@/lib/dashboard/types";
 import { FinancePageClient } from "@/components/dashboard/FinancePageClient";
 
 export default async function FinancePage() {
@@ -35,23 +26,19 @@ export default async function FinancePage() {
     yearlyExpensesCents: 0,
     agencyProfitCents: 0,
   };
-  let clients: ClientRevenueRecord[] = [];
   let invoices: InvoiceRecord[] = [];
   let profitBreakdowns: ProfitBreakdown[] = [];
   let error: string | null = null;
 
   try {
-    const [financeStats, revenueClients, agencyInvoices, profits] =
-      await Promise.all([
-        getFinanceStats(),
-        getClientRevenueRecords(),
-        getAllInvoices(),
-        getProfitBreakdowns(),
-      ]);
+    const [financeStats, recentInvoices, profits] = await Promise.all([
+      getFinanceStats(),
+      getRecentInvoices(10),
+      getProfitBreakdowns(),
+    ]);
 
     if (financeStats) stats = financeStats;
-    clients = revenueClients;
-    invoices = agencyInvoices;
+    invoices = recentInvoices;
     profitBreakdowns = profits;
   } catch (err) {
     error =
@@ -71,7 +58,6 @@ export default async function FinancePage() {
   return (
     <FinancePageClient
       stats={stats}
-      clients={clients}
       invoices={invoices}
       profitBreakdowns={profitBreakdowns}
     />

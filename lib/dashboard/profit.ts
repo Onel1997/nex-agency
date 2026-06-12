@@ -1,9 +1,8 @@
 import type { ProfitPeriod } from "./constants";
 import type {
-  CommissionPayoutRecord,
+  ClientRevenueRecord,
   ExpenseRecord,
   FreelancerInvoiceRecord,
-  InvoiceRecord,
   ProfitBreakdown,
 } from "./types";
 
@@ -37,17 +36,78 @@ function isInPeriod(date: Date, period: ProfitPeriod, now = new Date()): boolean
   return true;
 }
 
-function sumPaidCustomerRevenue(
-  invoices: InvoiceRecord[],
+/**
+ * Contract-based customer revenue — same basis as Gesamtumsatz KPI.
+ * Setup → Vertragsbeginn; Retainer → bezahlte Abrechnungsperiode.
+ */
+export function sumCustomerRevenueFromClients(
+  clients: ClientRevenueRecord[],
   period: ProfitPeriod,
 ): number {
-  let total = 0;
-  for (const invoice of invoices) {
-    if (invoice.status !== "paid") continue;
-    const date = parseDate(invoice.updated_at ?? invoice.created_at);
-    if (!isInPeriod(date, period)) continue;
-    total += invoice.subtotal_cents;
+  if (period === "total") {
+    return clients.reduce(
+      (sum, client) => sum + (client.total_revenue_cents ?? 0),
+      0,
+    );
   }
+
+  let total = 0;
+
+  for (const client of clients) {
+    const setup = client.setup_fee_cents ?? 0;
+    if (setup > 0 && client.contract_start_date) {
+      const setupDate = parseDate(client.contract_start_date);
+      if (isInPeriod(setupDate, period)) {
+        total += setup;
+      }
+    }
+
+    const monthly = client.monthly_revenue_cents ?? 0;
+    if (monthly <= 0) continue;
+
+    for (const retainerPeriod of client.retainer_periods) {
+      if (retainerPeriod.status !== "paid") continue;
+
+      const periodDate = new Date(
+        retainerPeriod.period_year,
+        retainerPeriod.period_month - 1,
+        1,
+      );
+      if (isInPeriod(periodDate, period)) {
+        total += monthly;
+      }
+    }
+  }
+
+  return total;
+}
+
+/**
+ * Provisionen werden dem Vertragsbeginn zugeordnet (Setup-Provision),
+ * nicht dem Auszahlungsdatum — dieselbe Datumsregel wie Setup-Umsatz.
+ */
+export function sumCommissionFromClients(
+  clients: ClientRevenueRecord[],
+  period: ProfitPeriod,
+): number {
+  if (period === "total") {
+    return clients.reduce((sum, client) => sum + client.commission_paid_cents, 0);
+  }
+
+  let total = 0;
+
+  for (const client of clients) {
+    if (client.commission_paid_cents <= 0) continue;
+
+    const setup = client.setup_fee_cents ?? 0;
+    if (setup <= 0 || !client.contract_start_date) continue;
+
+    const setupDate = parseDate(client.contract_start_date);
+    if (isInPeriod(setupDate, period)) {
+      total += client.commission_paid_cents;
+    }
+  }
+
   return total;
 }
 
@@ -75,28 +135,14 @@ function sumAgencyCosts(expenses: ExpenseRecord[], period: ProfitPeriod): number
   return total;
 }
 
-function sumCommissionPayouts(
-  payouts: CommissionPayoutRecord[],
-  period: ProfitPeriod,
-): number {
-  let total = 0;
-  for (const payout of payouts) {
-    const date = parseDate(payout.payout_date);
-    if (!isInPeriod(date, period)) continue;
-    total += payout.amount_cents;
-  }
-  return total;
-}
-
 export function computeProfitBreakdown(params: {
   period: ProfitPeriod;
-  customerInvoices: InvoiceRecord[];
+  clients: ClientRevenueRecord[];
   freelancerInvoices: FreelancerInvoiceRecord[];
-  commissionPayouts: CommissionPayoutRecord[];
   expenses: ExpenseRecord[];
 }): ProfitBreakdown {
-  const customerRevenueCents = sumPaidCustomerRevenue(
-    params.customerInvoices,
+  const customerRevenueCents = sumCustomerRevenueFromClients(
+    params.clients,
     params.period,
   );
   const freelancerCostsCents = sumFreelancerCosts(
@@ -104,10 +150,7 @@ export function computeProfitBreakdown(params: {
     params.period,
   );
   const agencyCostsCents = sumAgencyCosts(params.expenses, params.period);
-  const commissionsCents = sumCommissionPayouts(
-    params.commissionPayouts,
-    params.period,
-  );
+  const commissionsCents = sumCommissionFromClients(params.clients, params.period);
 
   const profitCents =
     customerRevenueCents -
@@ -126,9 +169,8 @@ export function computeProfitBreakdown(params: {
 }
 
 export function computeAllProfitBreakdowns(params: {
-  customerInvoices: InvoiceRecord[];
+  clients: ClientRevenueRecord[];
   freelancerInvoices: FreelancerInvoiceRecord[];
-  commissionPayouts: CommissionPayoutRecord[];
   expenses: ExpenseRecord[];
 }): ProfitBreakdown[] {
   const periods: ProfitPeriod[] = ["month", "quarter", "year", "total"];

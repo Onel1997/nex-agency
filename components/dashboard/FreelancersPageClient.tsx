@@ -2,19 +2,25 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Users } from "lucide-react";
+import { Banknote, FileCheck2, Users, Wallet } from "lucide-react";
 import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
 import { DataTable } from "@/components/dashboard/DataTable";
 import { EmptyState } from "@/components/dashboard/EmptyState";
 import { FreelancerModal } from "@/components/dashboard/FreelancerModal";
+import { KpiCard } from "@/components/dashboard/KpiCard";
 import { formatCents, formatDate } from "@/lib/dashboard/format";
+import type { FreelancerDashboardStats } from "@/lib/dashboard/freelancer-stats";
 import type { FreelancerRecord } from "@/lib/dashboard/types";
 
 interface FreelancersPageClientProps {
   freelancers: FreelancerRecord[];
+  stats: FreelancerDashboardStats;
 }
 
-export function FreelancersPageClient({ freelancers }: FreelancersPageClientProps) {
+export function FreelancersPageClient({
+  freelancers,
+  stats,
+}: FreelancersPageClientProps) {
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<FreelancerRecord | null>(null);
 
@@ -29,7 +35,7 @@ export function FreelancersPageClient({ freelancers }: FreelancersPageClientProp
   };
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-10">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <DashboardHeader
           title="Freelancer"
@@ -40,13 +46,40 @@ export function FreelancersPageClient({ freelancers }: FreelancersPageClientProp
         </button>
       </div>
 
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <KpiCard
+          label="Freelancer gesamt"
+          value={String(stats.totalFreelancers)}
+          icon={Users}
+        />
+        <KpiCard
+          label="Offene Freelancer-Rechnungen"
+          value={formatCents(stats.openFreelancerInvoicesCents)}
+          icon={FileCheck2}
+          trend="Status: eingereicht"
+        />
+        <KpiCard
+          label="Bezahlte Freelancer-Rechnungen"
+          value={formatCents(stats.paidFreelancerInvoicesCents)}
+          icon={Banknote}
+          trend="Status: bezahlt"
+        />
+        <KpiCard
+          label="Offene Auszahlungen"
+          value={formatCents(stats.openPayoutsCents)}
+          icon={Wallet}
+          href="/dashboard/finance/payouts"
+          trend="Noch nicht ausgezahlt"
+        />
+      </div>
+
       <DataTable
         columns={[
           {
             key: "name",
             header: "Freelancer",
             render: (freelancer) => (
-              <div>
+              <div className="py-1">
                 <Link
                   href={`/dashboard/finance/freelancers/${freelancer.id}`}
                   className="font-medium text-foreground hover:text-violet-300"

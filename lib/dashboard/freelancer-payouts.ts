@@ -69,6 +69,18 @@ export async function getAllFreelancerPayouts(): Promise<FreelancerPayoutRecord[
   return (data ?? []).map((row) => mapPayoutRow(row));
 }
 
+export function computeOpenPayoutsCents(
+  payouts: FreelancerPayoutRecord[],
+): number {
+  let total = 0;
+  for (const payout of payouts) {
+    if (payout.status === "offen") {
+      total += payout.amount_cents;
+    }
+  }
+  return total;
+}
+
 export async function getFreelancerPayoutsByFreelancerId(
   freelancerId: string,
 ): Promise<FreelancerPayoutRecord[]> {

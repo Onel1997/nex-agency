@@ -28,7 +28,6 @@ import { computeAllProfitBreakdowns } from "./profit";
 import { calculateCommissionCents } from "./revenue";
 import type {
   ClientRevenueRecord,
-  CommissionPayoutRecord,
   FinanceStats,
   ProfitBreakdown,
 } from "./types";
@@ -213,24 +212,9 @@ export async function getFinanceStats(): Promise<FinanceStats | null> {
   const freelancerInvoiceStats = computeFreelancerInvoiceStats(freelancerInvoices);
   const expenseStats = computeExpenseStats(expenses);
 
-  const supabase = await createClient();
-  const { data: commissionPayoutRows } = await supabase
-    .from("client_commission_payouts")
-    .select("amount_cents, payout_date");
-
-  const commissionPayouts: CommissionPayoutRecord[] = (commissionPayoutRows ?? []).map(
-    (row, index) => ({
-      id: `aggregate-${index}`,
-      amount_cents: row.amount_cents as number,
-      payout_date: row.payout_date as string,
-      created_at: row.payout_date as string,
-    }),
-  );
-
   const profitBreakdowns = computeAllProfitBreakdowns({
-    customerInvoices: invoices,
+    clients,
     freelancerInvoices,
-    commissionPayouts,
     expenses,
   });
   const totalProfit = profitBreakdowns.find((p) => p.period === "total");
@@ -261,30 +245,15 @@ export async function getProfitBreakdowns(): Promise<ProfitBreakdown[]> {
     throw new Error("Keine Berechtigung");
   }
 
-  const [invoices, freelancerInvoices, expenses] = await Promise.all([
-    getAllInvoices(),
+  const [clients, freelancerInvoices, expenses] = await Promise.all([
+    getClientRevenueRecords(),
     getAllFreelancerInvoices(),
     getAllExpenses(),
   ]);
 
-  const supabase = await createClient();
-  const { data: commissionPayoutRows } = await supabase
-    .from("client_commission_payouts")
-    .select("amount_cents, payout_date");
-
-  const commissionPayouts: CommissionPayoutRecord[] = (commissionPayoutRows ?? []).map(
-    (row, index) => ({
-      id: `aggregate-${index}`,
-      amount_cents: row.amount_cents as number,
-      payout_date: row.payout_date as string,
-      created_at: row.payout_date as string,
-    }),
-  );
-
   return computeAllProfitBreakdowns({
-    customerInvoices: invoices,
+    clients,
     freelancerInvoices,
-    commissionPayouts,
     expenses,
   });
 }

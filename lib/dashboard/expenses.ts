@@ -4,7 +4,11 @@ import type { ExpenseRecord } from "./types";
 import { createClient } from "@/lib/supabase/server";
 
 export function isExpenseSchemaMissingError(message: string): boolean {
-  return message.toLowerCase().includes("expenses");
+  const normalized = message.toLowerCase();
+  return (
+    normalized.includes("could not find the table") ||
+    normalized.includes("expenses")
+  );
 }
 
 function mapExpenseRow(row: Record<string, unknown>): ExpenseRecord {

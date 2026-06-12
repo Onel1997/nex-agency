@@ -6,11 +6,18 @@ import { createClient } from "@/lib/supabase/server";
 export function isFreelancerSchemaMissingError(message: string): boolean {
   const normalized = message.toLowerCase();
   return (
+    normalized.includes("could not find the table") ||
     normalized.includes("freelancers") ||
     normalized.includes("freelancer_invoices") ||
+    normalized.includes("freelancer_payouts") ||
+    normalized.includes("freelancer_payout_clients") ||
+    normalized.includes("freelancer_payout_invoices") ||
     normalized.includes("next_freelancer_invoice_number")
   );
 }
+
+export const PHASE14_MIGRATION_HINT =
+  "Phase-14-Migration fehlt. Bitte `supabase db push` ausführen oder die Migration 20250619120000_phase14_finance_center.sql anwenden.";
 
 function computeFreelancerStats(
   invoices: { status: string; total_amount_cents: number }[],

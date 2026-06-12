@@ -237,6 +237,12 @@ export async function getAllInvoices(): Promise<InvoiceRecord[]> {
   });
 }
 
+/** Latest agency invoices — all statuses (draft, sent, paid, overdue). */
+export async function getRecentInvoices(limit = 10): Promise<InvoiceRecord[]> {
+  const invoices = await getAllInvoices();
+  return invoices.slice(0, limit);
+}
+
 export async function getInvoiceItems(
   invoiceId: string,
 ): Promise<InvoiceItemRecord[]> {

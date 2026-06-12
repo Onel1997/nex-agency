@@ -49,7 +49,7 @@ export function ExpensesPageClient({
   };
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-10">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <DashboardHeader
           title="Ausgaben"
@@ -60,7 +60,7 @@ export function ExpensesPageClient({
         </button>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <KpiCard
           label="Monatskosten"
           value={formatCents(monthlyExpensesCents)}
@@ -73,6 +73,15 @@ export function ExpensesPageClient({
           icon={Euro}
           trend="Aktuelles Jahr"
         />
+      </div>
+
+      <div>
+        <h2 className="text-lg font-semibold tracking-tight text-foreground">
+          Ausgabenliste
+        </h2>
+        <p className="mt-1 text-sm text-muted">
+          Alle erfassten Agenturkosten nach Datum sortiert.
+        </p>
       </div>
 
       <DataTable

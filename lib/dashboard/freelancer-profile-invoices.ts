@@ -254,3 +254,117 @@ export async function createFreelancerProfileInvoiceForPayout(
 
   return invoice;
 }
+
+export interface BackfillFreelancerProfileInvoicesResult {
+  scanned: number;
+  created: number;
+  skipped: number;
+  errors: Array<{ payoutId: string; message: string }>;
+}
+
+interface UninvoicedPayoutRow {
+  id: string;
+  client_id: string;
+  freelancer_id: string;
+  amount_cents: number;
+  paid_at: string;
+  status: string;
+}
+
+/**
+ * Creates missing freelancer_profile_invoices for paid client_freelancer_payouts.
+ * Idempotent: skips payouts that already have an invoice (payout_id is UNIQUE).
+ */
+export async function backfillFreelancerProfileInvoicesFromPayouts(
+  profileId?: string,
+): Promise<BackfillFreelancerProfileInvoicesResult> {
+  const actor = await getProfile();
+  if (!actor || !canAccessFinanceRoutes(actor)) {
+    throw new Error("Keine Berechtigung");
+  }
+
+  const supabase = await createClient();
+  let query = supabase
+    .from("client_freelancer_payouts")
+    .select("id, client_id, freelancer_id, amount_cents, paid_at, status")
+    .eq("status", "paid")
+    .order("paid_at", { ascending: true });
+
+  if (profileId) {
+    query = query.eq("freelancer_id", profileId);
+  }
+
+  const { data: payouts, error } = await query;
+  if (error) {
+    if (isFreelancerProfileSchemaMissingError(error.message)) {
+      return { scanned: 0, created: 0, skipped: 0, errors: [] };
+    }
+    throw new Error(error.message);
+  }
+
+  const payoutRows = (payouts ?? []) as UninvoicedPayoutRow[];
+  if (payoutRows.length === 0) {
+    return { scanned: 0, created: 0, skipped: 0, errors: [] };
+  }
+
+  const payoutIds = payoutRows.map((row) => row.id);
+  const { data: existingInvoices, error: invoiceError } = await supabase
+    .from("freelancer_profile_invoices")
+    .select("payout_id")
+    .in("payout_id", payoutIds);
+
+  if (invoiceError) {
+    if (isFreelancerProfileSchemaMissingError(invoiceError.message)) {
+      return { scanned: payoutRows.length, created: 0, skipped: 0, errors: [] };
+    }
+    throw new Error(invoiceError.message);
+  }
+
+  const invoicedPayoutIds = new Set(
+    (existingInvoices ?? [])
+      .map((row) => row.payout_id as string | null)
+      .filter((id): id is string => Boolean(id)),
+  );
+
+  const result: BackfillFreelancerProfileInvoicesResult = {
+    scanned: payoutRows.length,
+    created: 0,
+    skipped: 0,
+    errors: [],
+  };
+
+  for (const payout of payoutRows) {
+    if (invoicedPayoutIds.has(payout.id)) {
+      result.skipped += 1;
+      continue;
+    }
+
+    try {
+      const invoice = await createFreelancerProfileInvoiceForPayout({
+        profileId: payout.freelancer_id,
+        clientId: payout.client_id,
+        payoutId: payout.id,
+        amountCents: payout.amount_cents,
+        paidAt: payout.paid_at,
+      });
+
+      if (invoice) {
+        result.created += 1;
+        invoicedPayoutIds.add(payout.id);
+      } else {
+        result.errors.push({
+          payoutId: payout.id,
+          message:
+            "Rechnung konnte nicht erzeugt werden (Freelancer-Profil oder Schema nicht verfügbar)",
+        });
+      }
+    } catch (err) {
+      result.errors.push({
+        payoutId: payout.id,
+        message: err instanceof Error ? err.message : "Unbekannter Fehler",
+      });
+    }
+  }
+
+  return result;
+}

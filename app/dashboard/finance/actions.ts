@@ -12,7 +12,10 @@ import {
   isClientFreelancerPayoutsSchemaMissingError,
   isClientFreelancerSchemaMissingError,
 } from "@/lib/dashboard/client-freelancer-payout";
-import { createFreelancerProfileInvoiceForPayout } from "@/lib/dashboard/freelancer-profile-invoices";
+import {
+  backfillFreelancerProfileInvoicesFromPayouts,
+  createFreelancerProfileInvoiceForPayout,
+} from "@/lib/dashboard/freelancer-profile-invoices";
 import { syncClientTotalRevenue } from "@/lib/dashboard/client-revenue-sync";
 import {
   COMMISSION_STATUSES,
@@ -352,4 +355,17 @@ export async function payFreelancerPayout(clientId: string, formData: FormData) 
   revalidateFinance(clientId);
   revalidatePath("/dashboard/finance/freelancers");
   revalidatePath(`/dashboard/finance/freelancers/${freelancerId}`);
+}
+
+export async function backfillFreelancerProfileInvoices(profileId?: string) {
+  await requireFinanceAccess();
+
+  const result = await backfillFreelancerProfileInvoicesFromPayouts(profileId);
+
+  revalidatePath("/dashboard/finance/freelancers");
+  if (profileId) {
+    revalidatePath(`/dashboard/finance/freelancers/${profileId}`);
+  }
+
+  return result;
 }

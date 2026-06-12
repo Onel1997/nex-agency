@@ -5,6 +5,8 @@ export type ActivityAction =
   | "lead_status_changed"
   | "lead_assigned"
   | "lead_converted"
+  | "client_archived"
+  | "client_deleted"
   | "member_invited"
   | "member_updated"
   | "role_changed"

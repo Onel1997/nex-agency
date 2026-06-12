@@ -1,5 +1,9 @@
 import { canAccessFinanceRoutes } from "@/lib/auth/permissions";
 import { getProfile } from "@/lib/auth/session";
+import {
+  isClientFreelancerPayoutsSchemaMissingError,
+  isClientFreelancerSchemaMissingError,
+} from "./client-freelancer-payout";
 import type { FreelancerRecord } from "./types";
 import { createClient } from "@/lib/supabase/server";
 
@@ -19,7 +23,192 @@ export function isFreelancerSchemaMissingError(message: string): boolean {
 export const PHASE14_MIGRATION_HINT =
   "Phase-14-Migration fehlt. Bitte `supabase db push` ausführen oder die Migration 20250619120000_phase14_finance_center.sql anwenden.";
 
-function computeFreelancerStats(
+interface FreelancerProfileRow {
+  id: string;
+  email: string;
+  full_name: string | null;
+  commission_rate: number;
+  created_at: string;
+  updated_at: string;
+}
+
+interface FreelancerClientAggregate {
+  total_earned_cents: number;
+  total_paid_out_cents: number;
+  outstanding_cents: number;
+  assigned_project_names: string[];
+  last_payout_at: string | null;
+}
+
+const EMPTY_AGGREGATE: FreelancerClientAggregate = {
+  total_earned_cents: 0,
+  total_paid_out_cents: 0,
+  outstanding_cents: 0,
+  assigned_project_names: [],
+  last_payout_at: null,
+};
+
+function formatFreelancerDisplayName(profile: {
+  full_name: string | null;
+  email: string;
+}): string {
+  return profile.full_name?.trim() || profile.email.split("@")[0];
+}
+
+function mapProfileToFreelancerRecord(
+  profile: FreelancerProfileRow,
+  aggregate: FreelancerClientAggregate,
+): FreelancerRecord {
+  return {
+    id: profile.id,
+    name: formatFreelancerDisplayName(profile),
+    company_name: null,
+    contact_person: null,
+    email: profile.email,
+    phone: null,
+    street: null,
+    postal_code: null,
+    city: null,
+    country: null,
+    tax_number: null,
+    vat_id: null,
+    iban: null,
+    bic: null,
+    default_commission_rate: Number(profile.commission_rate ?? 0),
+    is_active: true,
+    last_payout_at: aggregate.last_payout_at,
+    created_at: profile.created_at,
+    updated_at: profile.updated_at,
+    total_earned_cents: aggregate.total_earned_cents,
+    total_paid_out_cents: aggregate.total_paid_out_cents,
+    outstanding_cents: aggregate.outstanding_cents,
+    assigned_project_count: aggregate.assigned_project_names.length,
+    assigned_project_names: aggregate.assigned_project_names,
+  };
+}
+
+async function fetchActiveFreelancerProfiles(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+): Promise<FreelancerProfileRow[]> {
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("id, email, full_name, commission_rate, created_at, updated_at")
+    .eq("role", "freelancer")
+    .eq("status", "active")
+    .not("activated_at", "is", null)
+    .order("full_name");
+
+  if (error) throw new Error(error.message);
+  return (data ?? []) as FreelancerProfileRow[];
+}
+
+async function fetchFreelancerClientAggregatesByProfileId(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+): Promise<Map<string, FreelancerClientAggregate>> {
+  const aggregates = new Map<string, FreelancerClientAggregate>();
+
+  const clientsResult = await supabase
+    .from("clients")
+    .select(
+      "assigned_freelancer_id, company_name, freelancer_payout_cents, freelancer_paid_cents, freelancer_outstanding_cents",
+    )
+    .not("assigned_freelancer_id", "is", null);
+
+  if (clientsResult.error) {
+    if (isClientFreelancerSchemaMissingError(clientsResult.error.message)) {
+      return aggregates;
+    }
+    throw new Error(clientsResult.error.message);
+  }
+
+  for (const client of clientsResult.data ?? []) {
+    const freelancerId = client.assigned_freelancer_id as string;
+    const current = aggregates.get(freelancerId) ?? {
+      ...EMPTY_AGGREGATE,
+      assigned_project_names: [],
+    };
+
+    current.total_earned_cents += (client.freelancer_payout_cents as number) ?? 0;
+    current.total_paid_out_cents += (client.freelancer_paid_cents as number) ?? 0;
+    current.outstanding_cents += (client.freelancer_outstanding_cents as number) ?? 0;
+
+    const companyName = String(client.company_name ?? "").trim();
+    if (companyName) {
+      current.assigned_project_names.push(companyName);
+    }
+
+    aggregates.set(freelancerId, current);
+  }
+
+  const payoutsResult = await supabase
+    .from("client_freelancer_payouts")
+    .select("freelancer_id, paid_at")
+    .order("paid_at", { ascending: false });
+
+  if (payoutsResult.error) {
+    if (isClientFreelancerPayoutsSchemaMissingError(payoutsResult.error.message)) {
+      return aggregates;
+    }
+    throw new Error(payoutsResult.error.message);
+  }
+
+  for (const payout of payoutsResult.data ?? []) {
+    const freelancerId = payout.freelancer_id as string;
+    const current = aggregates.get(freelancerId);
+    if (!current || current.last_payout_at) continue;
+    current.last_payout_at = payout.paid_at as string;
+  }
+
+  return aggregates;
+}
+
+export async function fetchFreelancerFinanceTotals(): Promise<{
+  totalEarnedCents: number;
+  totalPaidOutCents: number;
+  openPayoutsCents: number;
+}> {
+  const profile = await getProfile();
+  if (!profile || !canAccessFinanceRoutes(profile)) {
+    throw new Error("Keine Berechtigung");
+  }
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("clients")
+    .select(
+      "freelancer_payout_cents, freelancer_paid_cents, freelancer_outstanding_cents",
+    )
+    .not("assigned_freelancer_id", "is", null);
+
+  if (error) {
+    if (isClientFreelancerSchemaMissingError(error.message)) {
+      return {
+        totalEarnedCents: 0,
+        totalPaidOutCents: 0,
+        openPayoutsCents: 0,
+      };
+    }
+    throw new Error(error.message);
+  }
+
+  let totalEarnedCents = 0;
+  let totalPaidOutCents = 0;
+  let openPayoutsCents = 0;
+
+  for (const client of data ?? []) {
+    totalEarnedCents += (client.freelancer_payout_cents as number) ?? 0;
+    totalPaidOutCents += (client.freelancer_paid_cents as number) ?? 0;
+    openPayoutsCents += (client.freelancer_outstanding_cents as number) ?? 0;
+  }
+
+  return {
+    totalEarnedCents,
+    totalPaidOutCents,
+    openPayoutsCents,
+  };
+}
+
+function computeVendorFreelancerStats(
   invoices: { status: string; total_amount_cents: number }[],
   payouts: { status: string; amount_cents: number }[],
 ): {
@@ -52,9 +241,13 @@ function computeFreelancerStats(
     }
   }
 
-  outstanding = Math.max(0, outstanding - payouts
-    .filter((p) => p.status === "ausgezahlt")
-    .reduce((sum, p) => sum + p.amount_cents, 0));
+  outstanding = Math.max(
+    0,
+    outstanding -
+      payouts
+        .filter((p) => p.status === "ausgezahlt")
+        .reduce((sum, p) => sum + p.amount_cents, 0),
+  );
 
   return {
     total_earned_cents: totalEarned,
@@ -63,9 +256,9 @@ function computeFreelancerStats(
   };
 }
 
-function mapFreelancerRow(
+function mapVendorFreelancerRow(
   row: Record<string, unknown>,
-  stats: ReturnType<typeof computeFreelancerStats>,
+  stats: ReturnType<typeof computeVendorFreelancerStats>,
 ): FreelancerRecord {
   return {
     id: row.id as string,
@@ -88,77 +281,15 @@ function mapFreelancerRow(
     created_at: row.created_at as string,
     updated_at: row.updated_at as string,
     ...stats,
+    assigned_project_count: 0,
+    assigned_project_names: [],
   };
 }
 
-export async function getAllFreelancers(): Promise<FreelancerRecord[]> {
-  const profile = await getProfile();
-  if (!profile || !canAccessFinanceRoutes(profile)) {
-    throw new Error("Keine Berechtigung");
-  }
-
-  const supabase = await createClient();
-  const { data: freelancers, error } = await supabase
-    .from("freelancers")
-    .select("*")
-    .order("name");
-
-  if (error) {
-    if (isFreelancerSchemaMissingError(error.message)) return [];
-    throw new Error(error.message);
-  }
-
-  const ids = (freelancers ?? []).map((f) => f.id as string);
-  if (ids.length === 0) return [];
-
-  const [invoicesResult, payoutsResult] = await Promise.all([
-    supabase
-      .from("freelancer_invoices")
-      .select("freelancer_id, status, total_amount_cents")
-      .in("freelancer_id", ids),
-    supabase
-      .from("freelancer_payouts")
-      .select("freelancer_id, status, amount_cents")
-      .in("freelancer_id", ids),
-  ]);
-
-  const invoicesByFreelancer = new Map<string, { status: string; total_amount_cents: number }[]>();
-  for (const inv of invoicesResult.data ?? []) {
-    const list = invoicesByFreelancer.get(inv.freelancer_id as string) ?? [];
-    list.push({
-      status: inv.status as string,
-      total_amount_cents: inv.total_amount_cents as number,
-    });
-    invoicesByFreelancer.set(inv.freelancer_id as string, list);
-  }
-
-  const payoutsByFreelancer = new Map<string, { status: string; amount_cents: number }[]>();
-  for (const payout of payoutsResult.data ?? []) {
-    const list = payoutsByFreelancer.get(payout.freelancer_id as string) ?? [];
-    list.push({
-      status: payout.status as string,
-      amount_cents: payout.amount_cents as number,
-    });
-    payoutsByFreelancer.set(payout.freelancer_id as string, list);
-  }
-
-  return (freelancers ?? []).map((row) => {
-    const id = row.id as string;
-    const stats = computeFreelancerStats(
-      invoicesByFreelancer.get(id) ?? [],
-      payoutsByFreelancer.get(id) ?? [],
-    );
-    return mapFreelancerRow(row, stats);
-  });
-}
-
-export async function getFreelancerById(
+async function getVendorFreelancerById(
+  supabase: Awaited<ReturnType<typeof createClient>>,
   id: string,
 ): Promise<FreelancerRecord | null> {
-  const profile = await getProfile();
-  if (!profile || !canAccessFinanceRoutes(profile)) return null;
-
-  const supabase = await createClient();
   const { data, error } = await supabase
     .from("freelancers")
     .select("*")
@@ -182,7 +313,7 @@ export async function getFreelancerById(
       .eq("freelancer_id", id),
   ]);
 
-  const stats = computeFreelancerStats(
+  const stats = computeVendorFreelancerStats(
     (invoicesResult.data ?? []).map((inv) => ({
       status: inv.status as string,
       total_amount_cents: inv.total_amount_cents as number,
@@ -193,5 +324,54 @@ export async function getFreelancerById(
     })),
   );
 
-  return mapFreelancerRow(data, stats);
+  return mapVendorFreelancerRow(data, stats);
+}
+
+export async function getAllFreelancers(): Promise<FreelancerRecord[]> {
+  const profile = await getProfile();
+  if (!profile || !canAccessFinanceRoutes(profile)) {
+    throw new Error("Keine Berechtigung");
+  }
+
+  const supabase = await createClient();
+  const [freelancerProfiles, aggregatesByProfileId] = await Promise.all([
+    fetchActiveFreelancerProfiles(supabase),
+    fetchFreelancerClientAggregatesByProfileId(supabase),
+  ]);
+
+  return freelancerProfiles.map((freelancerProfile) =>
+    mapProfileToFreelancerRecord(
+      freelancerProfile,
+      aggregatesByProfileId.get(freelancerProfile.id) ?? EMPTY_AGGREGATE,
+    ),
+  );
+}
+
+export async function getFreelancerById(
+  id: string,
+): Promise<FreelancerRecord | null> {
+  const profile = await getProfile();
+  if (!profile || !canAccessFinanceRoutes(profile)) return null;
+
+  const supabase = await createClient();
+  const { data: freelancerProfile, error } = await supabase
+    .from("profiles")
+    .select("id, email, full_name, commission_rate, created_at, updated_at")
+    .eq("id", id)
+    .eq("role", "freelancer")
+    .maybeSingle();
+
+  if (error) throw new Error(error.message);
+
+  if (freelancerProfile) {
+    const aggregatesByProfileId =
+      await fetchFreelancerClientAggregatesByProfileId(supabase);
+
+    return mapProfileToFreelancerRecord(
+      freelancerProfile as FreelancerProfileRow,
+      aggregatesByProfileId.get(id) ?? EMPTY_AGGREGATE,
+    );
+  }
+
+  return getVendorFreelancerById(supabase, id);
 }

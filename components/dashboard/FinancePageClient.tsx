@@ -71,19 +71,13 @@ export function FinancePageClient({
           trend="Summe aller Projekt-Freelancer-Auszahlungen"
         />
         <KpiCard
-          label="Agenturgewinn gesamt"
-          value={formatCents(stats.agencyProfitAfterFreelancerPayoutsCents)}
-          icon={TrendingUp}
-          trend="Umsatz − Freelancer − Provisionen − Agenturkosten"
-        />
-        <KpiCard
           label="Agenturanteil Freelancer-Projekte"
           value={formatCents(stats.freelancerProjectAgencyShareCents)}
           icon={TrendingUp}
           trend="Setup − Freelancer-Auszahlung (zugewiesene Projekte)"
         />
         <KpiCard
-          label="Noch offene Freelancer-Kosten"
+          label="Offene Freelancer-Kosten"
           value={formatCents(stats.outstandingClientFreelancerPayoutsCents)}
           icon={Briefcase}
           trend="Fällig nach bezahlter Setup-Rechnung"

@@ -119,6 +119,8 @@ export interface FreelancerRecord {
   total_earned_cents: number;
   total_paid_out_cents: number;
   outstanding_cents: number;
+  assigned_project_count: number;
+  assigned_project_names: string[];
 }
 
 export interface FreelancerInvoiceRecord {
@@ -343,6 +345,7 @@ export interface ClientRecord {
   currency: string;
   created_at: string;
   responsible_member_name: string | null;
+  is_archived: boolean;
 }
 
 export interface ClientDetailRecord extends ClientRecord {

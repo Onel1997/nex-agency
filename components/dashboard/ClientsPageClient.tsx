@@ -2,16 +2,26 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { Pencil, Users } from "lucide-react";
-import { updateClient } from "@/app/dashboard/clients/actions";
+import { Archive, Pencil, Trash2, Users } from "lucide-react";
+import {
+  archiveClient,
+  deleteClient,
+  updateClient,
+} from "@/app/dashboard/clients/actions";
+import { ConfirmDialog } from "./ConfirmDialog";
 import { DashboardHeader } from "./DashboardHeader";
 import { DataTable } from "./DataTable";
 import { EmptyState } from "./EmptyState";
 import { ClientModal } from "./ClientModal";
+import { Toast } from "./Toast";
 import type { ClientFormData } from "./ClientForm";
 import { formatCents, formatDate } from "@/lib/dashboard/format";
 import type { Profile } from "@/lib/auth/types";
-import { canEditClientRevenue } from "@/lib/auth/permissions";
+import {
+  canEditClientRevenue,
+  isManagement,
+  isSuperAdmin,
+} from "@/lib/auth/permissions";
 import type { ClientRecord, TeamMember } from "@/lib/dashboard/types";
 
 interface ClientsPageClientProps {
@@ -29,6 +39,19 @@ export function ClientsPageClient({
 }: ClientsPageClientProps) {
   const router = useRouter();
   const [editClient, setEditClient] = useState<ClientRecord | null>(null);
+  const [archiveTarget, setArchiveTarget] = useState<ClientRecord | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<ClientRecord | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const canManageClients = isManagement(profile);
+  const canDeleteClients = isSuperAdmin(profile);
+  const showActionsColumn = clients.some(
+    (client) =>
+      canEditClientRevenue(profile, client.responsible_member_id) ||
+      canManageClients ||
+      canDeleteClients,
+  );
 
   const refresh = () => router.refresh();
 
@@ -39,12 +62,50 @@ export function ClientsPageClient({
     refresh();
   };
 
+  const handleArchiveConfirm = async () => {
+    if (!archiveTarget) return;
+
+    setError(null);
+    try {
+      await archiveClient(archiveTarget.id);
+      setArchiveTarget(null);
+      setToast(`${archiveTarget.company_name} wurde archiviert`);
+      refresh();
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Kunde konnte nicht archiviert werden",
+      );
+    }
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!deleteTarget) return;
+
+    setError(null);
+    try {
+      await deleteClient(deleteTarget.id);
+      setDeleteTarget(null);
+      setToast(`${deleteTarget.company_name} wurde endgültig gelöscht`);
+      refresh();
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Kunde konnte nicht gelöscht werden",
+      );
+    }
+  };
+
   return (
     <div className="space-y-6">
       <DashboardHeader
         title="Kunden"
         description="Automatisch erstellt bei Lead-Konversion. Verantwortlichkeit und Lead-Schätzungen pflegen."
       />
+
+      {error ? (
+        <div className="rounded-xl bg-red-500/10 px-4 py-3 text-sm text-red-300 ring-1 ring-red-500/20">
+          {error}
+        </div>
+      ) : null}
 
       <DataTable
         data={clients}
@@ -57,7 +118,7 @@ export function ClientsPageClient({
           <EmptyState
             icon={Users}
             title="Noch keine Kunden"
-            description="Setze den Lead-Status auf „Kunde“, um hier einen Kundendatensatz zu erzeugen."
+            description="Setze den Lead-Status auf „Gewonnen“ und wandle den Lead in einen Kunden um."
           />
         }
         columns={[
@@ -109,30 +170,66 @@ export function ClientsPageClient({
             hideOnMobile: true,
             render: (client) => formatDate(client.created_at),
           },
-          ...(clients.some((client) =>
-            canEditClientRevenue(profile, client.responsible_member_id),
-          )
+          ...(showActionsColumn
             ? [
                 {
                   key: "actions",
                   header: "Aktionen",
-                  className: "w-[80px]",
-                  render: (client: ClientRecord) =>
-                    canEditClientRevenue(profile, client.responsible_member_id) ? (
-                      <button
-                        type="button"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          setEditClient(client);
-                        }}
-                        className="dashboard-icon-btn rounded-lg p-2 text-muted hover:text-foreground"
-                        aria-label={`${client.company_name} bearbeiten`}
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </button>
-                    ) : (
-                      <span className="text-xs text-muted-soft">—</span>
-                    ),
+                  className: "w-[120px]",
+                  render: (client: ClientRecord) => {
+                    const canEdit = canEditClientRevenue(
+                      profile,
+                      client.responsible_member_id,
+                    );
+
+                    if (!canEdit && !canManageClients && !canDeleteClients) {
+                      return <span className="text-xs text-muted-soft">—</span>;
+                    }
+
+                    return (
+                      <div className="flex items-center gap-1">
+                        {canEdit ? (
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              setEditClient(client);
+                            }}
+                            className="dashboard-icon-btn rounded-lg p-2 text-muted hover:text-foreground"
+                            aria-label={`${client.company_name} bearbeiten`}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </button>
+                        ) : null}
+                        {canManageClients ? (
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              setArchiveTarget(client);
+                            }}
+                            className="dashboard-icon-btn rounded-lg p-2 text-muted hover:text-foreground"
+                            aria-label={`${client.company_name} archivieren`}
+                          >
+                            <Archive className="h-4 w-4" />
+                          </button>
+                        ) : null}
+                        {canDeleteClients ? (
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              setDeleteTarget(client);
+                            }}
+                            className="dashboard-icon-btn rounded-lg p-2 text-muted hover:text-red-300"
+                            aria-label={`${client.company_name} löschen`}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        ) : null}
+                      </div>
+                    );
+                  },
                 },
               ]
             : []),
@@ -150,6 +247,66 @@ export function ClientsPageClient({
           teamMembers={teamMembers}
         />
       )}
+
+      <ConfirmDialog
+        open={Boolean(archiveTarget)}
+        onClose={() => setArchiveTarget(null)}
+        title="Kunde archivieren"
+        description="Der Kunde wird aus der aktiven Kundenliste entfernt, bleibt aber für Rechnungen, Verträge und Finanzberichte erhalten."
+        confirmLabel="Archivieren"
+        onConfirm={handleArchiveConfirm}
+      >
+        {archiveTarget ? (
+          <dl className="space-y-2 rounded-xl bg-surface/50 px-4 py-3 text-sm ring-1 ring-border">
+            <div>
+              <dt className="text-muted-soft">Firma</dt>
+              <dd className="font-medium text-foreground">{archiveTarget.company_name}</dd>
+            </div>
+            <div>
+              <dt className="text-muted-soft">Ansprechpartner</dt>
+              <dd className="text-foreground">{archiveTarget.contact_name || "—"}</dd>
+            </div>
+          </dl>
+        ) : null}
+      </ConfirmDialog>
+
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        onClose={() => setDeleteTarget(null)}
+        title="Kunde endgültig löschen"
+        description="Diese Aktion kann nicht rückgängig gemacht werden."
+        confirmLabel="Kunde löschen"
+        variant="danger"
+        onConfirm={handleDeleteConfirm}
+      >
+        {deleteTarget ? (
+          <div className="space-y-4">
+            <dl className="space-y-2 rounded-xl bg-surface/50 px-4 py-3 text-sm ring-1 ring-border">
+              <div>
+                <dt className="text-muted-soft">Firma</dt>
+                <dd className="font-medium text-foreground">{deleteTarget.company_name}</dd>
+              </div>
+              <div>
+                <dt className="text-muted-soft">Ansprechpartner</dt>
+                <dd className="text-foreground">{deleteTarget.contact_name || "—"}</dd>
+              </div>
+            </dl>
+            <div className="rounded-xl bg-red-500/10 px-4 py-3 text-sm text-red-200 ring-1 ring-red-500/20">
+              <p className="font-medium">Folgende Daten werden ebenfalls entfernt:</p>
+              <ul className="mt-2 list-disc space-y-1 pl-5 text-red-200/90">
+                <li>Verträge</li>
+                <li>Rechnungen</li>
+                <li>Retainer-Perioden</li>
+                <li>Freelancer-Zuweisungen</li>
+                <li>Provisionen</li>
+                <li>Finanzdaten</li>
+              </ul>
+            </div>
+          </div>
+        ) : null}
+      </ConfirmDialog>
+
+      <Toast message={toast} onDismiss={() => setToast(null)} />
     </div>
   );
 }

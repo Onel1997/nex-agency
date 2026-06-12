@@ -8,8 +8,8 @@ export default async function FreelancersPage() {
   let freelancers: FreelancerRecord[] = [];
   let stats: FreelancerDashboardStats = {
     totalFreelancers: 0,
-    openFreelancerInvoicesCents: 0,
-    paidFreelancerInvoicesCents: 0,
+    totalEarnedCents: 0,
+    totalPaidOutCents: 0,
     openPayoutsCents: 0,
   };
   let error: string | null = null;

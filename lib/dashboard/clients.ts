@@ -19,7 +19,19 @@ function formatMemberName(
   return member.full_name?.trim() || member.email.split("@")[0];
 }
 
-const CLIENT_SELECT = `
+export function isClientArchiveSchemaMissingError(message: string): boolean {
+  const normalized = message.toLowerCase();
+  return (
+    normalized.includes("is_archived") ||
+    (normalized.includes("column") && normalized.includes("archived"))
+  );
+}
+
+export const CLIENT_ARCHIVE_MIGRATION_HINT =
+  "Migration 20250622120000_client_archive.sql fehlt. Bitte `supabase db push` ausführen.";
+
+/** Scalar client columns only — no embeds. */
+const CLIENT_SCALAR_FIELDS = `
   id,
   lead_id,
   company_name,
@@ -33,12 +45,15 @@ const CLIENT_SELECT = `
   monthly_retainer_cents,
   one_time_project_value_cents,
   currency,
-  created_at,
+  created_at
+`;
+
+/** Embeds must be last in PostgREST select strings. */
+const CLIENT_LIST_EMBEDS = `
   responsible_member:profiles!clients_responsible_member_id_fkey(full_name, email)
 `;
 
-const CLIENT_DETAIL_SELECT_WITHOUT_CONTRACT_STATUS = `
-  ${CLIENT_SELECT},
+const CLIENT_DETAIL_SCALAR_FIELDS = `
   monthly_revenue_cents,
   setup_fee_cents,
   contract_start_date,
@@ -57,12 +72,77 @@ const CLIENT_DETAIL_SELECT_WITHOUT_CONTRACT_STATUS = `
   freelancer_paid_cents,
   freelancer_outstanding_cents,
   freelancer_payout_status,
+  contract_status
+`;
+
+const CLIENT_DETAIL_EMBEDS = `
   assigned_freelancer:profiles!clients_assigned_freelancer_id_fkey(full_name, email)
+`;
+
+const CLIENT_SELECT_WITH_ARCHIVE = `
+  ${CLIENT_SCALAR_FIELDS},
+  is_archived,
+  ${CLIENT_LIST_EMBEDS}
+`;
+
+const CLIENT_SELECT = `
+  ${CLIENT_SCALAR_FIELDS},
+  ${CLIENT_LIST_EMBEDS}
+`;
+
+const CLIENT_DETAIL_SELECT_WITH_ARCHIVE = `
+  ${CLIENT_SCALAR_FIELDS},
+  is_archived,
+  ${CLIENT_DETAIL_SCALAR_FIELDS},
+  ${CLIENT_LIST_EMBEDS},
+  ${CLIENT_DETAIL_EMBEDS}
+`;
+
+const CLIENT_DETAIL_SELECT_WITHOUT_CONTRACT_STATUS_WITH_ARCHIVE = `
+  ${CLIENT_SCALAR_FIELDS},
+  is_archived,
+  ${CLIENT_DETAIL_SCALAR_FIELDS.replace(",\n  contract_status", "")},
+  ${CLIENT_LIST_EMBEDS},
+  ${CLIENT_DETAIL_EMBEDS}
+`;
+
+const CLIENT_DETAIL_SELECT = `
+  ${CLIENT_SCALAR_FIELDS},
+  ${CLIENT_DETAIL_SCALAR_FIELDS},
+  ${CLIENT_LIST_EMBEDS},
+  ${CLIENT_DETAIL_EMBEDS}
+`;
+
+const CLIENT_DETAIL_SELECT_WITHOUT_CONTRACT_STATUS = `
+  ${CLIENT_SCALAR_FIELDS},
+  ${CLIENT_DETAIL_SCALAR_FIELDS.replace(",\n  contract_status", "")},
+  ${CLIENT_LIST_EMBEDS},
+  ${CLIENT_DETAIL_EMBEDS}
+`;
+
+const CLIENT_DETAIL_MINIMAL_SELECT_WITH_ARCHIVE = `
+  ${CLIENT_SCALAR_FIELDS},
+  is_archived,
+  monthly_revenue_cents,
+  setup_fee_cents,
+  total_revenue_cents,
+  commission_status,
+  ${CLIENT_LIST_EMBEDS}
+`;
+
+const CLIENT_DETAIL_MINIMAL_SELECT = `
+  ${CLIENT_SCALAR_FIELDS},
+  monthly_revenue_cents,
+  setup_fee_cents,
+  total_revenue_cents,
+  commission_status,
+  ${CLIENT_LIST_EMBEDS}
 `;
 
 function isClientDetailSchemaMissingError(message: string): boolean {
   const normalized = message.toLowerCase();
   return (
+    isClientArchiveSchemaMissingError(message) ||
     isContractStatusSchemaMissingError(message) ||
     normalized.includes("commission_total_cents") ||
     normalized.includes("contract_start_date") ||
@@ -70,12 +150,11 @@ function isClientDetailSchemaMissingError(message: string): boolean {
     isClientFreelancerSchemaMissingError(message)
   );
 }
-const CLIENT_DETAIL_SELECT = `
-  ${CLIENT_DETAIL_SELECT_WITHOUT_CONTRACT_STATUS},
-  contract_status
-`;
 
-function mapClientRow(row: Record<string, unknown>): ClientRecord {
+function mapClientRow(
+  row: Record<string, unknown>,
+  archiveSupported: boolean,
+): ClientRecord {
   const responsibleMember = Array.isArray(row.responsible_member)
     ? row.responsible_member[0]
     : row.responsible_member;
@@ -100,47 +179,111 @@ function mapClientRow(row: Record<string, unknown>): ClientRecord {
     responsible_member_name: formatMemberName(
       responsibleMember as { full_name: string | null; email: string } | null,
     ),
+    is_archived: archiveSupported ? Boolean(row.is_archived) : false,
+  };
+}
+
+async function queryClients(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  options: {
+    selectWithArchive: string;
+    selectWithoutArchive: string;
+    id?: string;
+    activeOnly?: boolean;
+    limit?: number;
+  },
+): Promise<{ rows: Record<string, unknown>[]; archiveSupported: boolean }> {
+  const runQuery = (
+    select: string,
+    filterArchived: boolean,
+  ) => {
+    let query = supabase.from("clients").select(select);
+
+    if (options.id) {
+      query = query.eq("id", options.id);
+    }
+
+    if (filterArchived) {
+      query = query.eq("is_archived", false);
+    }
+
+    query = query.order("created_at", { ascending: false });
+
+    if (options.limit) {
+      query = query.limit(options.limit);
+    }
+
+    return options.id ? query.maybeSingle() : query;
+  };
+
+  let archiveSupported = true;
+  let result = await runQuery(
+    options.selectWithArchive,
+    Boolean(options.activeOnly),
+  );
+
+  if (result.error && isClientArchiveSchemaMissingError(result.error.message)) {
+    archiveSupported = false;
+    result = await runQuery(
+      options.selectWithoutArchive,
+      false,
+    );
+  }
+
+  if (result.error) throw new Error(result.error.message);
+
+  if (options.id) {
+    const row = result.data as Record<string, unknown> | null;
+    return { rows: row ? [row] : [], archiveSupported };
+  }
+
+  return {
+    rows: (result.data ?? []) as unknown as Record<string, unknown>[],
+    archiveSupported,
   };
 }
 
 export async function getClients(): Promise<ClientRecord[]> {
   const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("clients")
-    .select(CLIENT_SELECT)
-    .order("created_at", { ascending: false });
+  const { rows, archiveSupported } = await queryClients(supabase, {
+    selectWithArchive: CLIENT_SELECT_WITH_ARCHIVE,
+    selectWithoutArchive: CLIENT_SELECT,
+    activeOnly: true,
+  });
 
-  if (error) throw new Error(error.message);
-  return (data ?? []).map((row) => mapClientRow(row as Record<string, unknown>));
+  return rows.map((row) => mapClientRow(row, archiveSupported));
 }
 
 export async function getRecentClients(limit = 5): Promise<ClientRecord[]> {
   const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("clients")
-    .select(CLIENT_SELECT)
-    .order("created_at", { ascending: false })
-    .limit(limit);
+  const { rows, archiveSupported } = await queryClients(supabase, {
+    selectWithArchive: CLIENT_SELECT_WITH_ARCHIVE,
+    selectWithoutArchive: CLIENT_SELECT,
+    activeOnly: true,
+    limit,
+  });
 
-  if (error) throw new Error(error.message);
-  return (data ?? []).map((row) => mapClientRow(row as Record<string, unknown>));
+  return rows.map((row) => mapClientRow(row, archiveSupported));
 }
 
 export async function getClientById(id: string): Promise<ClientRecord | null> {
   const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("clients")
-    .select(CLIENT_SELECT)
-    .eq("id", id)
-    .maybeSingle();
+  const { rows, archiveSupported } = await queryClients(supabase, {
+    selectWithArchive: CLIENT_SELECT_WITH_ARCHIVE,
+    selectWithoutArchive: CLIENT_SELECT,
+    id,
+  });
 
-  if (error) throw new Error(error.message);
-  if (!data) return null;
-  return mapClientRow(data as Record<string, unknown>);
+  const row = rows[0];
+  if (!row) return null;
+  return mapClientRow(row, archiveSupported);
 }
 
-function mapClientDetailRow(row: Record<string, unknown>): ClientDetailRecord {
-  const base = mapClientRow(row);
+function mapClientDetailRow(
+  row: Record<string, unknown>,
+  archiveSupported: boolean,
+): ClientDetailRecord {
+  const base = mapClientRow(row, archiveSupported);
   const freelancerFields = resolveFreelancerPayoutFields({
     freelancerPayoutCents: (row.freelancer_payout_cents as number) ?? 0,
     freelancerPaidCents: (row.freelancer_paid_cents as number) ?? 0,
@@ -186,42 +329,75 @@ function mapClientDetailRow(row: Record<string, unknown>): ClientDetailRecord {
   };
 }
 
+async function queryClientDetailById(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  id: string,
+  selectWithArchive: string,
+  selectWithoutArchive: string,
+): Promise<{
+  row: Record<string, unknown> | null;
+  archiveSupported: boolean;
+  error: string | null;
+}> {
+  let archiveSupported = true;
+  let { data, error } = await supabase
+    .from("clients")
+    .select(selectWithArchive)
+    .eq("id", id)
+    .maybeSingle();
+
+  if (error && isClientArchiveSchemaMissingError(error.message)) {
+    archiveSupported = false;
+    ({ data, error } = await supabase
+      .from("clients")
+      .select(selectWithoutArchive)
+      .eq("id", id)
+      .maybeSingle());
+  }
+
+  if (error) {
+    return { row: null, archiveSupported, error: error.message };
+  }
+
+  return {
+    row: (data as Record<string, unknown> | null) ?? null,
+    archiveSupported,
+    error: null,
+  };
+}
+
 export async function getClientDetailById(
   id: string,
 ): Promise<ClientDetailRecord | null> {
   const supabase = await createClient();
 
-  let { data, error } = await supabase
-    .from("clients")
-    .select(CLIENT_DETAIL_SELECT)
-    .eq("id", id)
-    .maybeSingle();
+  let result = await queryClientDetailById(
+    supabase,
+    id,
+    CLIENT_DETAIL_SELECT_WITH_ARCHIVE,
+    CLIENT_DETAIL_SELECT,
+  );
 
-  if (error && isContractStatusSchemaMissingError(error.message)) {
-    ({ data, error } = await supabase
-      .from("clients")
-      .select(CLIENT_DETAIL_SELECT_WITHOUT_CONTRACT_STATUS)
-      .eq("id", id)
-      .maybeSingle());
+  if (result.error && isContractStatusSchemaMissingError(result.error)) {
+    result = await queryClientDetailById(
+      supabase,
+      id,
+      CLIENT_DETAIL_SELECT_WITHOUT_CONTRACT_STATUS_WITH_ARCHIVE,
+      CLIENT_DETAIL_SELECT_WITHOUT_CONTRACT_STATUS,
+    );
   }
 
-  if (error && isClientDetailSchemaMissingError(error.message)) {
-    ({ data, error } = await supabase
-      .from("clients")
-      .select(
-        `
-        ${CLIENT_SELECT},
-        monthly_revenue_cents,
-        setup_fee_cents,
-        total_revenue_cents,
-        commission_status
-      `,
-      )
-      .eq("id", id)
-      .maybeSingle());
+  if (result.error && isClientDetailSchemaMissingError(result.error)) {
+    result = await queryClientDetailById(
+      supabase,
+      id,
+      CLIENT_DETAIL_MINIMAL_SELECT_WITH_ARCHIVE,
+      CLIENT_DETAIL_MINIMAL_SELECT,
+    );
   }
 
-  if (error) throw new Error(error.message);
-  if (!data) return null;
-  return mapClientDetailRow(data as Record<string, unknown>);
+  if (result.error) throw new Error(result.error);
+  if (!result.row) return null;
+
+  return mapClientDetailRow(result.row, result.archiveSupported);
 }

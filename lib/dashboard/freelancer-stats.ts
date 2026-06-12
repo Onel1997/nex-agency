@@ -1,19 +1,14 @@
 import { canAccessFinanceRoutes } from "@/lib/auth/permissions";
 import { getProfile } from "@/lib/auth/session";
 import {
-  computeFreelancerInvoiceStats,
-  getAllFreelancerInvoices,
-} from "./freelancer-invoices";
-import {
-  computeOpenPayoutsCents,
-  getAllFreelancerPayouts,
-} from "./freelancer-payouts";
-import { getAllFreelancers } from "./freelancers";
+  fetchFreelancerFinanceTotals,
+  getAllFreelancers,
+} from "./freelancers";
 
 export interface FreelancerDashboardStats {
   totalFreelancers: number;
-  openFreelancerInvoicesCents: number;
-  paidFreelancerInvoicesCents: number;
+  totalEarnedCents: number;
+  totalPaidOutCents: number;
   openPayoutsCents: number;
 }
 
@@ -23,18 +18,15 @@ export async function getFreelancerDashboardStats(): Promise<FreelancerDashboard
     throw new Error("Keine Berechtigung");
   }
 
-  const [freelancers, invoices, payouts] = await Promise.all([
+  const [freelancers, totals] = await Promise.all([
     getAllFreelancers(),
-    getAllFreelancerInvoices(),
-    getAllFreelancerPayouts(),
+    fetchFreelancerFinanceTotals(),
   ]);
-
-  const invoiceStats = computeFreelancerInvoiceStats(invoices);
 
   return {
     totalFreelancers: freelancers.length,
-    openFreelancerInvoicesCents: invoiceStats.openFreelancerInvoicesCents,
-    paidFreelancerInvoicesCents: invoiceStats.paidFreelancerInvoicesCents,
-    openPayoutsCents: computeOpenPayoutsCents(payouts),
+    totalEarnedCents: totals.totalEarnedCents,
+    totalPaidOutCents: totals.totalPaidOutCents,
+    openPayoutsCents: totals.openPayoutsCents,
   };
 }

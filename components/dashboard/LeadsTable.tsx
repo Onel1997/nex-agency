@@ -16,7 +16,7 @@ interface LeadsTableProps {
   leads: Lead[];
   showOwnership?: boolean;
   onEdit: (lead: Lead) => void;
-  onDelete: (id: string) => void;
+  onDelete: (lead: Lead) => void;
   onStatusChange: (id: string, status: LeadStatus) => void;
   onConvert: (leadId: string) => Promise<void>;
 }
@@ -161,7 +161,7 @@ export function LeadsTable({
               </button>
               <button
                 type="button"
-                onClick={() => onDelete(lead.id)}
+                onClick={() => onDelete(lead)}
                 className="dashboard-icon-btn rounded-lg p-2 text-muted hover:text-red-300"
                 aria-label="Löschen"
               >

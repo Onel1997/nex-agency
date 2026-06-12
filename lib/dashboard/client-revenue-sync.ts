@@ -1,5 +1,9 @@
-import { syncCommissionAmounts } from "./commission";
-import { isCommissionSchemaMissingError } from "./commission";
+import { syncCommissionAmounts, isCommissionSchemaMissingError } from "./commission";
+import {
+  isClientFreelancerSchemaMissingError,
+  isClientSetupInvoicePaid,
+  syncFreelancerPayoutAmounts,
+} from "./client-freelancer-payout";
 import { isContractStatusSchemaMissingError } from "./contract-status";
 import { isRetainerSchemaMissingError } from "./retainer-data";
 import { resolveInvoiceType } from "./invoice-type";
@@ -139,6 +143,10 @@ async function fetchClientForCommissionSync(
       commission_status,
       commission_total_cents,
       commission_paid_cents,
+      assigned_freelancer_id,
+      freelancer_commission_rate,
+      freelancer_payout_cents,
+      freelancer_paid_cents,
       responsible_member:profiles!clients_responsible_member_id_fkey(commission_rate)
     `,
     )
@@ -236,7 +244,7 @@ export async function syncClientTotalRevenue(
   const commissionRate =
     (member as { commission_rate: number } | null)?.commission_rate ?? 0;
 
-  const retainerInvoices = (
+  const clientInvoices = (
     await supabase
       .from("invoices")
       .select(
@@ -245,6 +253,9 @@ export async function syncClientTotalRevenue(
       .eq("client_id", clientId)
       .neq("status", "cancelled")
   ).data ?? [];
+
+  const retainerInvoices = clientInvoices;
+  const isProjectPaid = isClientSetupInvoicePaid(clientInvoices);
 
   const retainerStats = buildRetainerStats({
     contract_start_date: (client.contract_start_date as string | null) ?? null,
@@ -283,6 +294,25 @@ export async function syncClientTotalRevenue(
       : 0,
   });
 
+  const hasFreelancerSchema = client.freelancer_payout_cents !== undefined;
+  const freelancerCommissionRate = hasFreelancerSchema
+    ? Number(client.freelancer_commission_rate ?? 0)
+    : 0;
+  const freelancerSync = syncFreelancerPayoutAmounts({
+    setupFeeCents: client.setup_fee_cents as number | null,
+    freelancerCommissionRate:
+      (client.assigned_freelancer_id as string | null) && freelancerCommissionRate > 0
+        ? freelancerCommissionRate
+        : 0,
+    isProjectPaid,
+    currentTotalCents: hasFreelancerSchema
+      ? ((client.freelancer_payout_cents as number) ?? 0)
+      : 0,
+    currentPaidCents: hasFreelancerSchema
+      ? ((client.freelancer_paid_cents as number) ?? 0)
+      : 0,
+  });
+
   const updatePayload: Record<string, unknown> = {
     total_revenue_cents: totalRevenueCents > 0 ? totalRevenueCents : null,
     commission_status: commissionSync.commission_status,
@@ -295,6 +325,14 @@ export async function syncClientTotalRevenue(
       commissionSync.commission_outstanding_cents;
   } else if (setupFeeCents <= 0) {
     updatePayload.commission_status = "none";
+  }
+
+  if (hasFreelancerSchema) {
+    updatePayload.freelancer_payout_cents = freelancerSync.freelancer_payout_cents;
+    updatePayload.freelancer_paid_cents = freelancerSync.freelancer_paid_cents;
+    updatePayload.freelancer_outstanding_cents =
+      freelancerSync.freelancer_outstanding_cents;
+    updatePayload.freelancer_payout_status = freelancerSync.freelancer_payout_status;
   }
 
   const { error: updateError } = await supabase

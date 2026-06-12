@@ -37,8 +37,10 @@ import { updateClient } from "@/app/dashboard/clients/actions";
 import type { ClientFormData } from "@/components/dashboard/ClientForm";
 import { ClientModal } from "@/components/dashboard/ClientModal";
 import { ClientRevenueModal } from "@/components/dashboard/ClientRevenueModal";
+import { ClientFreelancerPayoutModal } from "@/components/dashboard/ClientFreelancerPayoutModal";
 import { CommissionPayoutModal } from "@/components/dashboard/CommissionPayoutModal";
 import { CommissionStatusBadge } from "@/components/dashboard/CommissionStatusBadge";
+import { ClientFreelancerPayoutStatusBadge } from "@/components/dashboard/ClientFreelancerPayoutStatusBadge";
 import { InvoiceStatusBadge } from "@/components/dashboard/InvoiceStatusBadge";
 import { InvoiceTable } from "@/components/dashboard/InvoiceTable";
 import { Toast } from "@/components/dashboard/Toast";
@@ -137,6 +139,8 @@ export function ClientDetailPageClient({
   const [editOpen, setEditOpen] = useState(false);
   const [contractModalOpen, setContractModalOpen] = useState(false);
   const [payoutClient, setPayoutClient] = useState<ClientRevenueRecord | null>(null);
+  const [freelancerPayoutClient, setFreelancerPayoutClient] =
+    useState<ClientRevenueRecord | null>(null);
   const [, startTransition] = useTransition();
   const clientInvoices = filterInvoicesForClient(invoices, client.id);
   const activeContract = hasActiveContract(client);
@@ -246,6 +250,7 @@ export function ClientDetailPageClient({
             }
             setContractModalOpen(true);
           }}
+          onFreelancerPayout={(selected) => setFreelancerPayoutClient(selected)}
         />
       )}
       {activeTab === "invoices" && (
@@ -297,10 +302,12 @@ export function ClientDetailPageClient({
         <ClientRevenueModal
           client={revenue}
           invoices={clientInvoices}
+          teamMembers={teamMembers}
           open={contractModalOpen}
-          payoutOpen={Boolean(payoutClient)}
+          payoutOpen={Boolean(payoutClient || freelancerPayoutClient)}
           onClose={() => setContractModalOpen(false)}
           onRequestPayout={(selected) => setPayoutClient(selected)}
+          onRequestFreelancerPayout={(selected) => setFreelancerPayoutClient(selected)}
         />
       )}
 
@@ -308,6 +315,12 @@ export function ClientDetailPageClient({
         client={payoutClient}
         open={Boolean(payoutClient)}
         onClose={() => setPayoutClient(null)}
+      />
+
+      <ClientFreelancerPayoutModal
+        client={freelancerPayoutClient}
+        open={Boolean(freelancerPayoutClient)}
+        onClose={() => setFreelancerPayoutClient(null)}
       />
 
       <Toast message={toast} onDismiss={() => setToast(null)} />
@@ -915,16 +928,29 @@ function CommunicationTab({
   );
 }
 
+function hasFreelancerAssignment(
+  revenue: ClientRevenueRecord | null,
+  client: ClientDetailRecord,
+): boolean {
+  return Boolean(
+    revenue?.assigned_freelancer_id ||
+      client.assigned_freelancer_id ||
+      (revenue?.freelancer_commission_rate ?? client.freelancer_commission_rate) > 0,
+  );
+}
+
 function ContractsTab({
   client,
   revenue,
   canEdit,
   onEditContract,
+  onFreelancerPayout,
 }: {
   client: ClientDetailRecord;
   revenue: ClientRevenueRecord | null;
   canEdit: boolean;
   onEditContract: () => void;
+  onFreelancerPayout: (client: ClientRevenueRecord) => void;
 }) {
   const hasRetainer = resolveRetainerAmountCents(client) > 0;
   const contractStatus = revenue?.contract_status ?? client.contract_status ?? "draft";
@@ -992,6 +1018,70 @@ function ContractsTab({
           value={formatCents(client.commission_outstanding_cents)}
         />
       </dl>
+
+      {hasFreelancerAssignment(revenue, client) && (
+        <div className="mt-6 border-t border-border pt-6">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <h3 className="text-xs font-medium uppercase tracking-wider text-muted-soft">
+              Freelancer
+            </h3>
+            {canEdit && revenue && !revenue.is_project_paid && hasFreelancerAssignment(revenue, client) && (
+              <span className="text-xs text-amber-200/90">
+                Auszahlung erst nach bezahlter Setup-Rechnung möglich
+              </span>
+            )}
+            {canEdit && revenue && revenue.is_project_paid && revenue.freelancer_outstanding_cents > 0 && (
+              <button
+                type="button"
+                onClick={() => onFreelancerPayout(revenue)}
+                className="dashboard-btn-secondary inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm"
+              >
+                Freelancer auszahlen
+              </button>
+            )}
+          </div>
+          <dl className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <InfoItem
+              label="Zugewiesen"
+              value={
+                revenue?.assigned_freelancer_name ??
+                client.assigned_freelancer_name ??
+                "—"
+              }
+            />
+            <InfoItem
+              label="Anteil"
+              value={`${revenue?.freelancer_commission_rate ?? client.freelancer_commission_rate} %`}
+            />
+            <InfoItem label="Freelancer Status">
+              <ClientFreelancerPayoutStatusBadge
+                status={
+                  revenue?.freelancer_payout_status ?? client.freelancer_payout_status
+                }
+              />
+            </InfoItem>
+            <InfoItem
+              label="Freelancer Auszahlung"
+              value={formatCents(
+                revenue?.freelancer_payout_cents ?? client.freelancer_payout_cents,
+              )}
+            />
+            <InfoItem
+              label="Freelancer Offen"
+              value={formatCents(
+                revenue?.freelancer_outstanding_cents ??
+                  client.freelancer_outstanding_cents,
+              )}
+            />
+            <InfoItem
+              label="Agenturanteil"
+              value={formatCents(
+                revenue?.agency_share_cents ?? client.agency_share_cents,
+              )}
+            />
+          </dl>
+        </div>
+      )}
 
       {hasRetainer && (
         <div className="mt-6 border-t border-border pt-6">

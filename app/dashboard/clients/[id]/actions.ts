@@ -500,6 +500,14 @@ async function applyInvoicePaidSideEffects(
       invoice.billing_period_year as number,
       invoice.billing_period_month as number,
     );
+    return;
+  }
+
+  if (invoiceType === "setup") {
+    const { syncClientTotalRevenue } = await import(
+      "@/lib/dashboard/client-revenue-sync"
+    );
+    await syncClientTotalRevenue(supabase, clientId);
   }
 }
 

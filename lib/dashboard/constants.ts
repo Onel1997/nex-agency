@@ -181,6 +181,24 @@ export const FREELANCER_INVOICE_STATUS_LABELS: Record<
   paid: "Bezahlt",
 };
 
+export const CLIENT_FREELANCER_PAYOUT_STATUSES = [
+  "pending",
+  "partially_paid",
+  "paid",
+] as const;
+
+export type ClientFreelancerPayoutStatus =
+  (typeof CLIENT_FREELANCER_PAYOUT_STATUSES)[number];
+
+export const CLIENT_FREELANCER_PAYOUT_STATUS_LABELS: Record<
+  ClientFreelancerPayoutStatus,
+  string
+> = {
+  pending: "Ausstehend",
+  partially_paid: "Teilweise bezahlt",
+  paid: "Bezahlt",
+};
+
 export const FREELANCER_PAYOUT_STATUSES = ["offen", "ausgezahlt"] as const;
 
 export type FreelancerPayoutStatus =

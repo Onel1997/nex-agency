@@ -6,7 +6,11 @@ import {
   isCommissionPayoutsSchemaMissingError,
   isCommissionSchemaMissingError,
 } from "./commission";
-import type { CommissionPayoutRecord } from "./types";
+import { isClientFreelancerPayoutsSchemaMissingError } from "./client-freelancer-payout";
+import type {
+  ClientFreelancerPayoutRecord,
+  CommissionPayoutRecord,
+} from "./types";
 
 export function isRetainerSchemaMissingError(message: string) {
   const normalized = message.toLowerCase();
@@ -31,6 +35,22 @@ const CLIENT_COMMISSION_COLUMNS = `
   commission_outstanding_cents,
 `;
 
+const CLIENT_FREELANCER_COLUMNS = `
+  assigned_freelancer_id,
+  freelancer_commission_rate,
+  freelancer_payout_cents,
+  freelancer_paid_cents,
+  freelancer_outstanding_cents,
+  freelancer_payout_status,
+`;
+
+const CLIENT_FREELANCER_MEMBER_SELECT = `
+  assigned_freelancer:profiles!clients_assigned_freelancer_id_fkey(
+    full_name,
+    email
+  )
+`;
+
 export const CLIENT_REVENUE_SELECT_WITH_CONTRACT = `
   id,
   company_name,
@@ -44,8 +64,10 @@ export const CLIENT_REVENUE_SELECT_WITH_CONTRACT = `
   total_revenue_cents,
   commission_status,
   ${CLIENT_COMMISSION_COLUMNS}
+  ${CLIENT_FREELANCER_COLUMNS}
   currency,
-  ${CLIENT_REVENUE_MEMBER_SELECT}
+  ${CLIENT_REVENUE_MEMBER_SELECT},
+  ${CLIENT_FREELANCER_MEMBER_SELECT}
 `;
 
 export const CLIENT_REVENUE_SELECT_WITH_CONTRACT_NO_STATUS = `
@@ -60,8 +82,10 @@ export const CLIENT_REVENUE_SELECT_WITH_CONTRACT_NO_STATUS = `
   total_revenue_cents,
   commission_status,
   ${CLIENT_COMMISSION_COLUMNS}
+  ${CLIENT_FREELANCER_COLUMNS}
   currency,
-  ${CLIENT_REVENUE_MEMBER_SELECT}
+  ${CLIENT_REVENUE_MEMBER_SELECT},
+  ${CLIENT_FREELANCER_MEMBER_SELECT}
 `;
 
 export const CLIENT_REVENUE_SELECT_LEGACY = `
@@ -365,6 +389,53 @@ export function groupCommissionPayoutsByClient(
       id: payout.id,
       amount_cents: payout.amount_cents,
       payout_date: payout.payout_date,
+      created_at: payout.created_at,
+    });
+    payoutsByClient.set(clientId, current);
+  }
+
+  return payoutsByClient;
+}
+
+export async function fetchClientFreelancerPayouts(
+  supabase: SupabaseClient,
+): Promise<Array<ClientFreelancerPayoutRecord & { client_id: string }>> {
+  const { data, error } = await supabase
+    .from("client_freelancer_payouts")
+    .select("id, client_id, amount_cents, paid_at, created_at")
+    .order("paid_at", { ascending: false });
+
+  if (!error) {
+    return (data ?? []).map((payout) => ({
+      id: payout.id as string,
+      client_id: payout.client_id as string,
+      amount_cents: payout.amount_cents as number,
+      paid_at: payout.paid_at as string,
+      created_at: payout.created_at as string,
+    }));
+  }
+
+  if (isClientFreelancerPayoutsSchemaMissingError(error.message)) {
+    return [];
+  }
+
+  throw new Error(error.message);
+}
+
+export function groupClientFreelancerPayoutsByClient(
+  payouts: Array<ClientFreelancerPayoutRecord & { client_id?: string }>,
+) {
+  const payoutsByClient = new Map<string, ClientFreelancerPayoutRecord[]>();
+
+  for (const payout of payouts) {
+    const clientId = payout.client_id;
+    if (!clientId) continue;
+
+    const current = payoutsByClient.get(clientId) ?? [];
+    current.push({
+      id: payout.id,
+      amount_cents: payout.amount_cents,
+      paid_at: payout.paid_at,
       created_at: payout.created_at,
     });
     payoutsByClient.set(clientId, current);

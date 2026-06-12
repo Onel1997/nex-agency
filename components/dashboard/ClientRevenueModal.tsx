@@ -3,6 +3,8 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 import { updateClientContract } from "@/app/dashboard/clients/[id]/actions";
+import { CommissionStatusBadge } from "@/components/dashboard/CommissionStatusBadge";
+import { ClientFreelancerPayoutStatusBadge } from "@/components/dashboard/ClientFreelancerPayoutStatusBadge";
 import { Modal } from "@/components/dashboard/Modal";
 import {
   centsToEuroInput,
@@ -19,33 +21,42 @@ import {
 } from "@/lib/dashboard/retainer";
 import { calculateCommissionCents } from "@/lib/dashboard/revenue";
 import {
-  COMMISSION_STATUSES,
-  COMMISSION_STATUS_LABELS,
   CONTRACT_STATUSES,
   CONTRACT_STATUS_LABELS,
-  type CommissionStatus,
   type ContractStatus,
 } from "@/lib/dashboard/constants";
-import type { ClientRevenueRecord, InvoiceRecord } from "@/lib/dashboard/types";
+import {
+  calculateAgencyShareCents,
+  calculateFreelancerPayoutCents,
+} from "@/lib/dashboard/client-freelancer-payout";
+import type {
+  ClientRevenueRecord,
+  InvoiceRecord,
+  TeamMember,
+} from "@/lib/dashboard/types";
 import { hasSetupInvoice } from "@/lib/dashboard/contract-invoices";
 import { Check, Circle } from "lucide-react";
 
 interface ClientRevenueModalProps {
   client: ClientRevenueRecord | null;
   invoices?: InvoiceRecord[];
+  teamMembers?: TeamMember[];
   open: boolean;
   payoutOpen?: boolean;
   onClose: () => void;
   onRequestPayout: (client: ClientRevenueRecord) => void;
+  onRequestFreelancerPayout: (client: ClientRevenueRecord) => void;
 }
 
 export function ClientRevenueModal({
   client,
   invoices = [],
+  teamMembers = [],
   open,
   payoutOpen = false,
   onClose,
   onRequestPayout,
+  onRequestFreelancerPayout,
 }: ClientRevenueModalProps) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
@@ -56,7 +67,8 @@ export function ClientRevenueModal({
     contractStartDate: "",
     contractStatus: "draft" as ContractStatus,
     autoInvoiceEnabled: false,
-    commissionStatus: "none" as CommissionStatus,
+    assignedFreelancerId: "",
+    freelancerCommissionRate: "0",
     createSetupInvoice: false,
   });
 
@@ -70,7 +82,8 @@ export function ClientRevenueModal({
       contractStartDate: client.contract_start_date ?? "",
       contractStatus: client.contract_status,
       autoInvoiceEnabled: client.auto_invoice_enabled,
-      commissionStatus: client.commission_status,
+      assignedFreelancerId: client.assigned_freelancer_id ?? "",
+      freelancerCommissionRate: String(client.freelancer_commission_rate ?? 0),
       createSetupInvoice: false,
     });
     setError(null);
@@ -82,7 +95,8 @@ export function ClientRevenueModal({
     client?.contract_start_date,
     client?.contract_status,
     client?.auto_invoice_enabled,
-    client?.commission_status,
+    client?.assigned_freelancer_id,
+    client?.freelancer_commission_rate,
     client,
   ]);
 
@@ -113,6 +127,23 @@ export function ClientRevenueModal({
     setupFeeCents,
     client.commission_rate,
   );
+  const previewFreelancerRate = Number.parseFloat(
+    preview.freelancerCommissionRate.replace(",", "."),
+  );
+  const freelancerRate =
+    Number.isFinite(previewFreelancerRate) && previewFreelancerRate >= 0
+      ? previewFreelancerRate
+      : 0;
+  const previewFreelancerPayoutCents = calculateFreelancerPayoutCents(
+    setupFeeCents,
+    freelancerRate,
+  );
+  const previewAgencyShareCents = calculateAgencyShareCents(
+    setupFeeCents,
+    previewFreelancerPayoutCents,
+  );
+  const hasFreelancerAssignment =
+    Boolean(client.assigned_freelancer_id) || client.freelancer_commission_rate > 0;
 
   const updatePreview = (form: HTMLFormElement) => {
     const formData = new FormData(form);
@@ -122,7 +153,10 @@ export function ClientRevenueModal({
       contractStartDate: String(formData.get("contract_start_date") ?? ""),
       contractStatus: String(formData.get("contract_status") ?? "draft") as ContractStatus,
       autoInvoiceEnabled: formData.get("auto_invoice_enabled") === "on",
-      commissionStatus: String(formData.get("commission_status") ?? "none") as CommissionStatus,
+      assignedFreelancerId: String(formData.get("assigned_freelancer_id") ?? ""),
+      freelancerCommissionRate: String(
+        formData.get("freelancer_commission_rate") ?? "0",
+      ),
       createSetupInvoice: formData.get("create_setup_invoice") === "on",
     });
   };
@@ -206,20 +240,6 @@ export function ClientRevenueModal({
               {CONTRACT_STATUSES.map((status) => (
                 <option key={status} value={status}>
                   {CONTRACT_STATUS_LABELS[status]}
-                </option>
-              ))}
-            </select>
-          </Field>
-
-          <Field label="Provision (Status)">
-            <select
-              name="commission_status"
-              defaultValue={client.commission_status}
-              className="dashboard-input"
-            >
-              {COMMISSION_STATUSES.map((status) => (
-                <option key={status} value={status}>
-                  {COMMISSION_STATUS_LABELS[status]}
                 </option>
               ))}
             </select>
@@ -345,19 +365,178 @@ export function ClientRevenueModal({
 
         <div className="rounded-xl border border-border bg-black/20 p-4">
           <h3 className="text-xs font-medium uppercase tracking-wider text-muted-soft">
-            Provisionsauszahlung
+            Freelancer-Zuweisung
           </h3>
-          <dl className="mt-3 grid gap-3 sm:grid-cols-3">
+          <div className="mt-3 grid gap-4 sm:grid-cols-2">
+            <Field label="Freelancer">
+              <select
+                name="assigned_freelancer_id"
+                value={preview.assignedFreelancerId}
+                onChange={(event) =>
+                  setPreview((current) => ({
+                    ...current,
+                    assignedFreelancerId: event.target.value,
+                  }))
+                }
+                className="dashboard-input"
+              >
+                <option value="">— Kein Freelancer —</option>
+                {teamMembers.map((member) => (
+                  <option key={member.id} value={member.id}>
+                    {member.full_name?.trim() || member.email.split("@")[0]}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Freelancer-Anteil (%)">
+              <input
+                name="freelancer_commission_rate"
+                type="text"
+                inputMode="decimal"
+                value={preview.freelancerCommissionRate}
+                onChange={(event) =>
+                  setPreview((current) => ({
+                    ...current,
+                    freelancerCommissionRate: event.target.value,
+                  }))
+                }
+                className="dashboard-input"
+                placeholder="0"
+              />
+            </Field>
+          </div>
+          <dl className="mt-4 grid gap-3 sm:grid-cols-2">
             <StatItem
-              label="Gesamt verdient"
+              label="Vorschau Auszahlung"
+              value={
+                previewFreelancerPayoutCents > 0
+                  ? (previewFreelancerPayoutCents / 100).toLocaleString("de-DE", {
+                      style: "currency",
+                      currency: "EUR",
+                    })
+                  : "—"
+              }
+            />
+            <StatItem
+              label="Vorschau Agenturanteil"
+              value={
+                previewAgencyShareCents > 0
+                  ? (previewAgencyShareCents / 100).toLocaleString("de-DE", {
+                      style: "currency",
+                      currency: "EUR",
+                    })
+                  : "—"
+              }
+            />
+          </dl>
+
+          {hasFreelancerAssignment && (
+            <div className="mt-4 border-t border-border/70 pt-4">
+              <h4 className="text-xs font-medium uppercase tracking-wider text-muted-soft">
+                Freelancer-Auszahlung
+              </h4>
+              <p className="mt-1 text-xs text-muted-soft">
+                Gespeicherte Beträge nach bezahlter Setup-Rechnung und Auszahlungen.
+              </p>
+              <dl className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <div>
+                  <dt className="text-xs text-muted-soft">Status</dt>
+                  <dd className="mt-1">
+                    <ClientFreelancerPayoutStatusBadge
+                      status={client.freelancer_payout_status}
+                    />
+                  </dd>
+                </div>
+                <StatItem
+                  label="Verdient"
+                  value={formatCents(client.freelancer_payout_cents)}
+                />
+                <StatItem
+                  label="Ausgezahlt"
+                  value={formatCents(client.freelancer_paid_cents)}
+                />
+                <StatItem
+                  label="Offen"
+                  value={formatCents(client.freelancer_outstanding_cents)}
+                />
+              </dl>
+
+              {client.freelancer_payouts.length > 0 && (
+                <div className="mt-4 border-t border-border/70 pt-4">
+                  <h5 className="text-xs font-medium uppercase tracking-wider text-muted-soft">
+                    Auszahlungshistorie
+                  </h5>
+                  <ul className="mt-2 space-y-1.5">
+                    {client.freelancer_payouts.map((payout) => (
+                      <li
+                        key={payout.id}
+                        className="flex items-center justify-between gap-3 text-sm"
+                      >
+                        <span className="text-muted">
+                          {formatDateTime(payout.paid_at)}
+                        </span>
+                        <span className="font-medium tabular-nums text-foreground">
+                          {formatCents(payout.amount_cents)}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {!client.is_project_paid && (
+                <>
+                  <p className="mt-3 text-xs text-amber-200/90">
+                    Auszahlung erst nach bezahlter Setup-Rechnung möglich.
+                  </p>
+                  <button
+                    type="button"
+                    disabled
+                    className="dashboard-btn-secondary mt-3 text-sm opacity-50"
+                  >
+                    Freelancer auszahlen
+                  </button>
+                </>
+              )}
+
+              {client.is_project_paid && client.freelancer_outstanding_cents > 0 && (
+                <button
+                  type="button"
+                  disabled={isPending}
+                  onClick={() => onRequestFreelancerPayout(client)}
+                  className="dashboard-btn-secondary mt-4 text-sm"
+                >
+                  Freelancer auszahlen
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+
+        <div className="rounded-xl border border-border bg-black/20 p-4">
+          <h3 className="text-xs font-medium uppercase tracking-wider text-muted-soft">
+            Sales-Provision
+          </h3>
+          <p className="mt-1 text-xs text-muted-soft">
+            Status und Beträge werden aus Vertrag und Auszahlungen abgeleitet.
+          </p>
+          <dl className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <div>
+              <dt className="text-xs text-muted-soft">Status</dt>
+              <dd className="mt-1">
+                <CommissionStatusBadge status={client.commission_status} />
+              </dd>
+            </div>
+            <StatItem
+              label="Verdient"
               value={formatCents(client.commission_total_cents)}
             />
             <StatItem
-              label="Bereits ausgezahlt"
+              label="Ausgezahlt"
               value={formatCents(client.commission_paid_cents)}
             />
             <StatItem
-              label="Noch offen"
+              label="Offen"
               value={formatCents(client.commission_outstanding_cents)}
             />
           </dl>

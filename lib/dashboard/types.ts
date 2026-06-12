@@ -3,6 +3,7 @@ import type {
   AppointmentStatus,
   BillingCycle,
   ClientActivityType,
+  ClientFreelancerPayoutStatus,
   CommissionStatus,
   ContractStatus,
   CommunicationType,
@@ -89,6 +90,10 @@ export interface FinanceStats {
   monthlyExpensesCents: number;
   yearlyExpensesCents: number;
   agencyProfitCents: number;
+  outstandingClientFreelancerPayoutsCents: number;
+  paidClientFreelancerPayoutsCents: number;
+  agencyProfitAfterFreelancerPayoutsCents: number;
+  freelancerProjectAgencyShareCents: number;
 }
 
 export interface FreelancerRecord {
@@ -182,6 +187,13 @@ export interface CommissionPayoutRecord {
   created_at: string;
 }
 
+export interface ClientFreelancerPayoutRecord {
+  id: string;
+  amount_cents: number;
+  paid_at: string;
+  created_at: string;
+}
+
 export type { RetainerPeriodInvoiceRef, RetainerPeriodStatus } from "./retainer";
 
 export interface RetainerPeriodView {
@@ -220,6 +232,16 @@ export interface ClientRevenueRecord {
   commission_outstanding_cents: number;
   commission_payouts: CommissionPayoutRecord[];
   commission_rate: number;
+  assigned_freelancer_id: string | null;
+  assigned_freelancer_name: string | null;
+  freelancer_commission_rate: number;
+  freelancer_payout_cents: number;
+  freelancer_paid_cents: number;
+  freelancer_outstanding_cents: number;
+  freelancer_payout_status: ClientFreelancerPayoutStatus;
+  agency_share_cents: number;
+  is_project_paid: boolean;
+  freelancer_payouts: ClientFreelancerPayoutRecord[];
   currency: string;
 }
 
@@ -337,6 +359,14 @@ export interface ClientDetailRecord extends ClientRecord {
   commission_total_cents: number;
   commission_paid_cents: number;
   commission_outstanding_cents: number;
+  assigned_freelancer_id: string | null;
+  assigned_freelancer_name: string | null;
+  freelancer_commission_rate: number;
+  freelancer_payout_cents: number;
+  freelancer_paid_cents: number;
+  freelancer_outstanding_cents: number;
+  freelancer_payout_status: ClientFreelancerPayoutStatus;
+  agency_share_cents: number;
 }
 
 export interface ClientNote {

@@ -6,7 +6,7 @@ import { InvoiceTable } from "@/components/dashboard/InvoiceTable";
 import { ProfitBreakdownCard } from "@/components/dashboard/ProfitBreakdownCard";
 import { formatCents } from "@/lib/dashboard/format";
 import type { FinanceStats, InvoiceRecord, ProfitBreakdown } from "@/lib/dashboard/types";
-import { Euro, FileWarning, TrendingUp, Wallet } from "lucide-react";
+import { Briefcase, Euro, FileWarning, TrendingUp, UserCheck, Wallet } from "lucide-react";
 
 interface FinancePageClientProps {
   stats: FinanceStats;
@@ -46,7 +46,7 @@ export function FinancePageClient({
           label="Offene Provisionen"
           value={formatCents(stats.outstandingCommissionsCents)}
           icon={Wallet}
-          trend="Noch nicht ausgezahlte Provisionen"
+          trend="Noch nicht ausgezahlte Sales-Provisionen"
         />
         <KpiCard
           size="hero"
@@ -54,6 +54,39 @@ export function FinancePageClient({
           value={formatCents(stats.agencyProfitCents)}
           icon={TrendingUp}
           trend="Umsatz − Freelancer − Provisionen − Agenturkosten"
+        />
+      </div>
+
+      <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-4">
+        <KpiCard
+          label="Offene Freelancer-Auszahlungen"
+          value={formatCents(stats.outstandingClientFreelancerPayoutsCents)}
+          icon={Briefcase}
+          trend="Projekt-Freelancer noch nicht ausgezahlt"
+        />
+        <KpiCard
+          label="Bereits ausgezahlte Freelancer"
+          value={formatCents(stats.paidClientFreelancerPayoutsCents)}
+          icon={UserCheck}
+          trend="Summe aller Projekt-Freelancer-Auszahlungen"
+        />
+        <KpiCard
+          label="Agenturgewinn gesamt"
+          value={formatCents(stats.agencyProfitAfterFreelancerPayoutsCents)}
+          icon={TrendingUp}
+          trend="Umsatz − Freelancer − Provisionen − Agenturkosten"
+        />
+        <KpiCard
+          label="Agenturanteil Freelancer-Projekte"
+          value={formatCents(stats.freelancerProjectAgencyShareCents)}
+          icon={TrendingUp}
+          trend="Setup − Freelancer-Auszahlung (zugewiesene Projekte)"
+        />
+        <KpiCard
+          label="Noch offene Freelancer-Kosten"
+          value={formatCents(stats.outstandingClientFreelancerPayoutsCents)}
+          icon={Briefcase}
+          trend="Fällig nach bezahlter Setup-Rechnung"
         />
       </div>
 

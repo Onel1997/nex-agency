@@ -116,6 +116,35 @@ export function sumCommissionFromClients(
   return total;
 }
 
+/**
+ * Client-scoped freelancer payouts (Setup-Anteil) — dem Vertragsbeginn zugeordnet.
+ */
+export function sumClientFreelancerCostsFromClients(
+  clients: ClientRevenueRecord[],
+  period: ProfitPeriod,
+): number {
+  if (period === "total") {
+    return clients.reduce((sum, client) => sum + client.freelancer_payout_cents, 0);
+  }
+
+  let total = 0;
+
+  for (const client of clients) {
+    if (client.freelancer_payout_cents <= 0) continue;
+    if (!isContractRevenueActive(client)) continue;
+
+    const setup = client.setup_fee_cents ?? 0;
+    if (setup <= 0 || !client.contract_start_date) continue;
+
+    const setupDate = parseDate(client.contract_start_date);
+    if (isInPeriod(setupDate, period)) {
+      total += client.freelancer_payout_cents;
+    }
+  }
+
+  return total;
+}
+
 function sumFreelancerCosts(
   invoices: FreelancerInvoiceRecord[],
   period: ProfitPeriod,
@@ -150,10 +179,9 @@ export function computeProfitBreakdown(params: {
     params.clients,
     params.period,
   );
-  const freelancerCostsCents = sumFreelancerCosts(
-    params.freelancerInvoices,
-    params.period,
-  );
+  const freelancerCostsCents =
+    sumFreelancerCosts(params.freelancerInvoices, params.period) +
+    sumClientFreelancerCostsFromClients(params.clients, params.period);
   const agencyCostsCents = sumAgencyCosts(params.expenses, params.period);
   const commissionsCents = sumCommissionFromClients(params.clients, params.period);
 

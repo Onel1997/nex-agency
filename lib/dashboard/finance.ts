@@ -6,9 +6,17 @@ import type { CommissionStatus } from "@/lib/dashboard/constants";
 import { createClient } from "@/lib/supabase/server";
 import { syncCommissionAmounts } from "./commission";
 import {
+  calculateAgencyShareCents,
+  calculateFreelancerPayoutCents,
+  isClientSetupInvoicePaid,
+  resolveFreelancerPayoutFields,
+} from "./client-freelancer-payout";
+import {
+  fetchClientFreelancerPayouts,
   fetchClientRevenueRows,
   fetchCommissionPayouts,
   fetchRetainerInvoices,
+  groupClientFreelancerPayoutsByClient,
   groupCommissionPayoutsByClient,
   groupRetainerInvoicesByClient,
 } from "./retainer-data";
@@ -75,10 +83,34 @@ function resolveCommissionFields(
   };
 }
 
+function resolveFreelancerFields(
+  row: Record<string, unknown>,
+  setupFeeCents: number | null,
+  isProjectPaid: boolean,
+): ReturnType<typeof resolveFreelancerPayoutFields> {
+  const rate = Number(row.freelancer_commission_rate ?? 0);
+  const payoutCents =
+    row.freelancer_payout_cents !== undefined
+      ? ((row.freelancer_payout_cents as number) ?? 0)
+      : isProjectPaid
+        ? calculateFreelancerPayoutCents(setupFeeCents, rate)
+        : 0;
+  const paidCents =
+    row.freelancer_paid_cents !== undefined
+      ? ((row.freelancer_paid_cents as number) ?? 0)
+      : 0;
+
+  return resolveFreelancerPayoutFields({
+    freelancerPayoutCents: payoutCents,
+    freelancerPaidCents: paidCents,
+  });
+}
+
 function mapClientRevenueRow(
   row: Record<string, unknown>,
   retainerInvoices: RetainerPeriodInvoiceRef[],
   commissionPayouts: import("./types").CommissionPayoutRecord[],
+  freelancerPayouts: import("./types").ClientFreelancerPayoutRecord[],
   paidRetainerStats: import("./client-revenue-sync").PaidRetainerInvoiceStats = {
     revenue_cents: 0,
     paid_months: 0,
@@ -95,6 +127,14 @@ function mapClientRevenueRow(
   } | null;
 
   const commissionRate = member?.commission_rate ?? 0;
+  const assignedFreelancer = Array.isArray(row.assigned_freelancer)
+    ? row.assigned_freelancer[0]
+    : row.assigned_freelancer;
+  const freelancerMember = assignedFreelancer as {
+    full_name: string | null;
+    email: string;
+  } | null;
+  const freelancerCommissionRate = Number(row.freelancer_commission_rate ?? 0);
   const monthlyRevenueCents = (row.monthly_revenue_cents as number | null) ?? null;
   const monthlyRetainerCents = (row.monthly_retainer_cents as number | null) ?? null;
   const setupFeeCents = (row.setup_fee_cents as number | null) ?? null;
@@ -102,6 +142,16 @@ function mapClientRevenueRow(
   const contractStatus = resolveContractStatus(row);
   const autoInvoiceEnabled = Boolean(row.auto_invoice_enabled);
   const commissionFields = resolveCommissionFields(row, commissionRate);
+  const isProjectPaid = isClientSetupInvoicePaid(retainerInvoices);
+  const freelancerFields = resolveFreelancerFields(
+    row,
+    setupFeeCents,
+    isProjectPaid,
+  );
+  const previewFreelancerPayoutCents = calculateFreelancerPayoutCents(
+    setupFeeCents,
+    freelancerCommissionRate,
+  );
   const retainerStats = buildRetainerStats({
     contract_start_date: contractStartDate,
     contract_status: contractStatus,
@@ -144,6 +194,19 @@ function mapClientRevenueRow(
     commission_paid_cents: commissionFields.commission_paid_cents,
     commission_outstanding_cents: commissionFields.commission_outstanding_cents,
     commission_payouts: commissionPayouts,
+    assigned_freelancer_id: (row.assigned_freelancer_id as string | null) ?? null,
+    assigned_freelancer_name: formatMemberName(freelancerMember),
+    freelancer_commission_rate: freelancerCommissionRate,
+    freelancer_payout_cents: freelancerFields.freelancer_payout_cents,
+    freelancer_paid_cents: freelancerFields.freelancer_paid_cents,
+    freelancer_outstanding_cents: freelancerFields.freelancer_outstanding_cents,
+    freelancer_payout_status: freelancerFields.freelancer_payout_status,
+    agency_share_cents: calculateAgencyShareCents(
+      setupFeeCents,
+      previewFreelancerPayoutCents,
+    ),
+    is_project_paid: isProjectPaid,
+    freelancer_payouts: freelancerPayouts,
     currency: (row.currency as string) ?? "EUR",
   };
 }
@@ -206,6 +269,9 @@ export async function getFinanceStats(): Promise<FinanceStats | null> {
   let activeRetainersCount = 0;
   let outstandingCommissionsCents = 0;
   let paidCommissionsCents = 0;
+  let outstandingClientFreelancerPayoutsCents = 0;
+  let paidClientFreelancerPayoutsCents = 0;
+  let freelancerProjectAgencyShareCents = 0;
   let outstandingRetainerPaymentsCents = 0;
 
   for (const client of clients) {
@@ -213,6 +279,14 @@ export async function getFinanceStats(): Promise<FinanceStats | null> {
     outstandingRetainerPaymentsCents += client.outstanding_retainer_cents;
     outstandingCommissionsCents += client.commission_outstanding_cents;
     paidCommissionsCents += client.commission_paid_cents;
+    outstandingClientFreelancerPayoutsCents += client.freelancer_outstanding_cents;
+    paidClientFreelancerPayoutsCents += client.freelancer_paid_cents;
+    if (
+      client.assigned_freelancer_id &&
+      (client.freelancer_commission_rate > 0 || client.freelancer_payout_cents > 0)
+    ) {
+      freelancerProjectAgencyShareCents += client.agency_share_cents;
+    }
 
     if (isActiveRetainerClient(client)) {
       activeRetainersCount += 1;
@@ -238,6 +312,11 @@ export async function getFinanceStats(): Promise<FinanceStats | null> {
     ...retainerInvoiceStats,
     outstandingCommissionsCents,
     paidCommissionsCents,
+    outstandingClientFreelancerPayoutsCents,
+    paidClientFreelancerPayoutsCents,
+    agencyProfitAfterFreelancerPayoutsCents:
+      (totalProfit?.profitCents ?? 0),
+    freelancerProjectAgencyShareCents,
     outstandingRetainerPaymentsCents,
     totalInvoicedCents: invoiceStats.totalInvoicedCents,
     openInvoicesCents: invoiceStats.openInvoicesCents,
@@ -274,13 +353,19 @@ async function buildClientRevenueRecords(
   supabase: Awaited<ReturnType<typeof createClient>>,
   clientIds?: string[],
 ): Promise<ClientRevenueRecord[]> {
-  const [{ rows }, retainerInvoices, commissionPayouts, paidRetainerStatsByClient] =
-    await Promise.all([
-      fetchClientRevenueRows(supabase),
-      fetchRetainerInvoices(supabase),
-      fetchCommissionPayouts(supabase),
-      fetchPaidRetainerInvoiceStatsByClient(supabase, clientIds),
-    ]);
+  const [
+    { rows },
+    retainerInvoices,
+    commissionPayouts,
+    clientFreelancerPayouts,
+    paidRetainerStatsByClient,
+  ] = await Promise.all([
+    fetchClientRevenueRows(supabase),
+    fetchRetainerInvoices(supabase),
+    fetchCommissionPayouts(supabase),
+    fetchClientFreelancerPayouts(supabase),
+    fetchPaidRetainerInvoiceStatsByClient(supabase, clientIds),
+  ]);
 
   const filteredRows = clientIds
     ? rows.filter((row) => clientIds.includes(row.id as string))
@@ -288,12 +373,15 @@ async function buildClientRevenueRecords(
 
   const invoicesByClient = groupRetainerInvoicesByClient(retainerInvoices);
   const payoutsByClient = groupCommissionPayoutsByClient(commissionPayouts);
+  const freelancerPayoutsByClient =
+    groupClientFreelancerPayoutsByClient(clientFreelancerPayouts);
 
   return filteredRows.map((row) =>
     mapClientRevenueRow(
       row,
       invoicesByClient.get(row.id as string) ?? [],
       payoutsByClient.get(row.id as string) ?? [],
+      freelancerPayoutsByClient.get(row.id as string) ?? [],
       paidRetainerStatsByClient.get(row.id as string),
     ),
   );

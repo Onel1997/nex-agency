@@ -7,6 +7,11 @@ import {
   isCommissionPayoutsSchemaMissingError,
   isCommissionSchemaMissingError,
 } from "@/lib/dashboard/commission";
+import {
+  applyFreelancerPayout,
+  isClientFreelancerPayoutsSchemaMissingError,
+  isClientFreelancerSchemaMissingError,
+} from "@/lib/dashboard/client-freelancer-payout";
 import { syncClientTotalRevenue } from "@/lib/dashboard/client-revenue-sync";
 import {
   COMMISSION_STATUSES,
@@ -243,4 +248,92 @@ export async function updateMemberCommissionRate(
   }
 
   revalidateFinance();
+}
+
+export async function payFreelancerPayout(clientId: string, formData: FormData) {
+  await requireFinanceAccess();
+
+  const payoutCents = parseEuroToCents(
+    String(formData.get("payout_amount") ?? ""),
+  );
+  if (payoutCents == null || payoutCents <= 0) {
+    throw new Error("Bitte einen gültigen Auszahlungsbetrag eingeben");
+  }
+
+  const supabase = await createClient();
+  let clientResult = await supabase
+    .from("clients")
+    .select(
+      "assigned_freelancer_id, freelancer_payout_cents, freelancer_paid_cents, freelancer_outstanding_cents",
+    )
+    .eq("id", clientId)
+    .single();
+
+  if (
+    clientResult.error &&
+    isClientFreelancerSchemaMissingError(clientResult.error.message)
+  ) {
+    throw new Error(
+      "Freelancer-Auszahlungen sind erst nach Anwenden der Phase-1-Migration verfügbar.",
+    );
+  }
+
+  if (clientResult.error) throw new Error(clientResult.error.message);
+
+  const client = clientResult.data;
+  const freelancerId = client.assigned_freelancer_id as string | null;
+  if (!freelancerId) {
+    throw new Error("Kein Freelancer für diesen Kunden zugewiesen");
+  }
+
+  const payout = applyFreelancerPayout({
+    totalCents: (client.freelancer_payout_cents as number) ?? 0,
+    paidCents: (client.freelancer_paid_cents as number) ?? 0,
+    payoutCents,
+  });
+
+  const paidAt = new Date().toISOString();
+  const payoutUpdate = {
+    freelancer_paid_cents: payout.freelancer_paid_cents,
+    freelancer_outstanding_cents: payout.freelancer_outstanding_cents,
+    freelancer_payout_status: payout.freelancer_payout_status,
+  };
+
+  const { error } = await supabase
+    .from("clients")
+    .update(payoutUpdate)
+    .eq("id", clientId);
+
+  if (error) throw new Error(error.message);
+
+  const { error: payoutInsertError } = await supabase
+    .from("client_freelancer_payouts")
+    .insert({
+      client_id: clientId,
+      freelancer_id: freelancerId,
+      amount_cents: payoutCents,
+      paid_at: paidAt,
+    });
+
+  if (payoutInsertError) {
+    if (isClientFreelancerPayoutsSchemaMissingError(payoutInsertError.message)) {
+      throw new Error(
+        "Auszahlungshistorie ist erst nach Anwenden der Migration client_freelancer_payouts verfügbar.",
+      );
+    }
+    throw new Error(payoutInsertError.message);
+  }
+
+  const profile = await getProfile();
+  if (profile) {
+    await logClientActivity({
+      clientId,
+      actorId: profile.id,
+      activityType: "contract_changed",
+      description: `${actorName(profile)} hat Freelancer-Auszahlung von ${formatCents(payoutCents)} verbucht`,
+      metadata: { amount_cents: payoutCents, freelancer_id: freelancerId },
+    });
+  }
+
+  revalidateFinance(clientId);
 }

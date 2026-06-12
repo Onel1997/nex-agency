@@ -4,6 +4,12 @@ import {
   isContractStatusSchemaMissingError,
   resolveContractStatus,
 } from "./contract-status";
+import {
+  calculateAgencyShareCents,
+  calculateFreelancerPayoutCents,
+  isClientFreelancerSchemaMissingError,
+  resolveFreelancerPayoutFields,
+} from "./client-freelancer-payout";
 import type { ClientDetailRecord, ClientRecord } from "./types";
 
 function formatMemberName(
@@ -44,7 +50,14 @@ const CLIENT_DETAIL_SELECT_WITHOUT_CONTRACT_STATUS = `
   commission_status,
   commission_total_cents,
   commission_paid_cents,
-  commission_outstanding_cents
+  commission_outstanding_cents,
+  assigned_freelancer_id,
+  freelancer_commission_rate,
+  freelancer_payout_cents,
+  freelancer_paid_cents,
+  freelancer_outstanding_cents,
+  freelancer_payout_status,
+  assigned_freelancer:profiles!clients_assigned_freelancer_id_fkey(full_name, email)
 `;
 
 function isClientDetailSchemaMissingError(message: string): boolean {
@@ -53,7 +66,8 @@ function isClientDetailSchemaMissingError(message: string): boolean {
     isContractStatusSchemaMissingError(message) ||
     normalized.includes("commission_total_cents") ||
     normalized.includes("contract_start_date") ||
-    normalized.includes("billing_cycle")
+    normalized.includes("billing_cycle") ||
+    isClientFreelancerSchemaMissingError(message)
   );
 }
 const CLIENT_DETAIL_SELECT = `
@@ -127,6 +141,11 @@ export async function getClientById(id: string): Promise<ClientRecord | null> {
 
 function mapClientDetailRow(row: Record<string, unknown>): ClientDetailRecord {
   const base = mapClientRow(row);
+  const freelancerFields = resolveFreelancerPayoutFields({
+    freelancerPayoutCents: (row.freelancer_payout_cents as number) ?? 0,
+    freelancerPaidCents: (row.freelancer_paid_cents as number) ?? 0,
+  });
+
   return {
     ...base,
     monthly_revenue_cents: (row.monthly_revenue_cents as number | null) ?? null,
@@ -143,6 +162,27 @@ function mapClientDetailRow(row: Record<string, unknown>): ClientDetailRecord {
     commission_paid_cents: (row.commission_paid_cents as number) ?? 0,
     commission_outstanding_cents:
       (row.commission_outstanding_cents as number) ?? 0,
+    assigned_freelancer_id: (row.assigned_freelancer_id as string | null) ?? null,
+    assigned_freelancer_name: formatMemberName(
+      (Array.isArray(row.assigned_freelancer)
+        ? row.assigned_freelancer[0]
+        : row.assigned_freelancer) as {
+        full_name: string | null;
+        email: string;
+      } | null,
+    ),
+    freelancer_commission_rate: Number(row.freelancer_commission_rate ?? 0),
+    freelancer_payout_cents: freelancerFields.freelancer_payout_cents,
+    freelancer_paid_cents: freelancerFields.freelancer_paid_cents,
+    freelancer_outstanding_cents: freelancerFields.freelancer_outstanding_cents,
+    freelancer_payout_status: freelancerFields.freelancer_payout_status,
+    agency_share_cents: calculateAgencyShareCents(
+      (row.setup_fee_cents as number | null) ?? null,
+      calculateFreelancerPayoutCents(
+        (row.setup_fee_cents as number | null) ?? null,
+        Number(row.freelancer_commission_rate ?? 0),
+      ),
+    ),
   };
 }
 

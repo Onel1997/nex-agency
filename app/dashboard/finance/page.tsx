@@ -25,6 +25,10 @@ export default async function FinancePage() {
     monthlyExpensesCents: 0,
     yearlyExpensesCents: 0,
     agencyProfitCents: 0,
+    outstandingClientFreelancerPayoutsCents: 0,
+    paidClientFreelancerPayoutsCents: 0,
+    agencyProfitAfterFreelancerPayoutsCents: 0,
+    freelancerProjectAgencyShareCents: 0,
   };
   let invoices: InvoiceRecord[] = [];
   let profitBreakdowns: ProfitBreakdown[] = [];

@@ -5,6 +5,7 @@ import {
   canAccessFinanceRoutes,
   canAccessKnowledgeCenter,
   canAccessPerformanceRoutes,
+  canAccessSystemRoutes,
   isManagement as checkManagement,
   isSuperAdmin as checkSuperAdmin,
 } from "@/lib/auth/permissions";
@@ -111,6 +112,12 @@ export async function requireAdmin(): Promise<Profile> {
 export async function requireSuperAdmin(): Promise<Profile> {
   const profile = await requireProfile();
   if (!checkSuperAdmin(profile)) redirect("/dashboard");
+  return profile;
+}
+
+export async function requireSystemAccess(): Promise<Profile> {
+  const profile = await requireProfile();
+  if (!canAccessSystemRoutes(profile)) redirect("/dashboard");
   return profile;
 }
 

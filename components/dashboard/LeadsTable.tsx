@@ -3,19 +3,32 @@
 import Link from "next/link";
 import { ExternalLink, Pencil, Trash2 } from "lucide-react";
 import {
-  LEAD_STATUSES,
   LEAD_STATUS_LABELS,
   type LeadStatus,
 } from "@/lib/dashboard/constants";
 import { formatCents, formatDate, formatWebsite } from "@/lib/dashboard/format";
+import {
+  canChangeLeadStatus,
+  getSelectableLeadStatuses,
+} from "@/lib/dashboard/lead-pipeline";
+import { resolveLeadWorkflowStatus } from "@/lib/dashboard/workflow-status";
 import type { Lead } from "@/lib/dashboard/types";
 import { DataTable } from "./DataTable";
+import { LeadWorkflowBadge } from "./WorkflowStatusBadge";
+import { LeadClaimAction } from "./LeadClaimAction";
 import { LeadConversionAction } from "./LeadConversionAction";
 import { LeadMarkWonAction } from "./LeadMarkWonAction";
+import type { Profile } from "@/lib/auth/types";
+import {
+  canClaimLead,
+  canConvertLeadForLead,
+  canMarkLeadWonForLead,
+} from "@/lib/dashboard/lead-ownership";
 
 interface LeadsTableProps {
   leads: Lead[];
   showOwnership?: boolean;
+  profile: Profile;
   canMarkLeadWon?: boolean;
   canConvertLead?: boolean;
   onEdit: (lead: Lead) => void;
@@ -23,11 +36,13 @@ interface LeadsTableProps {
   onStatusChange: (id: string, status: LeadStatus) => void;
   onMarkWon: (leadId: string) => Promise<void>;
   onConvert: (leadId: string) => Promise<void>;
+  onClaim: (leadId: string) => Promise<void>;
 }
 
 export function LeadsTable({
   leads,
   showOwnership = false,
+  profile,
   canMarkLeadWon = false,
   canConvertLead = false,
   onEdit,
@@ -35,11 +50,8 @@ export function LeadsTable({
   onStatusChange,
   onMarkWon,
   onConvert,
+  onClaim,
 }: LeadsTableProps) {
-  const selectableStatuses = LEAD_STATUSES.filter(
-    (status) => status !== "won" || canMarkLeadWon,
-  );
-
   return (
     <DataTable
       data={leads}
@@ -122,9 +134,27 @@ export function LeadsTable({
             ),
         },
         {
+          key: "workflow",
+          header: "Workflow",
+          hideOnMobile: true,
+          render: (lead) => {
+            const workflow = resolveLeadWorkflowStatus(lead);
+            return workflow ? (
+              <LeadWorkflowBadge stage={workflow.stage} urgency={workflow.urgency} />
+            ) : (
+              "—"
+            );
+          },
+        },
+        {
           key: "status",
           header: "Status",
-          render: (lead) => (
+          render: (lead) => {
+            const selectableStatuses = getSelectableLeadStatuses(profile, lead);
+            const statusLocked =
+              !canChangeLeadStatus(profile, lead) || lead.status === "won";
+
+            return (
             <div className="flex min-w-[9rem] flex-col gap-2">
               <select
                 value={lead.status}
@@ -133,23 +163,36 @@ export function LeadsTable({
                 }
                 className="dashboard-select-sm"
                 aria-label={`Status für ${lead.company_name}`}
+                disabled={statusLocked}
               >
                 {selectableStatuses.map((status) => (
-                  <option key={status} value={status} disabled={status === "won" && !canMarkLeadWon}>
+                  <option
+                    key={status}
+                    value={status}
+                    disabled={status === "won" && !canMarkLeadWon}
+                  >
                     {LEAD_STATUS_LABELS[status]}
                   </option>
                 ))}
               </select>
+              <LeadClaimAction
+                lead={lead}
+                canClaim={canClaimLead(profile, lead)}
+                onClaim={onClaim}
+              />
               <LeadMarkWonAction
                 lead={lead}
-                canMarkWon={canMarkLeadWon}
+                canMarkWon={
+                  canMarkLeadWon && canMarkLeadWonForLead(profile, lead)
+                }
                 onMarkWon={onMarkWon}
               />
-              {canConvertLead ? (
+              {canConvertLead && canConvertLeadForLead(profile, lead) ? (
                 <LeadConversionAction lead={lead} onConvert={onConvert} />
               ) : null}
             </div>
-          ),
+            );
+          },
         },
         {
           key: "acquired",

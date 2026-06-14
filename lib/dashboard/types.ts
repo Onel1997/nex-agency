@@ -308,6 +308,20 @@ export interface ClientRevenueRecord {
   commission_outstanding_cents: number;
   commission_payouts: CommissionPayoutRecord[];
   commission_rate: number;
+  setter_id: string | null;
+  setter_name: string | null;
+  setter_commission_rate: number;
+  closer_id: string | null;
+  closer_name: string | null;
+  closer_commission_rate: number;
+  setter_commission_cents: number;
+  closer_commission_cents: number;
+  sales_agency_revenue_cents: number;
+  sales_deal_type: import("./sales-attribution").SalesDealAttributionType | null;
+  commission_entry_id: string | null;
+  commission_entry_status: import("./commission-constants").CommissionEntryStatus | null;
+  setter_commission_paid: boolean;
+  closer_commission_paid: boolean;
   assigned_freelancer_id: string | null;
   assigned_freelancer_name: string | null;
   freelancer_commission_rate: number;
@@ -643,6 +657,7 @@ export interface CommissionEntryRecord {
   setter_commission_cents: number;
   closer_commission_cents: number;
   status: CommissionEntryStatus;
+  deal_type: import("./sales-attribution").SalesDealAttributionType | null;
   triggered_by_invoice_id: string | null;
   created_at: string;
   updated_at: string;

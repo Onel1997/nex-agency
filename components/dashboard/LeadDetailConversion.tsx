@@ -1,23 +1,31 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { convertLeadToClient, updateLeadStatus } from "@/app/dashboard/leads/actions";
+import { convertLeadToClient, claimLead, updateLeadStatus } from "@/app/dashboard/leads/actions";
+import { LeadClaimAction } from "./LeadClaimAction";
 import { LeadConversionAction } from "./LeadConversionAction";
 import { LeadMarkWonAction } from "./LeadMarkWonAction";
 import type { Lead } from "@/lib/dashboard/types";
 
 interface LeadDetailConversionProps {
   lead: Lead;
+  canClaim: boolean;
   canMarkLeadWon: boolean;
   canConvertLead: boolean;
 }
 
 export function LeadDetailConversion({
   lead,
+  canClaim,
   canMarkLeadWon,
   canConvertLead,
 }: LeadDetailConversionProps) {
   const router = useRouter();
+
+  const handleClaim = async (leadId: string) => {
+    await claimLead(leadId);
+    router.refresh();
+  };
 
   const handleMarkWon = async (leadId: string) => {
     await updateLeadStatus(leadId, "won");
@@ -30,6 +38,7 @@ export function LeadDetailConversion({
   };
 
   if (
+    !canClaim &&
     !canMarkLeadWon &&
     !canConvertLead &&
     lead.status !== "won" &&
@@ -44,6 +53,7 @@ export function LeadDetailConversion({
         Abschluss
       </p>
       <div className="mt-3 flex flex-wrap gap-2">
+        <LeadClaimAction lead={lead} canClaim={canClaim} onClaim={handleClaim} />
         <LeadMarkWonAction
           lead={lead}
           canMarkWon={canMarkLeadWon}

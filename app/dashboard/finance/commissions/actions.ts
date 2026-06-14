@@ -54,6 +54,9 @@ export async function approveCommissionEntry(entryId: string) {
 
   if (error) throw new Error(error.message);
   revalidateCommissions();
+  if (entry.client_id) {
+    revalidatePath(`/dashboard/clients/${entry.client_id}`);
+  }
   if (entry.setter_id) revalidatePath(`/dashboard/team/${entry.setter_id}`);
   if (entry.closer_id) revalidatePath(`/dashboard/team/${entry.closer_id}`);
 }

@@ -4,6 +4,7 @@ import { getProfile } from "@/lib/auth/session";
 import { getLeads } from "@/lib/dashboard/leads";
 import { getAssignableTeamMembers } from "@/lib/dashboard/team";
 import type { Lead } from "@/lib/dashboard/types";
+import type { Profile } from "@/lib/auth/types";
 
 export default async function LeadsPage() {
   const profile = await getProfile();
@@ -37,7 +38,7 @@ export default async function LeadsPage() {
       canConvertLead={canConvertLeadToClient(profile)}
       showOwnership={managementView}
       teamMembers={teamMembers}
-      currentUserId={profile.id}
+      profile={profile}
     />
   );
 }

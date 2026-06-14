@@ -11,6 +11,16 @@ import {
   isClientSetupInvoicePaid,
   resolveFreelancerPayoutFields,
 } from "./client-freelancer-payout";
+import { resolveClientCommissionPayoutStatus } from "./client-commission-status";
+import {
+  fetchCommissionEntries,
+  fetchCommissionPayoutProfileIds,
+  groupLatestCommissionEntryByClient,
+  groupPaidProfilesByClient,
+} from "./commission-entries-data";
+import {
+  buildResolvedSalesAttribution,
+} from "./sales-attribution";
 import {
   fetchClientFreelancerPayouts,
   fetchClientRevenueRows,
@@ -35,7 +45,6 @@ import {
 } from "./freelancer-invoices";
 import { getAllInvoices, getInvoiceStats } from "./invoices";
 import { computeAllProfitBreakdowns } from "./profit";
-import { calculateCommissionCents } from "./revenue";
 import type {
   ClientRevenueRecord,
   FinanceStats,
@@ -115,6 +124,8 @@ function mapClientRevenueRow(
     revenue_cents: 0,
     paid_months: 0,
   },
+  commissionEntry: import("./types").CommissionEntryRecord | null = null,
+  paidCommissionProfileIds: Set<string> = new Set(),
 ): ClientRevenueRecord {
   const responsibleMember = Array.isArray(row.responsible_member)
     ? row.responsible_member[0]
@@ -127,6 +138,26 @@ function mapClientRevenueRow(
   } | null;
 
   const commissionRate = member?.commission_rate ?? 0;
+  const setterProfile = Array.isArray(row.setter) ? row.setter[0] : row.setter;
+  const closerProfile = Array.isArray(row.closer) ? row.closer[0] : row.closer;
+  const lead = Array.isArray(row.lead) ? row.lead[0] : row.lead;
+  const leadOwnerId = (lead as { owner_id?: string | null } | null)?.owner_id ?? null;
+  const rawSetterId = (row.setter_id as string | null) ?? null;
+  const rawCloserId = (row.closer_id as string | null) ?? null;
+  const setterProfileRef = setterProfile as {
+    id?: string;
+    full_name: string | null;
+    email: string;
+    setter_commission_rate?: number;
+    agency_role?: string | null;
+  } | null;
+  const closerProfileRef = closerProfile as {
+    id?: string;
+    full_name: string | null;
+    email: string;
+    closer_commission_rate?: number;
+    agency_role?: string | null;
+  } | null;
   const assignedFreelancer = Array.isArray(row.assigned_freelancer)
     ? row.assigned_freelancer[0]
     : row.assigned_freelancer;
@@ -151,6 +182,40 @@ function mapClientRevenueRow(
   const previewFreelancerPayoutCents = calculateFreelancerPayoutCents(
     setupFeeCents,
     freelancerCommissionRate,
+  );
+  const salesAttribution = buildResolvedSalesAttribution({
+    projectValueCents: commissionEntry?.project_value_cents ?? setupFeeCents,
+    setterId: rawSetterId,
+    closerId: rawCloserId,
+    setterProfile: setterProfileRef?.id
+      ? {
+          id: setterProfileRef.id,
+          full_name: setterProfileRef.full_name,
+          email: setterProfileRef.email,
+          agency_role: setterProfileRef.agency_role,
+          setter_commission_rate: setterProfileRef.setter_commission_rate,
+          closer_commission_rate: closerProfileRef?.closer_commission_rate,
+        }
+      : null,
+    closerProfile: closerProfileRef?.id || rawCloserId
+      ? {
+          id: closerProfileRef?.id ?? rawCloserId ?? "",
+          full_name: closerProfileRef?.full_name ?? null,
+          email: closerProfileRef?.email ?? "",
+          agency_role: closerProfileRef?.agency_role,
+          setter_commission_rate: setterProfileRef?.setter_commission_rate,
+          closer_commission_rate: closerProfileRef?.closer_commission_rate,
+        }
+      : null,
+    leadOwnerId,
+    setterName: commissionEntry?.setter_name ?? undefined,
+    closerName: commissionEntry?.closer_name ?? undefined,
+    setterRate: commissionEntry?.setter_rate,
+    closerRate: commissionEntry?.closer_rate,
+  });
+  const commissionPayoutStatus = resolveClientCommissionPayoutStatus(
+    commissionEntry,
+    paidCommissionProfileIds,
   );
   const retainerStats = buildRetainerStats({
     contract_start_date: contractStartDate,
@@ -189,6 +254,20 @@ function mapClientRevenueRow(
     retainer_invoices: retainerInvoices,
     commission_status: row.commission_status as CommissionStatus,
     commission_rate: commissionRate,
+    setter_id: salesAttribution.setter.id,
+    setter_name: salesAttribution.setter.name,
+    setter_commission_rate: salesAttribution.setter.rate,
+    closer_id: salesAttribution.closer.id,
+    closer_name: salesAttribution.closer.name,
+    closer_commission_rate: salesAttribution.closer.rate,
+    setter_commission_cents: salesAttribution.setterCommissionCents,
+    closer_commission_cents: salesAttribution.closerCommissionCents,
+    sales_agency_revenue_cents: salesAttribution.agencyRevenueCents,
+    sales_deal_type: salesAttribution.dealType,
+    commission_entry_id: commissionEntry?.id ?? null,
+    commission_entry_status: commissionEntry?.status ?? null,
+    setter_commission_paid: commissionPayoutStatus.setterPaid,
+    closer_commission_paid: commissionPayoutStatus.closerPaid,
     commission_cents: commissionFields.commission_total_cents,
     commission_total_cents: commissionFields.commission_total_cents,
     commission_paid_cents: commissionFields.commission_paid_cents,
@@ -359,13 +438,23 @@ async function buildClientRevenueRecords(
     commissionPayouts,
     clientFreelancerPayouts,
     paidRetainerStatsByClient,
+    commissionEntries,
+    commissionPayoutProfiles,
   ] = await Promise.all([
     fetchClientRevenueRows(supabase),
     fetchRetainerInvoices(supabase),
     fetchCommissionPayouts(supabase),
     fetchClientFreelancerPayouts(supabase),
     fetchPaidRetainerInvoiceStatsByClient(supabase, clientIds),
+    fetchCommissionEntries(supabase),
+    fetchCommissionPayoutProfileIds(supabase),
   ]);
+
+  const entriesByClient = groupLatestCommissionEntryByClient(commissionEntries);
+  const paidProfilesByClient = groupPaidProfilesByClient(
+    entriesByClient,
+    commissionPayoutProfiles,
+  );
 
   const filteredRows = clientIds
     ? rows.filter((row) => clientIds.includes(row.id as string))
@@ -383,6 +472,8 @@ async function buildClientRevenueRecords(
       payoutsByClient.get(row.id as string) ?? [],
       freelancerPayoutsByClient.get(row.id as string) ?? [],
       paidRetainerStatsByClient.get(row.id as string),
+      entriesByClient.get(row.id as string) ?? null,
+      paidProfilesByClient.get(row.id as string) ?? new Set(),
     ),
   );
 }
@@ -406,7 +497,12 @@ export async function getClientRevenueRecordById(
   const client = await getClientById(clientId);
   if (!client) return null;
 
-  if (!canAccessClient(profile, client.responsible_member_id)) {
+  if (
+    !canAccessClient(profile, client.responsible_member_id, {
+      setterId: client.setter_id,
+      closerId: client.closer_id,
+    })
+  ) {
     return null;
   }
 

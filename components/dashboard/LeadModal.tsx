@@ -1,8 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { LeadForm, emptyLeadForm, leadToFormData, type LeadFormData } from "./LeadForm";
 import { Modal } from "./Modal";
+import type { Profile } from "@/lib/auth/types";
+import {
+  canChangeLeadStatus,
+  getSelectableLeadStatuses,
+  getVisibleLeadStatuses,
+} from "@/lib/dashboard/lead-pipeline";
 import type { Lead, TeamMember } from "@/lib/dashboard/types";
 
 interface LeadModalProps {
@@ -14,6 +20,7 @@ interface LeadModalProps {
   canAssign?: boolean;
   teamMembers?: TeamMember[];
   defaultOwnerId?: string;
+  profile: Profile;
 }
 
 export function LeadModal({
@@ -25,6 +32,7 @@ export function LeadModal({
   canAssign = false,
   teamMembers = [],
   defaultOwnerId,
+  profile,
 }: LeadModalProps) {
   const [data, setData] = useState<LeadFormData>(
     lead ? leadToFormData(lead) : emptyLeadForm,
@@ -54,6 +62,17 @@ export function LeadModal({
   };
 
   const formId = mode === "create" ? "create-lead-form" : "edit-lead-form";
+  const allowedStatuses = useMemo(() => {
+    if (mode === "create") {
+      return getVisibleLeadStatuses(profile);
+    }
+    if (!lead) return getVisibleLeadStatuses(profile);
+    return getSelectableLeadStatuses(profile, lead);
+  }, [mode, profile, lead]);
+  const statusDisabled =
+    mode === "edit" &&
+    Boolean(lead) &&
+    (!canChangeLeadStatus(profile, lead!) || lead!.status === "won");
 
   return (
     <Modal
@@ -79,6 +98,8 @@ export function LeadModal({
         defaultOwnerId={defaultOwnerId}
         creatorName={lead?.creator_name}
         mode={mode}
+        allowedStatuses={allowedStatuses}
+        statusDisabled={statusDisabled}
       />
     </Modal>
   );

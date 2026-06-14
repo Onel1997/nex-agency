@@ -5,12 +5,12 @@ import {
   isCloser,
 } from "@/lib/auth/permissions";
 import { getProfile } from "@/lib/auth/session";
-import type { CommissionEntryStatus } from "./commission-constants";
 import {
   sumMemberCommissionEarned,
   sumMemberCommissionOpen,
 } from "./commission-entries";
 import { isCommissionCenterSchemaMissingError } from "./commission-entry-service";
+import { mapResolvedCommissionEntryRow } from "./commission-entry-attribution";
 import type {
   CommissionCenterData,
   CommissionCenterStats,
@@ -19,45 +19,6 @@ import type {
   MemberCommissionSummary,
 } from "./types";
 import { createClient } from "@/lib/supabase/server";
-
-function formatMemberName(profile: {
-  full_name: string | null;
-  email: string;
-}): string {
-  return profile.full_name?.trim() || profile.email.split("@")[0];
-}
-
-function mapCommissionEntryRow(row: Record<string, unknown>): CommissionEntryRecord {
-  const client = Array.isArray(row.client) ? row.client[0] : row.client;
-  const setter = Array.isArray(row.setter) ? row.setter[0] : row.setter;
-  const closer = Array.isArray(row.closer) ? row.closer[0] : row.closer;
-
-  return {
-    id: row.id as string,
-    client_id: row.client_id as string,
-    client_name:
-      (client as { company_name?: string } | null)?.company_name ?? "—",
-    setter_id: (row.setter_id as string | null) ?? null,
-    setter_name: setter
-      ? formatMemberName(setter as { full_name: string | null; email: string })
-      : null,
-    closer_id: (row.closer_id as string | null) ?? null,
-    closer_name: closer
-      ? formatMemberName(closer as { full_name: string | null; email: string })
-      : null,
-    project_value_cents: Number(row.project_value_cents ?? 0),
-    setter_rate: Number(row.setter_rate ?? 0),
-    closer_rate: Number(row.closer_rate ?? 0),
-    setter_commission_cents: Number(row.setter_commission_cents ?? 0),
-    closer_commission_cents: Number(row.closer_commission_cents ?? 0),
-    status: row.status as CommissionEntryStatus,
-    triggered_by_invoice_id:
-      (row.triggered_by_invoice_id as string | null) ?? null,
-    created_at: row.created_at as string,
-    updated_at: row.updated_at as string,
-    paid_at: (row.paid_at as string | null) ?? null,
-  };
-}
 
 const COMMISSION_ENTRY_SELECT = `
   id,
@@ -74,9 +35,12 @@ const COMMISSION_ENTRY_SELECT = `
   created_at,
   updated_at,
   paid_at,
-  client:clients!commission_entries_client_id_fkey(company_name),
-  setter:profiles!commission_entries_setter_id_fkey(full_name, email),
-  closer:profiles!commission_entries_closer_id_fkey(full_name, email)
+  client:clients!commission_entries_client_id_fkey(
+    company_name,
+    lead:leads!clients_lead_id_fkey(owner_id)
+  ),
+  setter:profiles!commission_entries_setter_id_fkey(full_name, email, agency_role),
+  closer:profiles!commission_entries_closer_id_fkey(full_name, email, agency_role)
 `;
 
 function computeCenterStats(entries: CommissionEntryRecord[]): CommissionCenterStats {
@@ -112,7 +76,7 @@ export async function getCommissionEntries(): Promise<CommissionEntryRecord[]> {
   }
 
   return (data ?? []).map((row) =>
-    mapCommissionEntryRow(row as Record<string, unknown>),
+    mapResolvedCommissionEntryRow(row as Record<string, unknown>),
   );
 }
 
@@ -154,7 +118,7 @@ export async function getMemberCommissionSummary(
   }
 
   const entries = (data ?? []).map((row) =>
-    mapCommissionEntryRow(row as Record<string, unknown>),
+    mapResolvedCommissionEntryRow(row as Record<string, unknown>),
   );
 
   const { data: payouts, error: payoutError } = await supabase

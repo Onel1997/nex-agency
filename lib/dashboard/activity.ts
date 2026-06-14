@@ -49,3 +49,33 @@ export async function getRecentActivities(limit = 8): Promise<ActivityLog[]> {
 export async function getActivities(limit = 50): Promise<ActivityLog[]> {
   return getRecentActivities(limit);
 }
+
+export async function getMaintenanceAuditLogs(limit = 10): Promise<ActivityLog[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("activity_logs")
+    .select(
+      `
+      id,
+      created_at,
+      actor_id,
+      action,
+      entity_type,
+      entity_id,
+      metadata,
+      message,
+      actor:profiles!activity_logs_actor_id_fkey(full_name, email)
+    `,
+    )
+    .eq("action", "maintenance_reset_test_data")
+    .order("created_at", { ascending: false })
+    .limit(limit);
+
+  if (error) throw new Error(error.message);
+
+  return (data ?? []).map((row) => ({
+    ...row,
+    metadata: (row.metadata ?? {}) as Record<string, unknown>,
+    actor: Array.isArray(row.actor) ? row.actor[0] : row.actor,
+  })) as ActivityLog[];
+}

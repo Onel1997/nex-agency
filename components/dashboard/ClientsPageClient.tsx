@@ -18,17 +18,20 @@ import type { ClientFormData } from "./ClientForm";
 import { formatCents, formatDate } from "@/lib/dashboard/format";
 import type { Profile } from "@/lib/auth/types";
 import {
-  canEditClientRevenue,
+  canEditClientProfile,
   isManagement,
   isSuperAdmin,
 } from "@/lib/auth/permissions";
 import type { ClientRecord, TeamMember } from "@/lib/dashboard/types";
+import type { CustomerWorkflowStage, WorkflowStatus } from "@/lib/dashboard/workflow-status";
+import { CustomerWorkflowBadge } from "./WorkflowStatusBadge";
 
 interface ClientsPageClientProps {
   clients: ClientRecord[];
   profile: Profile;
   canAssign: boolean;
   teamMembers: TeamMember[];
+  clientWorkflowById?: Record<string, WorkflowStatus<CustomerWorkflowStage>>;
 }
 
 export function ClientsPageClient({
@@ -36,6 +39,7 @@ export function ClientsPageClient({
   profile,
   canAssign,
   teamMembers,
+  clientWorkflowById = {},
 }: ClientsPageClientProps) {
   const router = useRouter();
   const [editClient, setEditClient] = useState<ClientRecord | null>(null);
@@ -48,7 +52,7 @@ export function ClientsPageClient({
   const canDeleteClients = isSuperAdmin(profile);
   const showActionsColumn = clients.some(
     (client) =>
-      canEditClientRevenue(profile, client.responsible_member_id) ||
+      canEditClientProfile(profile, client.responsible_member_id) ||
       canManageClients ||
       canDeleteClients,
   );
@@ -147,6 +151,22 @@ export function ClientsPageClient({
             render: (client) => formatCents(client.lead_estimated_value_cents),
           },
           {
+            key: "workflow",
+            header: "Workflow",
+            hideOnMobile: true,
+            render: (client) => {
+              const workflow = clientWorkflowById[client.id];
+              return workflow ? (
+                <CustomerWorkflowBadge
+                  stage={workflow.stage}
+                  urgency={workflow.urgency}
+                />
+              ) : (
+                "—"
+              );
+            },
+          },
+          {
             key: "retainer",
             header: "Retainer",
             hideOnMobile: true,
@@ -177,7 +197,7 @@ export function ClientsPageClient({
                   header: "Aktionen",
                   className: "w-[120px]",
                   render: (client: ClientRecord) => {
-                    const canEdit = canEditClientRevenue(
+                    const canEdit = canEditClientProfile(
                       profile,
                       client.responsible_member_id,
                     );

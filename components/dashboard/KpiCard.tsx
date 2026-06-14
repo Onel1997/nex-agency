@@ -1,5 +1,7 @@
 import type { LucideIcon } from "lucide-react";
 import Link from "next/link";
+import type { WorkflowUrgency } from "@/lib/dashboard/workflow-status";
+import { WORKFLOW_URGENCY_STYLES } from "@/lib/dashboard/workflow-status";
 
 interface KpiCardProps {
   label: string;
@@ -8,6 +10,7 @@ interface KpiCardProps {
   href?: string;
   trend?: string;
   size?: "default" | "hero";
+  urgency?: WorkflowUrgency;
 }
 
 export function KpiCard({
@@ -17,14 +20,16 @@ export function KpiCard({
   href,
   trend,
   size = "default",
+  urgency,
 }: KpiCardProps) {
   const isHero = size === "hero";
+  const urgencyRing = urgency ? WORKFLOW_URGENCY_STYLES[urgency] : null;
 
   const content = (
     <div
       className={`dashboard-kpi glass-card group rounded-2xl ${
         isHero ? "p-6 sm:p-8" : "p-5 sm:p-6"
-      }`}
+      } ${urgencyRing ? `ring-1 ring-inset ${urgencyRing}` : ""}`}
     >
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0 flex-1">

@@ -4,6 +4,7 @@ export type ActivityAction =
   | "lead_deleted"
   | "lead_status_changed"
   | "lead_assigned"
+  | "lead_claimed"
   | "lead_converted"
   | "client_archived"
   | "client_deleted"
@@ -16,14 +17,16 @@ export type ActivityAction =
   | "appointment_created"
   | "appointment_updated"
   | "appointment_deleted"
-  | "appointment_status_changed";
+  | "appointment_status_changed"
+  | "maintenance_reset_test_data";
 
 export type ActivityEntityType =
   | "lead"
   | "profile"
   | "client"
   | "team"
-  | "appointment";
+  | "appointment"
+  | "system";
 
 export interface ActivityLog {
   id: string;

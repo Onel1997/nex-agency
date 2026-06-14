@@ -14,6 +14,8 @@ import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
 import { DashboardOverview } from "@/components/dashboard/DashboardOverview";
 import { KpiCard } from "@/components/dashboard/KpiCard";
 import { TeamStatsTable } from "@/components/dashboard/TeamStatsTable";
+import { WorkflowActionPanel } from "@/components/dashboard/WorkflowActionPanel";
+import { WorkflowKpiGrid } from "@/components/dashboard/WorkflowKpiGrid";
 import { isManagement } from "@/lib/auth/permissions";
 import { getProfile } from "@/lib/auth/session";
 import { getRecentActivities } from "@/lib/dashboard/activity";
@@ -23,6 +25,11 @@ import { getRecentClients } from "@/lib/dashboard/clients";
 import { formatCents } from "@/lib/dashboard/format";
 import { getDashboardStats, getRecentLeads, getTeamStats } from "@/lib/dashboard/leads";
 import { getCommissionDashboardKpis } from "@/lib/dashboard/commission-center";
+import {
+  getClientWorkflowStatusMap,
+  getWorkflowActionItems,
+  getWorkflowDashboardStats,
+} from "@/lib/dashboard/workflow-stats";
 import type {
   AppointmentStats,
   ClientRecord,
@@ -31,6 +38,7 @@ import type {
   Lead,
   TeamMemberStats,
 } from "@/lib/dashboard/types";
+import type { CustomerWorkflowStage, WorkflowStatus } from "@/lib/dashboard/workflow-status";
 
 export default async function DashboardPage() {
   const profile = await getProfile();
@@ -54,10 +62,24 @@ export default async function DashboardPage() {
   let recentLeads: Lead[] = [];
   let recentClients: ClientRecord[] = [];
   let commissionKpis: CommissionDashboardKpis | null = null;
+  let workflowStats = {
+    openLeads: 0,
+    wonLeadsWithoutContract: 0,
+    customersWithoutInvoice: 0,
+    unpaidInvoices: 0,
+    activeCustomers: 0,
+    customersRequiringAction: 0,
+    contractsMissing: 0,
+    invoicesMissing: 0,
+  };
+  let workflowActions: Awaited<ReturnType<typeof getWorkflowActionItems>> = [];
+  let clientWorkflowById: Record<string, WorkflowStatus<CustomerWorkflowStage>> = {};
   let dbError: string | null = null;
 
   try {
-    [stats, appointmentStats, teamStats, activities, recentLeads, recentClients, commissionKpis] =
+    const workflowStatusMapPromise = getClientWorkflowStatusMap();
+
+    [stats, appointmentStats, teamStats, activities, recentLeads, recentClients, commissionKpis, workflowStats, workflowActions, clientWorkflowById] =
       await Promise.all([
         getDashboardStats(),
         getAppointmentStats(),
@@ -66,6 +88,9 @@ export default async function DashboardPage() {
         getRecentLeads(5),
         getRecentClients(5),
         managementView ? getCommissionDashboardKpis() : Promise.resolve(null),
+        getWorkflowDashboardStats(),
+        getWorkflowActionItems(8),
+        workflowStatusMapPromise.then((map) => Object.fromEntries(map.entries())),
       ]);
   } catch (err) {
     dbError =
@@ -137,6 +162,8 @@ export default async function DashboardPage() {
           />
         )}
       </div>
+
+      <WorkflowKpiGrid stats={workflowStats} managementView={managementView} />
 
       {managementView && commissionKpis && (
         <div>
@@ -226,6 +253,12 @@ export default async function DashboardPage() {
         recentLeads={recentLeads}
         recentClients={recentClients}
         showOwnership={managementView}
+        clientWorkflowById={clientWorkflowById}
+      />
+
+      <WorkflowActionPanel
+        items={workflowActions}
+        title={managementView ? "Offene Workflow-Aufgaben" : "Meine offenen Aufgaben"}
       />
 
       {managementView && teamStats && teamStats.length > 0 && (

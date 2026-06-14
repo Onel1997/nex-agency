@@ -5,6 +5,7 @@ import { useState } from "react";
 import { Plus, Target } from "lucide-react";
 import {
   convertLeadToClient,
+  claimLead,
   createLead,
   deleteLead,
   updateLead,
@@ -18,6 +19,7 @@ import { LeadsTable } from "./LeadsTable";
 import { Toast } from "./Toast";
 import type { LeadFormData } from "./LeadForm";
 import type { Lead, TeamMember } from "@/lib/dashboard/types";
+import type { Profile } from "@/lib/auth/types";
 import type { LeadStatus } from "@/lib/dashboard/constants";
 
 interface LeadsPageClientProps {
@@ -27,7 +29,7 @@ interface LeadsPageClientProps {
   canConvertLead: boolean;
   showOwnership: boolean;
   teamMembers: TeamMember[];
-  currentUserId: string;
+  profile: Profile;
 }
 
 export function LeadsPageClient({
@@ -37,7 +39,7 @@ export function LeadsPageClient({
   canConvertLead,
   showOwnership,
   teamMembers,
-  currentUserId,
+  profile,
 }: LeadsPageClientProps) {
   const router = useRouter();
   const [createOpen, setCreateOpen] = useState(false);
@@ -89,6 +91,17 @@ export function LeadsPageClient({
     refresh();
   };
 
+  const handleClaim = async (leadId: string) => {
+    setError(null);
+    try {
+      await claimLead(leadId);
+      setToast("Lead übernommen");
+      refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Lead konnte nicht übernommen werden");
+    }
+  };
+
   return (
     <div className="space-y-6">
       <DashboardHeader
@@ -138,6 +151,7 @@ export function LeadsPageClient({
         <LeadsTable
           leads={leads}
           showOwnership={showOwnership}
+          profile={profile}
           canMarkLeadWon={canMarkLeadWon}
           canConvertLead={canConvertLead}
           onEdit={setEditLead}
@@ -145,6 +159,7 @@ export function LeadsPageClient({
           onStatusChange={handleStatusChange}
           onMarkWon={handleMarkWon}
           onConvert={handleConvert}
+          onClaim={handleClaim}
         />
       )}
 
@@ -155,7 +170,8 @@ export function LeadsPageClient({
         onSave={handleCreate}
         canAssign={canAssign}
         teamMembers={teamMembers}
-        defaultOwnerId={currentUserId}
+        defaultOwnerId={profile.id}
+        profile={profile}
       />
 
       {editLead && (
@@ -168,7 +184,8 @@ export function LeadsPageClient({
           onSave={handleEdit}
           canAssign={canAssign}
           teamMembers={teamMembers}
-          defaultOwnerId={currentUserId}
+          defaultOwnerId={profile.id}
+          profile={profile}
         />
       )}
 

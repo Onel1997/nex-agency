@@ -2,16 +2,24 @@ import { ClientsPageClient } from "@/components/dashboard/ClientsPageClient";
 import { canAssignLeadOwner } from "@/lib/auth/permissions";
 import { getProfile } from "@/lib/auth/session";
 import { getClients } from "@/lib/dashboard/clients";
+import { getClientWorkflowStatusMap } from "@/lib/dashboard/workflow-stats";
 import { getAssignableTeamMembers } from "@/lib/dashboard/team";
 import type { ClientRecord } from "@/lib/dashboard/types";
+import type { CustomerWorkflowStage, WorkflowStatus } from "@/lib/dashboard/workflow-status";
 
 export default async function ClientsPage() {
   const profile = await getProfile();
   let clients: ClientRecord[] = [];
+  let clientWorkflowById: Record<string, WorkflowStatus<CustomerWorkflowStage>> = {};
   let error: string | null = null;
 
   try {
-    clients = await getClients();
+    const [loadedClients, workflowMap] = await Promise.all([
+      getClients(),
+      getClientWorkflowStatusMap(),
+    ]);
+    clients = loadedClients;
+    clientWorkflowById = Object.fromEntries(workflowMap.entries());
   } catch (err) {
     error =
       err instanceof Error
@@ -35,6 +43,7 @@ export default async function ClientsPage() {
       profile={profile}
       canAssign={canAssignLeadOwner(profile)}
       teamMembers={await getAssignableTeamMembers()}
+      clientWorkflowById={clientWorkflowById}
     />
   );
 }

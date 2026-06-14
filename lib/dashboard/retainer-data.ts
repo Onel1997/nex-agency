@@ -55,6 +55,8 @@ export const CLIENT_REVENUE_SELECT_WITH_CONTRACT = `
   id,
   company_name,
   responsible_member_id,
+  setter_id,
+  closer_id,
   monthly_revenue_cents,
   monthly_retainer_cents,
   setup_fee_cents,
@@ -67,7 +69,10 @@ export const CLIENT_REVENUE_SELECT_WITH_CONTRACT = `
   ${CLIENT_FREELANCER_COLUMNS}
   currency,
   ${CLIENT_REVENUE_MEMBER_SELECT},
-  ${CLIENT_FREELANCER_MEMBER_SELECT}
+  ${CLIENT_FREELANCER_MEMBER_SELECT},
+  setter:profiles!clients_setter_id_fkey(full_name, email, setter_commission_rate, agency_role),
+  closer:profiles!clients_closer_id_fkey(full_name, email, closer_commission_rate, agency_role),
+  lead:leads!clients_lead_id_fkey(owner_id)
 `;
 
 export const CLIENT_REVENUE_SELECT_WITH_CONTRACT_NO_STATUS = `

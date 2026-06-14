@@ -1,18 +1,27 @@
 "use client";
 
+import Link from "next/link";
 import { formatCents } from "@/lib/dashboard/format";
 import type { ClientRecord, Lead } from "@/lib/dashboard/types";
+import {
+  resolveLeadWorkflowStatus,
+  type CustomerWorkflowStage,
+  type WorkflowStatus,
+} from "@/lib/dashboard/workflow-status";
+import { CustomerWorkflowBadge, LeadWorkflowBadge } from "./WorkflowStatusBadge";
 
 interface DashboardOverviewProps {
   recentLeads: Lead[];
   recentClients: ClientRecord[];
   showOwnership: boolean;
+  clientWorkflowById?: Record<string, WorkflowStatus<CustomerWorkflowStage>>;
 }
 
 export function DashboardOverview({
   recentLeads,
   recentClients,
   showOwnership,
+  clientWorkflowById = {},
 }: DashboardOverviewProps) {
   return (
     <div className="grid gap-4 lg:grid-cols-2">
@@ -31,14 +40,23 @@ export function DashboardOverview({
                       <th className="py-2 pr-3 font-medium">Erstellt von</th>
                     </>
                   )}
+                  <th className="py-2 pr-3 font-medium">Workflow</th>
                   <th className="py-2 font-medium text-right">Wert</th>
                 </tr>
               </thead>
               <tbody>
-                {recentLeads.map((lead) => (
+                {recentLeads.map((lead) => {
+                  const workflow = resolveLeadWorkflowStatus(lead);
+
+                  return (
                   <tr key={lead.id} className="border-b border-border/50">
                     <td className="py-2.5 pr-3 font-medium text-foreground">
-                      {lead.company_name}
+                      <Link
+                        href={`/dashboard/leads/${lead.id}`}
+                        className="dashboard-link"
+                      >
+                        {lead.company_name}
+                      </Link>
                     </td>
                     {showOwnership && (
                       <>
@@ -50,11 +68,22 @@ export function DashboardOverview({
                         </td>
                       </>
                     )}
+                    <td className="py-2.5 pr-3">
+                      {workflow ? (
+                        <LeadWorkflowBadge
+                          stage={workflow.stage}
+                          urgency={workflow.urgency}
+                        />
+                      ) : (
+                        "—"
+                      )}
+                    </td>
                     <td className="py-2.5 text-right tabular-nums text-foreground">
                       {formatCents(lead.estimated_value_cents)}
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -71,23 +100,43 @@ export function DashboardOverview({
                 <tr className="border-b border-border text-xs uppercase tracking-wider text-muted-soft">
                   <th className="py-2 pr-3 font-medium">Firma</th>
                   <th className="py-2 pr-3 font-medium">Verantwortlich</th>
+                  <th className="py-2 pr-3 font-medium">Workflow</th>
                   <th className="py-2 font-medium text-right">Lead-Schätzung</th>
                 </tr>
               </thead>
               <tbody>
-                {recentClients.map((client) => (
+                {recentClients.map((client) => {
+                  const workflow = clientWorkflowById[client.id];
+
+                  return (
                   <tr key={client.id} className="border-b border-border/50">
                     <td className="py-2.5 pr-3 font-medium text-foreground">
-                      {client.company_name}
+                      <Link
+                        href={`/dashboard/clients/${client.id}`}
+                        className="dashboard-link"
+                      >
+                        {client.company_name}
+                      </Link>
                     </td>
                     <td className="py-2.5 pr-3 text-muted">
                       {client.responsible_member_name || "—"}
+                    </td>
+                    <td className="py-2.5 pr-3">
+                      {workflow ? (
+                        <CustomerWorkflowBadge
+                          stage={workflow.stage}
+                          urgency={workflow.urgency}
+                        />
+                      ) : (
+                        "—"
+                      )}
                     </td>
                     <td className="py-2.5 text-right tabular-nums text-foreground">
                       {formatCents(client.lead_estimated_value_cents)}
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>

@@ -10,11 +10,11 @@ import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
 import { DataTable } from "@/components/dashboard/DataTable";
 import { EmptyState } from "@/components/dashboard/EmptyState";
 import { KpiCard } from "@/components/dashboard/KpiCard";
-import { COMMISSION_ENTRY_STATUS_LABELS } from "@/lib/dashboard/commission-constants";
+import { CommissionEntryStatusBadge } from "@/components/dashboard/CommissionEntryStatusBadge";
+import { SalesDealAttributionBadge } from "@/components/dashboard/SalesDealAttributionBadge";
 import { formatCents, formatDate, formatPercent } from "@/lib/dashboard/format";
 import type {
   CommissionCenterData,
-  CommissionEntryRecord,
 } from "@/lib/dashboard/types";
 import { Banknote, CheckCircle2, Clock, Wallet } from "lucide-react";
 
@@ -138,10 +138,18 @@ export function CommissionsPageClient({ data }: CommissionsPageClientProps) {
             render: (entry) => formatCents(entry.closer_commission_cents),
           },
           {
+            key: "attribution",
+            header: "Attribution",
+            hideOnMobile: true,
+            render: (entry) => (
+              <SalesDealAttributionBadge dealType={entry.deal_type} />
+            ),
+          },
+          {
             key: "status",
             header: "Status",
             render: (entry) => (
-              <CommissionStatusBadge status={entry.status} />
+              <CommissionEntryStatusBadge status={entry.status} />
             ),
           },
           {
@@ -185,26 +193,5 @@ export function CommissionsPageClient({ data }: CommissionsPageClientProps) {
         ]}
       />
     </div>
-  );
-}
-
-function CommissionStatusBadge({
-  status,
-}: {
-  status: CommissionEntryRecord["status"];
-}) {
-  const colors: Record<CommissionEntryRecord["status"], string> = {
-    pending: "bg-amber-500/15 text-amber-200 ring-amber-500/20",
-    approved: "bg-violet-500/15 text-violet-200 ring-violet-500/20",
-    paid: "bg-emerald-500/15 text-emerald-200 ring-emerald-500/20",
-    cancelled: "bg-slate-500/15 text-slate-200 ring-slate-500/20",
-  };
-
-  return (
-    <span
-      className={`inline-flex rounded-md px-2 py-0.5 text-xs font-medium ring-1 ${colors[status]}`}
-    >
-      {COMMISSION_ENTRY_STATUS_LABELS[status]}
-    </span>
   );
 }

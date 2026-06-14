@@ -7,6 +7,7 @@ import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
 import {
   canAccessClient,
   canAssignClientOwner,
+  canEditClientProfile,
   canEditClientRevenue,
 } from "@/lib/auth/permissions";
 import { getProfile } from "@/lib/auth/session";
@@ -17,7 +18,7 @@ import { getClientNotes } from "@/lib/dashboard/client-notes";
 import { getClientDetailById } from "@/lib/dashboard/clients";
 import { getClientRevenueRecordById } from "@/lib/dashboard/finance";
 import { getInvoicesForClient } from "@/lib/dashboard/invoices";
-import { getAssignableFreelancers, getAssignableTeamMembers } from "@/lib/dashboard/team";
+import { getAssignableTeamMembers } from "@/lib/dashboard/team";
 
 interface ClientDetailPageProps {
   params: Promise<{ id: string }>;
@@ -31,11 +32,14 @@ export default async function ClientDetailPage({ params }: ClientDetailPageProps
   const client = await getClientDetailById(id);
   if (!client) notFound();
 
-  if (!canAccessClient(profile, client.responsible_member_id)) {
+  if (!canAccessClient(profile, client.responsible_member_id, {
+    setterId: client.setter_id,
+    closerId: client.closer_id,
+  })) {
     notFound();
   }
 
-  const [notes, activities, communications, files, revenue, invoices, teamMembers, freelancers] =
+  const [notes, activities, communications, files, revenue, invoices, teamMembers] =
     await Promise.all([
       getClientNotes(id),
       getClientActivities(id),
@@ -44,7 +48,6 @@ export default async function ClientDetailPage({ params }: ClientDetailPageProps
       getClientRevenueRecordById(id),
       getInvoicesForClient(id),
       getAssignableTeamMembers(),
-      getAssignableFreelancers(),
     ]);
 
   return (
@@ -72,10 +75,12 @@ export default async function ClientDetailPage({ params }: ClientDetailPageProps
           revenue={revenue}
           invoices={invoices}
           profile={profile}
-          canEdit={canEditClientRevenue(profile, client.responsible_member_id)}
+          canEditContracts={canEditClientRevenue(profile, client.responsible_member_id, {
+            closerId: client.closer_id,
+          })}
+          canEditOverview={canEditClientProfile(profile, client.responsible_member_id)}
           canAssign={canAssignClientOwner(profile)}
           teamMembers={teamMembers}
-          freelancers={freelancers}
         />
       </Suspense>
     </div>

@@ -1,5 +1,4 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { assertAssignableFreelancerId } from "./freelancer-assignment";
 import type { CommissionStatus, ContractStatus } from "./constants";
 import {
   COMMISSION_STATUSES,
@@ -12,7 +11,6 @@ import {
   createSetupInvoiceForClient,
   type CreateSetupInvoiceResult,
 } from "./invoice-contract-actions";
-import { isClientFreelancerSchemaMissingError } from "./client-freelancer-payout";
 import { purgeRetainerPayments, syncClientTotalRevenue } from "./client-revenue-sync";
 
 export interface SaveClientContractInput {
@@ -22,8 +20,6 @@ export interface SaveClientContractInput {
   contractStatus: ContractStatus;
   autoInvoiceEnabled: boolean;
   commissionStatus: CommissionStatus;
-  assignedFreelancerId: string | null;
-  freelancerCommissionRate: number;
   createSetupInvoice?: boolean;
 }
 
@@ -51,10 +47,6 @@ export async function saveClientContractData(
   input: SaveClientContractInput,
   profileId?: string | null,
 ): Promise<SaveClientContractResult> {
-  if (input.assignedFreelancerId) {
-    await assertAssignableFreelancerId(supabase, input.assignedFreelancerId);
-  }
-
   const updatePayload: Record<string, unknown> = {
     monthly_revenue_cents: input.monthlyRevenueCents,
     monthly_retainer_cents: input.monthlyRevenueCents,
@@ -62,8 +54,6 @@ export async function saveClientContractData(
     contract_status: input.contractStatus,
     auto_invoice_enabled: input.autoInvoiceEnabled,
     commission_status: input.commissionStatus,
-    assigned_freelancer_id: input.assignedFreelancerId,
-    freelancer_commission_rate: input.freelancerCommissionRate,
   };
 
   if (input.contractStartDate) {
@@ -92,18 +82,6 @@ export async function saveClientContractData(
     .from("clients")
     .update(updatePayload)
     .eq("id", clientId);
-
-  if (error && isClientFreelancerSchemaMissingError(error.message)) {
-    const {
-      assigned_freelancer_id: _a,
-      freelancer_commission_rate: _b,
-      ...withoutFreelancer
-    } = updatePayload;
-    ({ error } = await supabase
-      .from("clients")
-      .update(withoutFreelancer)
-      .eq("id", clientId));
-  }
 
   if (error && error.message.toLowerCase().includes("contract_status")) {
     const { contract_status: _, auto_invoice_enabled: __, ...withoutStatus } =
@@ -159,20 +137,6 @@ export function parseClientContractFormData(formData: FormData): SaveClientContr
   const createSetupInvoice =
     String(formData.get("create_setup_invoice") ?? "") === "on";
 
-  const assignedFreelancerRaw = String(
-    formData.get("assigned_freelancer_id") ?? "",
-  ).trim();
-  const freelancerRateRaw = String(
-    formData.get("freelancer_commission_rate") ?? "0",
-  ).replace(",", ".");
-  const freelancerCommissionRate = Number.parseFloat(freelancerRateRaw);
-  if (Number.isNaN(freelancerCommissionRate)) {
-    throw new Error("Freelancer-Anteil muss eine gültige Zahl sein");
-  }
-  if (freelancerCommissionRate < 0 || freelancerCommissionRate > 100) {
-    throw new Error("Freelancer-Anteil muss zwischen 0 und 100 liegen");
-  }
-
   return {
     monthlyRevenueCents,
     setupFeeCents,
@@ -184,8 +148,6 @@ export function parseClientContractFormData(formData: FormData): SaveClientContr
     commissionStatus: validateCommissionStatus(
       String(formData.get("commission_status") ?? "none"),
     ),
-    assignedFreelancerId: assignedFreelancerRaw || null,
-    freelancerCommissionRate,
     createSetupInvoice,
   };
 }

@@ -158,6 +158,18 @@ export function canViewLeads(profile: PermissionActor): boolean {
   return hasPermission(profile, "view_leads");
 }
 
+/** Owner and admin see the full team pipeline; closers see pool + owned leads (enforced in RLS). */
+export function canViewAllTeamLeads(profile: PermissionActor): boolean {
+  const role = resolveAgencyRole(profile);
+  return role === "owner" || role === "admin";
+}
+
+/** Owner and admin see all active clients; closers see owned clients only (enforced in RLS). */
+export function canViewAllTeamClients(profile: PermissionActor): boolean {
+  const role = resolveAgencyRole(profile);
+  return role === "owner" || role === "admin";
+}
+
 export function canEditLeads(profile: PermissionActor): boolean {
   return hasPermission(profile, "edit_leads");
 }
@@ -262,6 +274,10 @@ export function canAccessContractsRoutes(profile: PermissionActor): boolean {
   return isManagement(profile);
 }
 
+export function canAccessSystemRoutes(profile: PermissionActor): boolean {
+  return hasPermission(profile, "system_settings");
+}
+
 export function canAccessPerformanceRoutes(profile: PermissionActor): boolean {
   return isManagement(profile) || isFieldStaff(profile);
 }
@@ -358,8 +374,18 @@ export function canAssignRoleToMember(
 export function canAccessClient(
   profile: PermissionActor & Pick<Profile, "id">,
   responsibleMemberId: string | null,
+  options?: { setterId?: string | null; closerId?: string | null },
 ): boolean {
   if (isManagement(profile) || isSalesManager(profile)) return true;
+  if (isCloser(profile)) {
+    return options?.closerId === profile.id;
+  }
+  if (isSetter(profile)) {
+    return (
+      responsibleMemberId === profile.id ||
+      options?.setterId === profile.id
+    );
+  }
   if (canManageClients(profile) && responsibleMemberId === profile.id) {
     return true;
   }
@@ -369,7 +395,7 @@ export function canAccessClient(
   return false;
 }
 
-export function canEditClientRevenue(
+export function canEditClientProfile(
   profile: PermissionActor & Pick<Profile, "id">,
   responsibleMemberId: string | null,
 ): boolean {
@@ -378,6 +404,23 @@ export function canEditClientRevenue(
     return true;
   }
   return false;
+}
+
+/** Contract and invoice management on the client hub (closers: owned customers only). */
+export function canEditClientRevenue(
+  profile: PermissionActor & Pick<Profile, "id">,
+  responsibleMemberId: string | null,
+  options?: { closerId?: string | null },
+): boolean {
+  if (canEditClientProfile(profile, responsibleMemberId)) return true;
+  if (isCloser(profile) && options?.closerId === profile.id) {
+    return true;
+  }
+  return false;
+}
+
+export function canManageClientFinanceControls(profile: PermissionActor): boolean {
+  return canManageFinance(profile);
 }
 
 export function isValidAgencyRole(role: string): role is AgencyRole {

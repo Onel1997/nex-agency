@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import type { ClientFormData } from "@/components/dashboard/ClientForm";
 import {
   canAssignLeadOwner,
-  canEditClientRevenue,
+  canEditClientProfile,
   isManagement,
   isSuperAdmin,
 } from "@/lib/auth/permissions";
@@ -45,7 +45,7 @@ export async function updateClient(id: string, data: ClientFormData) {
   const existing = await getClientById(id);
   if (!existing) throw new Error("Kunde nicht gefunden");
 
-  if (!canEditClientRevenue(profile, existing.responsible_member_id)) {
+  if (!canEditClientProfile(profile, existing.responsible_member_id)) {
     throw new Error("Keine Berechtigung zur Bearbeitung dieses Kunden");
   }
 

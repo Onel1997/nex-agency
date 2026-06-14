@@ -9,6 +9,11 @@ import { canAssignAppointments, canConvertLeadToClient, canMarkLeadWon } from "@
 import { getProfile } from "@/lib/auth/session";
 import { getAppointmentsForLead } from "@/lib/dashboard/appointments";
 import { formatCents, formatDate, formatWebsite } from "@/lib/dashboard/format";
+import {
+  canClaimLead,
+  canConvertLeadForLead,
+  canMarkLeadWonForLead,
+} from "@/lib/dashboard/lead-ownership";
 import { getAssignableTeamMembers } from "@/lib/dashboard/team";
 import { getLeadById, getLeads } from "@/lib/dashboard/leads";
 
@@ -100,8 +105,14 @@ export default async function LeadDetailPage({ params }: LeadDetailPageProps) {
 
           <LeadDetailConversion
             lead={lead}
-            canMarkLeadWon={canMarkLeadWon(profile)}
-            canConvertLead={canConvertLeadToClient(profile)}
+            canClaim={canClaimLead(profile, lead)}
+            canMarkLeadWon={
+              canMarkLeadWon(profile) && canMarkLeadWonForLead(profile, lead)
+            }
+            canConvertLead={
+              canConvertLeadToClient(profile) &&
+              canConvertLeadForLead(profile, lead)
+            }
           />
         </div>
 

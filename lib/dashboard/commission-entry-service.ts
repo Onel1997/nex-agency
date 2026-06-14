@@ -4,6 +4,7 @@ import {
   isCommissionTriggeringInvoiceType,
   shouldCreateCommissionEntry,
 } from "./commission-entries";
+import { resolveSalesAttributionIds } from "./sales-attribution";
 import { resolveInvoiceType } from "./invoice-type";
 import type { InvoiceRecord } from "./types";
 
@@ -57,28 +58,51 @@ export async function createCommissionEntryFromPaidInvoice(
 
   const { data: client, error: clientError } = await supabase
     .from("clients")
-    .select("id, setter_id, closer_id, company_name")
+    .select(
+      "id, setter_id, closer_id, company_name, lead:leads!clients_lead_id_fkey(owner_id)",
+    )
     .eq("id", invoice.client_id as string)
     .single();
 
   if (clientError || !client) return { created: false };
 
-  const setterId = (client.setter_id as string | null) ?? null;
-  const closerId = (client.closer_id as string | null) ?? null;
+  const lead = Array.isArray(client.lead) ? client.lead[0] : client.lead;
+  const leadOwnerId = (lead as { owner_id?: string | null } | null)?.owner_id ?? null;
+  const rawCloserId = (client.closer_id as string | null) ?? null;
+  const rawSetterId = (client.setter_id as string | null) ?? null;
 
-  const profileIds = [setterId, closerId].filter(Boolean) as string[];
-  if (profileIds.length === 0) return { created: false };
+  const initialProfileIds = [rawSetterId, rawCloserId].filter(Boolean) as string[];
+  if (initialProfileIds.length === 0) return { created: false };
+
+  const { data: initialProfiles } = await supabase
+    .from("profiles")
+    .select("id, setter_commission_rate, closer_commission_rate, agency_role")
+    .in("id", initialProfileIds);
+
+  const closerProfile = initialProfiles?.find((profile) => profile.id === rawCloserId);
+  const resolvedIds = resolveSalesAttributionIds({
+    setterId: rawSetterId,
+    closerId: rawCloserId,
+    leadOwnerId,
+    closerAgencyRole: closerProfile?.agency_role as string | null,
+  });
+
+  const setterId = resolvedIds.setterId;
+  const closerId = resolvedIds.closerId;
+  const resolvedProfileIds = [...new Set([setterId, closerId].filter(Boolean))] as string[];
+
+  if (resolvedProfileIds.length === 0) return { created: false };
 
   const { data: profiles } = await supabase
     .from("profiles")
-    .select("id, setter_commission_rate, closer_commission_rate")
-    .in("id", profileIds);
+    .select("id, setter_commission_rate, closer_commission_rate, agency_role")
+    .in("id", resolvedProfileIds);
 
   const setterProfile = profiles?.find((profile) => profile.id === setterId);
-  const closerProfile = profiles?.find((profile) => profile.id === closerId);
+  const resolvedCloserProfile = profiles?.find((profile) => profile.id === closerId);
 
   const setterRate = Number(setterProfile?.setter_commission_rate ?? 0);
-  const closerRate = Number(closerProfile?.closer_commission_rate ?? 0);
+  const closerRate = Number(resolvedCloserProfile?.closer_commission_rate ?? 0);
   const projectValueCents = resolveProjectValueCents(invoice);
 
   const commissions = calculateSetterCloserCommissions({

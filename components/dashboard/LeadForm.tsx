@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  LEAD_STATUSES,
   LEAD_STATUS_LABELS,
   type LeadStatus,
 } from "@/lib/dashboard/constants";
@@ -72,6 +71,8 @@ interface LeadFormProps {
   defaultOwnerId?: string;
   creatorName?: string | null;
   mode?: "create" | "edit";
+  allowedStatuses?: LeadStatus[];
+  statusDisabled?: boolean;
 }
 
 export function LeadForm({
@@ -86,6 +87,8 @@ export function LeadForm({
   defaultOwnerId,
   creatorName,
   mode = "create",
+  allowedStatuses,
+  statusDisabled = false,
 }: LeadFormProps) {
   const betreuerMembers = teamMembers.filter(isBetreuerMember);
   const defaultBetreuerId =
@@ -103,6 +106,9 @@ export function LeadForm({
   const hasLegacyAcquiredBy =
     Boolean(data.acquired_by) &&
     !teamMembers.some((member) => memberLabel(member) === data.acquired_by);
+
+  const statusOptions =
+    allowedStatuses ?? (Object.keys(LEAD_STATUS_LABELS) as LeadStatus[]);
 
   return (
     <form id={formId} onSubmit={onSubmit} className="space-y-4">
@@ -158,8 +164,9 @@ export function LeadForm({
               onChange({ ...data, status: e.target.value as LeadStatus })
             }
             className="dashboard-input"
+            disabled={statusDisabled}
           >
-            {LEAD_STATUSES.map((status) => (
+            {statusOptions.map((status) => (
               <option key={status} value={status}>
                 {LEAD_STATUS_LABELS[status]}
               </option>

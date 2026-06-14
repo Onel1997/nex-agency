@@ -1,7 +1,12 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { canAccessClient, canEditClientRevenue, isManagement } from "@/lib/auth/permissions";
+import {
+  canAccessClient,
+  canEditClientRevenue,
+  isCloser,
+  isManagement,
+} from "@/lib/auth/permissions";
 import { getProfile } from "@/lib/auth/session";
 import { logClientActivity } from "@/lib/dashboard/client-activities";
 import { CLIENT_FILES_BUCKET } from "@/lib/dashboard/client-files";
@@ -61,7 +66,12 @@ async function requireClientAccess(clientId: string) {
   const client = await getClientById(clientId);
   if (!client) throw new Error("Kunde nicht gefunden");
 
-  if (!canAccessClient(profile, client.responsible_member_id)) {
+  if (
+    !canAccessClient(profile, client.responsible_member_id, {
+      setterId: client.setter_id,
+      closerId: client.closer_id,
+    })
+  ) {
     throw new Error("Keine Berechtigung für diesen Kunden");
   }
 
@@ -369,11 +379,24 @@ export async function createInvoice(
 export async function updateClientContract(clientId: string, formData: FormData) {
   const { profile, client } = await requireClientAccess(clientId);
 
-  if (!canEditClientRevenue(profile, client.responsible_member_id)) {
+  if (
+    !canEditClientRevenue(profile, client.responsible_member_id, {
+      closerId: client.closer_id,
+    })
+  ) {
     throw new Error("Keine Berechtigung zum Bearbeiten von Vertragsdaten");
   }
 
   const input = parseClientContractFormData(formData);
+
+  if (isCloser(profile)) {
+    const detail = await getClientDetailById(clientId);
+    if (detail) {
+      input.commissionStatus = detail.commission_status;
+      input.assignedFreelancerId = detail.assigned_freelancer_id;
+      input.freelancerCommissionRate = detail.freelancer_commission_rate;
+    }
+  }
   const supabase = await createClient();
 
   const { setupInvoice } = await saveClientContractData(

@@ -12,6 +12,7 @@ interface ConfirmDialogProps {
   confirmLabel: string;
   cancelLabel?: string;
   variant?: "default" | "danger";
+  confirmDisabled?: boolean;
   onConfirm: () => void | Promise<void>;
 }
 
@@ -24,6 +25,7 @@ export function ConfirmDialog({
   confirmLabel,
   cancelLabel = "Abbrechen",
   variant = "default",
+  confirmDisabled = false,
   onConfirm,
 }: ConfirmDialogProps) {
   const [isPending, startTransition] = useTransition();
@@ -53,7 +55,7 @@ export function ConfirmDialog({
           <button
             type="button"
             onClick={handleConfirm}
-            disabled={isPending}
+            disabled={isPending || confirmDisabled}
             className={
               variant === "danger"
                 ? "rounded-xl bg-red-500/15 px-4 py-2 text-sm font-medium text-red-200 ring-1 ring-red-500/25 transition-colors hover:bg-red-500/25 disabled:opacity-50"

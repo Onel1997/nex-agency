@@ -37,15 +37,15 @@ import { updateClient } from "@/app/dashboard/clients/actions";
 import type { ClientFormData } from "@/components/dashboard/ClientForm";
 import { ClientModal } from "@/components/dashboard/ClientModal";
 import { ClientRevenueModal } from "@/components/dashboard/ClientRevenueModal";
-import { ClientFreelancerPayoutModal } from "@/components/dashboard/ClientFreelancerPayoutModal";
-import { CommissionPayoutModal } from "@/components/dashboard/CommissionPayoutModal";
-import { CommissionStatusBadge } from "@/components/dashboard/CommissionStatusBadge";
-import { ClientFreelancerPayoutStatusBadge } from "@/components/dashboard/ClientFreelancerPayoutStatusBadge";
+import { SalesAttributionPanel } from "@/components/dashboard/SalesAttributionPanel";
 import { InvoiceStatusBadge } from "@/components/dashboard/InvoiceStatusBadge";
 import { InvoiceTable } from "@/components/dashboard/InvoiceTable";
 import { Toast } from "@/components/dashboard/Toast";
 import type { Profile } from "@/lib/auth/types";
-import { isManagement } from "@/lib/auth/permissions";
+import {
+  canManageClientFinanceControls,
+  isManagement,
+} from "@/lib/auth/permissions";
 import {
   CLIENT_ACTIVITY_TYPE_LABELS,
   COMMUNICATION_TYPE_LABELS,
@@ -67,6 +67,8 @@ import {
   formatWebsite,
 } from "@/lib/dashboard/format";
 import { resolveRetainerAmountCents } from "@/lib/dashboard/billing-cycle";
+import { buildCommissionEntryFromClientRevenue } from "@/lib/dashboard/commission-display";
+import { salesAttributionFromClientRevenue } from "@/lib/dashboard/sales-attribution";
 import {
   formatRetainerPeriodStatus,
   getNextOpenRetainerPeriod,
@@ -114,10 +116,10 @@ interface ClientDetailPageClientProps {
   revenue: ClientRevenueRecord | null;
   invoices: InvoiceRecord[];
   profile: Profile;
-  canEdit: boolean;
+  canEditContracts: boolean;
+  canEditOverview: boolean;
   canAssign: boolean;
   teamMembers: TeamMember[];
-  freelancers: TeamMember[];
 }
 
 export function ClientDetailPageClient({
@@ -129,10 +131,10 @@ export function ClientDetailPageClient({
   revenue,
   invoices,
   profile,
-  canEdit,
+  canEditContracts,
+  canEditOverview,
   canAssign,
   teamMembers,
-  freelancers,
 }: ClientDetailPageClientProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -140,10 +142,8 @@ export function ClientDetailPageClient({
   const [toast, setToast] = useState<string | null>(null);
   const [editOpen, setEditOpen] = useState(false);
   const [contractModalOpen, setContractModalOpen] = useState(false);
-  const [payoutClient, setPayoutClient] = useState<ClientRevenueRecord | null>(null);
-  const [freelancerPayoutClient, setFreelancerPayoutClient] =
-    useState<ClientRevenueRecord | null>(null);
   const [, startTransition] = useTransition();
+  const canManageFinanceControls = canManageClientFinanceControls(profile);
   const clientInvoices = filterInvoicesForClient(invoices, client.id);
   const activeContract = hasActiveContract(client);
 
@@ -196,7 +196,7 @@ export function ClientDetailPageClient({
       {activeTab === "overview" && (
         <OverviewTab
           client={client}
-          canEdit={canEdit}
+          canEdit={canEditOverview}
           onEdit={() => setEditOpen(true)}
         />
       )}
@@ -244,7 +244,8 @@ export function ClientDetailPageClient({
         <ContractsTab
           client={client}
           revenue={revenue}
-          canEdit={canEdit}
+          canEdit={canEditContracts}
+          canManageFinanceControls={canManageFinanceControls}
           onEditContract={() => {
             if (!revenue) {
               setToast("Vertragsdaten konnten nicht geladen werden");
@@ -252,7 +253,6 @@ export function ClientDetailPageClient({
             }
             setContractModalOpen(true);
           }}
-          onFreelancerPayout={(selected) => setFreelancerPayoutClient(selected)}
         />
       )}
       {activeTab === "invoices" && (
@@ -304,26 +304,11 @@ export function ClientDetailPageClient({
         <ClientRevenueModal
           client={revenue}
           invoices={clientInvoices}
-          freelancers={freelancers}
           open={contractModalOpen}
-          payoutOpen={Boolean(payoutClient || freelancerPayoutClient)}
+          canManageFinanceControls={canManageFinanceControls}
           onClose={() => setContractModalOpen(false)}
-          onRequestPayout={(selected) => setPayoutClient(selected)}
-          onRequestFreelancerPayout={(selected) => setFreelancerPayoutClient(selected)}
         />
       )}
-
-      <CommissionPayoutModal
-        client={payoutClient}
-        open={Boolean(payoutClient)}
-        onClose={() => setPayoutClient(null)}
-      />
-
-      <ClientFreelancerPayoutModal
-        client={freelancerPayoutClient}
-        open={Boolean(freelancerPayoutClient)}
-        onClose={() => setFreelancerPayoutClient(null)}
-      />
 
       <Toast message={toast} onDismiss={() => setToast(null)} />
     </div>
@@ -930,29 +915,18 @@ function CommunicationTab({
   );
 }
 
-function hasFreelancerAssignment(
-  revenue: ClientRevenueRecord | null,
-  client: ClientDetailRecord,
-): boolean {
-  return Boolean(
-    revenue?.assigned_freelancer_id ||
-      client.assigned_freelancer_id ||
-      (revenue?.freelancer_commission_rate ?? client.freelancer_commission_rate) > 0,
-  );
-}
-
 function ContractsTab({
   client,
   revenue,
   canEdit,
+  canManageFinanceControls,
   onEditContract,
-  onFreelancerPayout,
 }: {
   client: ClientDetailRecord;
   revenue: ClientRevenueRecord | null;
   canEdit: boolean;
+  canManageFinanceControls: boolean;
   onEditContract: () => void;
-  onFreelancerPayout: (client: ClientRevenueRecord) => void;
 }) {
   const hasRetainer = resolveRetainerAmountCents(client) > 0;
   const contractStatus = revenue?.contract_status ?? client.contract_status ?? "draft";
@@ -1012,78 +986,33 @@ function ContractsTab({
         </InfoItem>
         <InfoItem label="Zahlungsstatus" value={paymentStatus} />
         <InfoItem label="Gesamtumsatz" value={formatCents(client.total_revenue_cents)} />
-        <InfoItem label="Provision">
-          <CommissionStatusBadge status={client.commission_status} />
-        </InfoItem>
-        <InfoItem
-          label="Offene Provision"
-          value={formatCents(client.commission_outstanding_cents)}
-        />
       </dl>
 
-      {hasFreelancerAssignment(revenue, client) && (
-        <div className="mt-6 border-t border-border pt-6">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <h3 className="text-xs font-medium uppercase tracking-wider text-muted-soft">
-              Freelancer
-            </h3>
-            {canEdit && revenue && !revenue.is_project_paid && hasFreelancerAssignment(revenue, client) && (
-              <span className="text-xs text-amber-200/90">
-                Auszahlung erst nach bezahlter Setup-Rechnung möglich
-              </span>
-            )}
-            {canEdit && revenue && revenue.is_project_paid && revenue.freelancer_outstanding_cents > 0 && (
-              <button
-                type="button"
-                onClick={() => onFreelancerPayout(revenue)}
-                className="dashboard-btn-secondary inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm"
-              >
-                Freelancer auszahlen
-              </button>
-            )}
-          </div>
-          <dl className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            <InfoItem
-              label="Zugewiesen"
-              value={
-                revenue?.assigned_freelancer_name ??
-                client.assigned_freelancer_name ??
-                "—"
-              }
-            />
-            <InfoItem
-              label="Anteil"
-              value={`${revenue?.freelancer_commission_rate ?? client.freelancer_commission_rate} %`}
-            />
-            <InfoItem label="Freelancer Status">
-              <ClientFreelancerPayoutStatusBadge
-                status={
-                  revenue?.freelancer_payout_status ?? client.freelancer_payout_status
-                }
-              />
-            </InfoItem>
-            <InfoItem
-              label="Freelancer Auszahlung"
-              value={formatCents(
-                revenue?.freelancer_payout_cents ?? client.freelancer_payout_cents,
-              )}
-            />
-            <InfoItem
-              label="Freelancer Offen"
-              value={formatCents(
-                revenue?.freelancer_outstanding_cents ??
-                  client.freelancer_outstanding_cents,
-              )}
-            />
-            <InfoItem
-              label="Agenturanteil"
-              value={formatCents(
-                revenue?.agency_share_cents ?? client.agency_share_cents,
-              )}
-            />
-          </dl>
+      {revenue ? (
+        <div className="mt-6">
+          <SalesAttributionPanel
+            compact
+            canManageCommissions={canManageFinanceControls}
+            attribution={salesAttributionFromClientRevenue(revenue)}
+            commissionEntry={buildCommissionEntryFromClientRevenue({
+              commissionEntryId: revenue.commission_entry_id,
+              clientId: revenue.id,
+              companyName: revenue.company_name,
+              setterId: revenue.setter_id,
+              setterName: revenue.setter_name,
+              closerId: revenue.closer_id,
+              closerName: revenue.closer_name,
+              projectValueCents: revenue.setup_fee_cents ?? 0,
+              setterRate: revenue.setter_commission_rate,
+              closerRate: revenue.closer_commission_rate,
+              setterCommissionCents: revenue.setter_commission_cents,
+              closerCommissionCents: revenue.closer_commission_cents,
+              commissionEntryStatus: revenue.commission_entry_status,
+              dealType: revenue.sales_deal_type,
+            })}
+          />
         </div>
-      )}
+      ) : null}
 
       {hasRetainer && (
         <div className="mt-6 border-t border-border pt-6">

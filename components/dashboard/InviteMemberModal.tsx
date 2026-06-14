@@ -2,43 +2,51 @@
 
 import { useEffect, useState } from "react";
 import { Modal } from "./Modal";
-import { getAssignableRoles } from "@/lib/auth/permissions";
-import { ROLE_LABELS, type UserRole } from "@/lib/auth/types";
+import { getAssignableAgencyRoles } from "@/lib/auth/permissions";
+import {
+  agencyRoleSelectOptions,
+  employmentTypeSelectOptions,
+  getAgencyRoleLabel,
+  getEmploymentTypeLabel,
+} from "@/lib/auth/roles";
+import type { AgencyRole, EmploymentType, Profile } from "@/lib/auth/types";
 
 interface InviteMemberModalProps {
   open: boolean;
   onClose: () => void;
   onInvite: (formData: FormData) => Promise<void>;
-  currentUserRole: UserRole;
+  currentUserProfile: Pick<Profile, "agency_role" | "role">;
 }
 
 export function InviteMemberModal({
   open,
   onClose,
   onInvite,
-  currentUserRole,
+  currentUserProfile,
 }: InviteMemberModalProps) {
   const [email, setEmail] = useState("");
-  const [role, setRole] = useState<UserRole>("employee");
+  const [employmentType, setEmploymentType] = useState<EmploymentType>("employee");
+  const [agencyRole, setAgencyRole] = useState<AgencyRole>("setter");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const assignableRoles = getAssignableRoles(currentUserRole).filter(
-    (r) => r !== "super_admin" || currentUserRole === "super_admin",
+  const assignableRoles = getAssignableAgencyRoles(currentUserProfile).filter(
+    (role) => role !== "owner" || currentUserProfile.agency_role === "owner",
   );
   const selectableRoles =
-    assignableRoles.length > 0 ? assignableRoles : (["employee"] as UserRole[]);
+    assignableRoles.length > 0 ? assignableRoles : (["setter"] as AgencyRole[]);
 
   useEffect(() => {
     if (!open) return;
     setEmail("");
-    const roles = getAssignableRoles(currentUserRole).filter(
-      (r) => r !== "super_admin" || currentUserRole === "super_admin",
+    setEmploymentType("employee");
+    const roles = getAssignableAgencyRoles(currentUserProfile).filter(
+      (role) => role !== "owner" || currentUserProfile.agency_role === "owner",
     );
-    const defaultRole = roles.includes("employee") ? "employee" : roles[0] ?? "employee";
-    setRole(defaultRole);
+    const defaultRole = roles.includes("setter") ? "setter" : roles[0] ?? "setter";
+    setAgencyRole(defaultRole);
     setError(null);
-  }, [open, currentUserRole]);
+  }, [open, currentUserProfile]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -47,7 +55,8 @@ export function InviteMemberModal({
 
     const formData = new FormData();
     formData.set("email", email);
-    formData.set("role", role);
+    formData.set("employment_type", employmentType);
+    formData.set("agency_role", agencyRole);
 
     try {
       await onInvite(formData);
@@ -58,6 +67,8 @@ export function InviteMemberModal({
       setIsSubmitting(false);
     }
   };
+
+  const roleOptions = agencyRoleSelectOptions(selectableRoles, agencyRole);
 
   return (
     <Modal open={open} onClose={onClose} title="Teammitglied einladen" size="md">
@@ -83,15 +94,32 @@ export function InviteMemberModal({
         </label>
 
         <label className="block">
-          <span className="mb-1.5 block text-xs font-medium text-muted">Rolle</span>
+          <span className="mb-1.5 block text-xs font-medium text-muted">
+            Beschäftigungsart
+          </span>
           <select
-            value={role}
-            onChange={(e) => setRole(e.target.value as UserRole)}
+            value={employmentType}
+            onChange={(e) => setEmploymentType(e.target.value as EmploymentType)}
             className="dashboard-input"
           >
-            {selectableRoles.map((option) => (
+            {employmentTypeSelectOptions().map((option) => (
               <option key={option} value={option}>
-                {ROLE_LABELS[option]}
+                {getEmploymentTypeLabel(option)}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="block">
+          <span className="mb-1.5 block text-xs font-medium text-muted">Agenturrolle</span>
+          <select
+            value={agencyRole}
+            onChange={(e) => setAgencyRole(e.target.value as AgencyRole)}
+            className="dashboard-input"
+          >
+            {roleOptions.map((option) => (
+              <option key={option} value={option}>
+                {getAgencyRoleLabel(option)}
               </option>
             ))}
           </select>

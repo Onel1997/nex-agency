@@ -3,7 +3,7 @@
 import { LogOut } from "lucide-react";
 import { signOut } from "@/app/auth/actions";
 import type { Profile } from "@/lib/auth/types";
-import { ROLE_LABELS } from "@/lib/auth/types";
+import { AGENCY_ROLE_LABELS } from "@/lib/auth/types";
 
 interface UserMenuProps {
   profile: Profile;
@@ -21,7 +21,7 @@ export function UserMenu({ profile }: UserMenuProps) {
         </p>
         <p className="mt-0.5 text-xs text-muted-soft">{profile.email}</p>
         <span className="dashboard-role-badge mt-2 inline-flex">
-          {ROLE_LABELS[profile.role]}
+          {AGENCY_ROLE_LABELS[profile.agency_role]}
         </span>
       </div>
 

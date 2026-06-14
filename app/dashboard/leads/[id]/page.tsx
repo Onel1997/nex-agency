@@ -5,7 +5,7 @@ import { LeadDetailClient } from "@/components/dashboard/LeadDetailClient";
 import { LeadDetailConversion } from "@/components/dashboard/LeadDetailConversion";
 import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
 import { StatusBadge } from "@/components/dashboard/StatusBadge";
-import { canAssignAppointments } from "@/lib/auth/permissions";
+import { canAssignAppointments, canConvertLeadToClient, canMarkLeadWon } from "@/lib/auth/permissions";
 import { getProfile } from "@/lib/auth/session";
 import { getAppointmentsForLead } from "@/lib/dashboard/appointments";
 import { formatCents, formatDate, formatWebsite } from "@/lib/dashboard/format";
@@ -98,7 +98,11 @@ export default async function LeadDetailPage({ params }: LeadDetailPageProps) {
             </div>
           )}
 
-          <LeadDetailConversion lead={lead} />
+          <LeadDetailConversion
+            lead={lead}
+            canMarkLeadWon={canMarkLeadWon(profile)}
+            canConvertLead={canConvertLeadToClient(profile)}
+          />
         </div>
 
         <LeadDetailClient

@@ -2,7 +2,13 @@
 
 import { revalidatePath } from "next/cache";
 import type { LeadFormData } from "@/components/dashboard/LeadForm";
-import { canAssignLeadOwner } from "@/lib/auth/permissions";
+import {
+  canAssignLeadOwner,
+  canConvertLeadToClient,
+  canEditLeads,
+  canMarkLeadWon,
+  isSetter,
+} from "@/lib/auth/permissions";
 import { getAuthUser, getProfile } from "@/lib/auth/session";
 import { LEAD_STATUS_LABELS, type LeadStatus } from "@/lib/dashboard/constants";
 import { logActivity } from "@/lib/dashboard/activity";
@@ -59,15 +65,20 @@ export async function createLead(data: LeadFormData) {
   const user = await getAuthUser();
   const profile = await getProfile();
   if (!user || !profile) throw new Error("Nicht angemeldet");
+  if (!canEditLeads(profile)) {
+    throw new Error("Keine Berechtigung, Leads zu erstellen");
+  }
 
   const ownerId = await resolveOwnerId(data, profile);
   const estimatedValueCents = parseEuroToCents(data.estimated_value);
+  const setterId = isSetter(profile) ? ownerId : null;
   const supabase = await createClient();
   const { data: created, error } = await supabase
     .from("leads")
     .insert({
       ...toDbPayload(data, ownerId, estimatedValueCents),
       created_by: profile.id,
+      setter_id: setterId,
     })
     .select("id")
     .single();
@@ -90,6 +101,9 @@ export async function updateLead(id: string, data: LeadFormData) {
   const user = await getAuthUser();
   const profile = await getProfile();
   if (!user || !profile) throw new Error("Nicht angemeldet");
+  if (!canEditLeads(profile)) {
+    throw new Error("Keine Berechtigung, Leads zu bearbeiten");
+  }
 
   const supabase = await createClient();
   const { data: existing, error: fetchError } = await supabase
@@ -173,6 +187,12 @@ export async function deleteLead(id: string) {
 export async function updateLeadStatus(id: string, status: LeadStatus) {
   const profile = await getProfile();
   if (!profile) throw new Error("Nicht angemeldet");
+  if (status === "won" && !canMarkLeadWon(profile)) {
+    throw new Error("Keine Berechtigung, Leads als gewonnen zu markieren");
+  }
+  if (!canEditLeads(profile)) {
+    throw new Error("Keine Berechtigung, Lead-Status zu ändern");
+  }
 
   const supabase = await createClient();
   const { data: existing, error: fetchError } = await supabase
@@ -183,9 +203,14 @@ export async function updateLeadStatus(id: string, status: LeadStatus) {
 
   if (fetchError) throw new Error(fetchError.message);
 
+  const updatePayload: Record<string, unknown> = { status };
+  if (status === "won") {
+    updatePayload.closer_id = profile.id;
+  }
+
   const { error } = await supabase
     .from("leads")
-    .update({ status })
+    .update(updatePayload)
     .eq("id", id);
 
   if (error) throw new Error(error.message);
@@ -228,12 +253,15 @@ export async function updateLeadStatus(id: string, status: LeadStatus) {
 export async function convertLeadToClient(leadId: string) {
   const profile = await getProfile();
   if (!profile) throw new Error("Nicht angemeldet");
+  if (!canConvertLeadToClient(profile)) {
+    throw new Error("Keine Berechtigung, Leads in Kunden umzuwandeln");
+  }
 
   const supabase = await createClient();
   const { data: lead, error: fetchError } = await supabase
     .from("leads")
     .select(
-      "company_name, contact_name, phone, email, website, status, acquired_by, notes, owner_id, estimated_value_cents, currency, converted_to_client",
+      "company_name, contact_name, phone, email, website, status, acquired_by, notes, owner_id, estimated_value_cents, currency, converted_to_client, setter_id, closer_id",
     )
     .eq("id", leadId)
     .single();
@@ -277,6 +305,8 @@ export async function convertLeadToClient(leadId: string) {
       notes: lead.notes,
       lead_estimated_value_cents: lead.estimated_value_cents,
       currency: lead.currency ?? "EUR",
+      setter_id: lead.setter_id,
+      closer_id: lead.closer_id ?? profile.id,
     })
     .select("id")
     .single();

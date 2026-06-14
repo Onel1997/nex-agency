@@ -29,7 +29,6 @@ export default async function TeamPage() {
     <TeamPageClient
       members={members}
       currentUserId={profile.id}
-      currentUserRole={profile.role}
       currentUserProfile={profile}
     />
   );

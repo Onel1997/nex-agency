@@ -1,22 +1,46 @@
 import { isManagement } from "@/lib/auth/permissions";
-import { normalizeUserRole } from "@/lib/auth/roles";
+import {
+  agencyRoleFromLegacyRole,
+  normalizeAgencyRole,
+  normalizeEmploymentType,
+  normalizeUserRole,
+} from "@/lib/auth/roles";
 import { getProfile } from "@/lib/auth/session";
 import { resolveTeamMemberStatus } from "@/lib/auth/member-status";
 import { createClient } from "@/lib/supabase/server";
 import type { TeamMember } from "./types";
 
+const TEAM_MEMBER_SELECT =
+  "id, email, full_name, role, employment_type, agency_role, created_at, is_active, status, activated_at, commission_rate, setter_commission_rate, closer_commission_rate";
+
 function mapTeamMember(
-  row: Omit<TeamMember, "status" | "role"> & {
+  row: Omit<TeamMember, "status" | "role" | "agency_role" | "employment_type"> & {
     status: TeamMember["status"];
     role: string;
+    agency_role?: string | null;
+    employment_type?: string | null;
     commission_rate?: number;
+    setter_commission_rate?: number;
+    closer_commission_rate?: number;
   },
 ): TeamMember {
   const normalizedRole = normalizeUserRole(row.role) ?? "employee";
+  const agencyRole =
+    normalizeAgencyRole(row.agency_role) ?? agencyRoleFromLegacyRole(row.role);
+  const employmentType =
+    normalizeEmploymentType(row.employment_type) ??
+    (normalizedRole === "freelancer" ? "freelancer" : "employee");
+
   return {
     ...row,
     role: normalizedRole,
+    agency_role: agencyRole,
+    employment_type: employmentType,
     commission_rate: Number(row.commission_rate ?? 10),
+    setter_commission_rate: Number(row.setter_commission_rate ?? 0),
+    closer_commission_rate: Number(
+      row.closer_commission_rate ?? row.commission_rate ?? 0,
+    ),
     status: resolveTeamMemberStatus(row),
   };
 }
@@ -30,7 +54,7 @@ export async function getTeamMembers(): Promise<TeamMember[]> {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("profiles")
-    .select("id, email, full_name, role, created_at, is_active, status, activated_at, commission_rate")
+    .select(TEAM_MEMBER_SELECT)
     .order("created_at", { ascending: false });
 
   if (error) throw new Error(error.message);
@@ -46,7 +70,7 @@ export async function getAssignableTeamMembers(): Promise<TeamMember[]> {
   if (isManagement(profile)) {
     const { data, error } = await supabase
       .from("profiles")
-      .select("id, email, full_name, role, created_at, is_active, status, activated_at, commission_rate")
+      .select(TEAM_MEMBER_SELECT)
       .eq("status", "active")
       .not("activated_at", "is", null)
       .order("full_name");
@@ -61,11 +85,15 @@ export async function getAssignableTeamMembers(): Promise<TeamMember[]> {
       email: profile.email,
       full_name: profile.full_name,
       role: profile.role,
+      agency_role: profile.agency_role,
+      employment_type: profile.employment_type,
       status: profile.status,
       created_at: profile.created_at,
       is_active: profile.is_active,
       activated_at: profile.activated_at,
       commission_rate: profile.commission_rate,
+      setter_commission_rate: profile.setter_commission_rate,
+      closer_commission_rate: profile.closer_commission_rate,
     }),
   ];
 }

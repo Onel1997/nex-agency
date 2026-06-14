@@ -1,5 +1,5 @@
 import { LeadsPageClient } from "@/components/dashboard/LeadsPageClient";
-import { canAssignLeadOwner, isManagement } from "@/lib/auth/permissions";
+import { canAssignLeadOwner, canConvertLeadToClient, canMarkLeadWon, isManagement } from "@/lib/auth/permissions";
 import { getProfile } from "@/lib/auth/session";
 import { getLeads } from "@/lib/dashboard/leads";
 import { getAssignableTeamMembers } from "@/lib/dashboard/team";
@@ -33,6 +33,8 @@ export default async function LeadsPage() {
     <LeadsPageClient
       leads={leads}
       canAssign={canAssignLeadOwner(profile)}
+      canMarkLeadWon={canMarkLeadWon(profile)}
+      canConvertLead={canConvertLeadToClient(profile)}
       showOwnership={managementView}
       teamMembers={teamMembers}
       currentUserId={profile.id}

@@ -20,6 +20,8 @@ function mapLeadRow(row: Record<string, unknown>): Lead {
   return {
     ...(row as unknown as Lead),
     converted_to_client: Boolean(row.converted_to_client),
+    setter_id: (row.setter_id as string | null) ?? null,
+    closer_id: (row.closer_id as string | null) ?? null,
     owner_name: formatMemberName(
       owner as { full_name: string | null; email: string } | null,
     ),

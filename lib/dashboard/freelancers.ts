@@ -108,8 +108,8 @@ async function fetchActiveFreelancerProfiles(
 ): Promise<FreelancerProfileRow[]> {
   const { data, error } = await supabase
     .from("profiles")
-    .select("id, email, full_name, commission_rate, status, role, created_at, updated_at")
-    .eq("role", "freelancer")
+    .select("id, email, full_name, commission_rate, status, role, employment_type, agency_role, created_at, updated_at")
+    .eq("employment_type", "freelancer")
     .eq("status", "active")
     .not("activated_at", "is", null)
     .order("full_name");
@@ -398,7 +398,7 @@ export async function getFreelancerDetailData(
   id: string,
 ): Promise<FreelancerDetailData | null> {
   const freelancer = await getFreelancerById(id);
-  if (!freelancer || freelancer.role !== "freelancer") return null;
+  if (!freelancer) return null;
 
   const [billingProfile, payouts, invoices] = await Promise.all([
     getOrCreateFreelancerProfile(id),

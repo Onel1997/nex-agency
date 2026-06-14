@@ -8,7 +8,13 @@ import {
 } from "@/lib/auth/permissions";
 import { hasCompletedInvitation } from "@/lib/auth/member-status";
 import { SET_PASSWORD_PATH } from "@/lib/auth/password-setup";
-import { normalizeUserRole } from "@/lib/auth/roles";
+import {
+  agencyRoleFromLegacyRole,
+  employmentTypeFromLegacyRole,
+  normalizeAgencyRole,
+  normalizeEmploymentType,
+  normalizeUserRole,
+} from "@/lib/auth/roles";
 import { createClient } from "@/lib/supabase/server";
 
 export async function getAuthUser() {
@@ -34,13 +40,23 @@ export async function getProfile(): Promise<Profile | null> {
 
   if (error || !data) return null;
 
-  const profile = data as Profile;
-  const normalizedRole = normalizeUserRole(profile.role);
-  if (!normalizedRole) return profile;
+  const raw = data as Profile;
+  const normalizedRole = normalizeUserRole(raw.role);
+  const agencyRole =
+    normalizeAgencyRole(raw.agency_role) ?? agencyRoleFromLegacyRole(raw.role);
+  const employmentType =
+    normalizeEmploymentType(raw.employment_type) ??
+    employmentTypeFromLegacyRole(raw.role);
 
-  return normalizedRole === profile.role
-    ? profile
-    : { ...profile, role: normalizedRole };
+  return {
+    ...raw,
+    role: normalizedRole ?? raw.role,
+    agency_role: agencyRole,
+    employment_type: employmentType,
+    setter_commission_rate: Number(raw.setter_commission_rate ?? 0),
+    closer_commission_rate: Number(raw.closer_commission_rate ?? raw.commission_rate ?? 0),
+    commission_rate: Number(raw.commission_rate ?? 0),
+  };
 }
 
 export async function requireProfile(): Promise<Profile> {

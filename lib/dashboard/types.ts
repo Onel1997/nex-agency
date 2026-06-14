@@ -1,4 +1,9 @@
-import type { TeamMemberStatus, UserRole } from "@/lib/auth/types";
+import type {
+  AgencyRole,
+  EmploymentType,
+  TeamMemberStatus,
+  UserRole,
+} from "@/lib/auth/types";
 import type {
   AppointmentStatus,
   BillingCycle,
@@ -32,6 +37,8 @@ export interface Lead {
   currency: string;
   notes: string | null;
   converted_to_client: boolean;
+  setter_id: string | null;
+  closer_id: string | null;
   owner_name?: string | null;
   creator_name?: string | null;
 }
@@ -398,12 +405,18 @@ export interface TeamMember {
   id: string;
   email: string;
   full_name: string | null;
+  /** @deprecated Synced legacy column */
   role: UserRole;
+  employment_type: EmploymentType;
+  agency_role: AgencyRole;
   status: TeamMemberStatus;
   created_at: string;
   is_active: boolean;
   activated_at: string | null;
+  /** @deprecated Synced legacy column */
   commission_rate: number;
+  setter_commission_rate: number;
+  closer_commission_rate: number;
 }
 
 export interface ClientRecord {
@@ -416,6 +429,8 @@ export interface ClientRecord {
   phone: string | null;
   website: string | null;
   responsible_member_id: string | null;
+  setter_id: string | null;
+  closer_id: string | null;
   lead_estimated_value_cents: number | null;
   monthly_retainer_cents: number | null;
   one_time_project_value_cents: number | null;

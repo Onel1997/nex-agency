@@ -23,6 +23,8 @@ import type { LeadStatus } from "@/lib/dashboard/constants";
 interface LeadsPageClientProps {
   leads: Lead[];
   canAssign: boolean;
+  canMarkLeadWon: boolean;
+  canConvertLead: boolean;
   showOwnership: boolean;
   teamMembers: TeamMember[];
   currentUserId: string;
@@ -31,6 +33,8 @@ interface LeadsPageClientProps {
 export function LeadsPageClient({
   leads,
   canAssign,
+  canMarkLeadWon,
+  canConvertLead,
   showOwnership,
   teamMembers,
   currentUserId,
@@ -68,6 +72,11 @@ export function LeadsPageClient({
     } catch (err) {
       setError(err instanceof Error ? err.message : "Lead konnte nicht gelöscht werden");
     }
+  };
+
+  const handleMarkWon = async (leadId: string) => {
+    await updateLeadStatus(leadId, "won");
+    refresh();
   };
 
   const handleStatusChange = async (id: string, status: LeadStatus) => {
@@ -129,9 +138,12 @@ export function LeadsPageClient({
         <LeadsTable
           leads={leads}
           showOwnership={showOwnership}
+          canMarkLeadWon={canMarkLeadWon}
+          canConvertLead={canConvertLead}
           onEdit={setEditLead}
           onDelete={setDeleteTarget}
           onStatusChange={handleStatusChange}
+          onMarkWon={handleMarkWon}
           onConvert={handleConvert}
         />
       )}

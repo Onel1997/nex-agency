@@ -7,10 +7,10 @@ import {
   deleteMember,
   inviteTeamMember,
   setMemberActive,
-  updateMemberRole,
+  updateMemberAgencyRole,
   updateTeamMember,
 } from "@/app/dashboard/team/actions";
-import type { Profile, UserRole } from "@/lib/auth/types";
+import type { AgencyRole, Profile } from "@/lib/auth/types";
 import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
 import { EditTeamMemberModal } from "@/components/dashboard/EditTeamMemberModal";
 import type { EditTeamMemberData } from "@/components/dashboard/EditTeamMemberModal";
@@ -23,14 +23,12 @@ import type { TeamMember } from "@/lib/dashboard/types";
 interface TeamPageClientProps {
   members: TeamMember[];
   currentUserId: string;
-  currentUserRole: UserRole;
   currentUserProfile: Profile;
 }
 
 export function TeamPageClient({
   members,
   currentUserId,
-  currentUserRole,
   currentUserProfile,
 }: TeamPageClientProps) {
   const router = useRouter();
@@ -58,8 +56,8 @@ export function TeamPageClient({
     });
   };
 
-  const handleRoleChange = async (memberId: string, role: UserRole) => {
-    await runAction(() => updateMemberRole(memberId, role));
+  const handleRoleChange = async (memberId: string, role: AgencyRole) => {
+    await runAction(() => updateMemberAgencyRole(memberId, role));
   };
 
   const handleToggleActive = async (memberId: string, isActive: boolean) => {
@@ -118,7 +116,6 @@ export function TeamPageClient({
         <TeamTable
           members={members}
           currentUserId={currentUserId}
-          currentUserRole={currentUserRole}
           currentUserProfile={currentUserProfile}
           onEdit={setEditMember}
           onRoleChange={handleRoleChange}
@@ -131,7 +128,7 @@ export function TeamPageClient({
         open={inviteOpen}
         onClose={() => setInviteOpen(false)}
         onInvite={handleInvite}
-        currentUserRole={currentUserRole}
+        currentUserProfile={currentUserProfile}
       />
 
       {editMember && (

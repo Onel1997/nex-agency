@@ -11,24 +11,35 @@ import { formatCents, formatDate, formatWebsite } from "@/lib/dashboard/format";
 import type { Lead } from "@/lib/dashboard/types";
 import { DataTable } from "./DataTable";
 import { LeadConversionAction } from "./LeadConversionAction";
+import { LeadMarkWonAction } from "./LeadMarkWonAction";
 
 interface LeadsTableProps {
   leads: Lead[];
   showOwnership?: boolean;
+  canMarkLeadWon?: boolean;
+  canConvertLead?: boolean;
   onEdit: (lead: Lead) => void;
   onDelete: (lead: Lead) => void;
   onStatusChange: (id: string, status: LeadStatus) => void;
+  onMarkWon: (leadId: string) => Promise<void>;
   onConvert: (leadId: string) => Promise<void>;
 }
 
 export function LeadsTable({
   leads,
   showOwnership = false,
+  canMarkLeadWon = false,
+  canConvertLead = false,
   onEdit,
   onDelete,
   onStatusChange,
+  onMarkWon,
   onConvert,
 }: LeadsTableProps) {
+  const selectableStatuses = LEAD_STATUSES.filter(
+    (status) => status !== "won" || canMarkLeadWon,
+  );
+
   return (
     <DataTable
       data={leads}
@@ -123,13 +134,20 @@ export function LeadsTable({
                 className="dashboard-select-sm"
                 aria-label={`Status für ${lead.company_name}`}
               >
-                {LEAD_STATUSES.map((status) => (
-                  <option key={status} value={status}>
+                {selectableStatuses.map((status) => (
+                  <option key={status} value={status} disabled={status === "won" && !canMarkLeadWon}>
                     {LEAD_STATUS_LABELS[status]}
                   </option>
                 ))}
               </select>
-              <LeadConversionAction lead={lead} onConvert={onConvert} />
+              <LeadMarkWonAction
+                lead={lead}
+                canMarkWon={canMarkLeadWon}
+                onMarkWon={onMarkWon}
+              />
+              {canConvertLead ? (
+                <LeadConversionAction lead={lead} onConvert={onConvert} />
+              ) : null}
             </div>
           ),
         },

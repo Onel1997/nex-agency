@@ -4,24 +4,31 @@ import { useEffect, useState } from "react";
 import { Modal } from "./Modal";
 import {
   canManageMember,
-  getAssignableRoles,
+  getAssignableAgencyRoles,
 } from "@/lib/auth/permissions";
-import { getRoleLabel, roleSelectOptions } from "@/lib/auth/roles";
-import type { Profile, UserRole } from "@/lib/auth/types";
+import {
+  agencyRoleSelectOptions,
+  employmentTypeSelectOptions,
+  getAgencyRoleLabel,
+  getEmploymentTypeLabel,
+} from "@/lib/auth/roles";
+import type { AgencyRole, EmploymentType, Profile } from "@/lib/auth/types";
 import { parsePercent } from "@/lib/dashboard/format";
 import type { TeamMember } from "@/lib/dashboard/types";
 
 export interface EditTeamMemberData {
   full_name: string;
-  role: UserRole;
-  commission_rate: number;
+  employment_type: EmploymentType;
+  agency_role: AgencyRole;
+  setter_commission_rate: number;
+  closer_commission_rate: number;
 }
 
 interface EditTeamMemberModalProps {
   open: boolean;
   member: TeamMember | null;
   currentUserId: string;
-  currentUserProfile: Pick<Profile, "id" | "role">;
+  currentUserProfile: Pick<Profile, "id" | "agency_role" | "role">;
   onClose: () => void;
   onSave: (memberId: string, data: EditTeamMemberData) => Promise<void>;
 }
@@ -35,25 +42,30 @@ export function EditTeamMemberModal({
   onSave,
 }: EditTeamMemberModalProps) {
   const [fullName, setFullName] = useState("");
-  const [role, setRole] = useState<UserRole>("employee");
-  const [commissionRate, setCommissionRate] = useState("");
+  const [employmentType, setEmploymentType] = useState<EmploymentType>("employee");
+  const [agencyRole, setAgencyRole] = useState<AgencyRole>("setter");
+  const [setterCommissionRate, setSetterCommissionRate] = useState("");
+  const [closerCommissionRate, setCloserCommissionRate] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const assignableRoles = getAssignableRoles(currentUserProfile.role);
+  const assignableRoles = getAssignableAgencyRoles(currentUserProfile);
   const isSelf = member?.id === currentUserId;
   const canManage =
-    member != null && canManageMember(currentUserProfile, { role: member.role });
+    member != null &&
+    canManageMember(currentUserProfile, { agency_role: member.agency_role, role: member.role });
   const canChangeRole = !isSelf && canManage && assignableRoles.length > 0;
   const roleOptions = member
-    ? roleSelectOptions(assignableRoles, member.role)
+    ? agencyRoleSelectOptions(assignableRoles, member.agency_role)
     : assignableRoles;
 
   useEffect(() => {
     if (!open || !member) return;
     setFullName(member.full_name?.trim() ?? "");
-    setRole(member.role);
-    setCommissionRate(String(member.commission_rate));
+    setEmploymentType(member.employment_type);
+    setAgencyRole(member.agency_role);
+    setSetterCommissionRate(String(member.setter_commission_rate));
+    setCloserCommissionRate(String(member.closer_commission_rate));
     setError(null);
   }, [open, member]);
 
@@ -67,9 +79,10 @@ export function EditTeamMemberModal({
       return;
     }
 
-    const rate = parsePercent(commissionRate);
-    if (rate == null) {
-      setError("Bitte einen gültigen Prozentsatz zwischen 0 und 100 eingeben.");
+    const setterRate = parsePercent(setterCommissionRate);
+    const closerRate = parsePercent(closerCommissionRate);
+    if (setterRate == null || closerRate == null) {
+      setError("Bitte gültige Prozentsätze zwischen 0 und 100 eingeben.");
       return;
     }
 
@@ -79,8 +92,10 @@ export function EditTeamMemberModal({
     try {
       await onSave(member.id, {
         full_name: trimmedName,
-        role: canChangeRole ? role : member.role,
-        commission_rate: rate,
+        employment_type: employmentType,
+        agency_role: canChangeRole ? agencyRole : member.agency_role,
+        setter_commission_rate: setterRate,
+        closer_commission_rate: closerRate,
       });
       onClose();
     } catch (err) {
@@ -102,7 +117,7 @@ export function EditTeamMemberModal({
 
       {!canManage && (
         <p className="mb-4 rounded-lg bg-amber-500/10 px-3 py-2 text-sm text-amber-200 ring-1 ring-amber-500/20">
-          Super Admins können nur von Super Admins bearbeitet werden.
+          Owner können nur von Ownern bearbeitet werden.
         </p>
       )}
 
@@ -134,16 +149,34 @@ export function EditTeamMemberModal({
         </label>
 
         <label className="block">
-          <span className="mb-1.5 block text-xs font-medium text-muted">Rolle</span>
+          <span className="mb-1.5 block text-xs font-medium text-muted">
+            Beschäftigungsart
+          </span>
+          <select
+            disabled={!canManage}
+            value={employmentType}
+            onChange={(e) => setEmploymentType(e.target.value as EmploymentType)}
+            className="dashboard-input"
+          >
+            {employmentTypeSelectOptions().map((option) => (
+              <option key={option} value={option}>
+                {getEmploymentTypeLabel(option)}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="block">
+          <span className="mb-1.5 block text-xs font-medium text-muted">Agenturrolle</span>
           {canChangeRole ? (
             <select
-              value={role}
-              onChange={(e) => setRole(e.target.value as UserRole)}
+              value={agencyRole}
+              onChange={(e) => setAgencyRole(e.target.value as AgencyRole)}
               className="dashboard-input"
             >
               {roleOptions.map((option) => (
                 <option key={option} value={option}>
-                  {getRoleLabel(option)}
+                  {getAgencyRoleLabel(option)}
                 </option>
               ))}
             </select>
@@ -151,28 +184,46 @@ export function EditTeamMemberModal({
             <input
               type="text"
               readOnly
-              value={getRoleLabel(member.role)}
+              value={getAgencyRoleLabel(member.agency_role)}
               className="dashboard-input cursor-not-allowed opacity-70"
               tabIndex={-1}
             />
           )}
         </label>
 
-        <label className="block">
-          <span className="mb-1.5 block text-xs font-medium text-muted">
-            Provisionssatz (%)
-          </span>
-          <input
-            type="text"
-            inputMode="decimal"
-            required
-            disabled={!canManage}
-            value={commissionRate}
-            onChange={(e) => setCommissionRate(e.target.value)}
-            className="dashboard-input"
-            placeholder="10"
-          />
-        </label>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <label className="block">
+            <span className="mb-1.5 block text-xs font-medium text-muted">
+              Setter Provision (%)
+            </span>
+            <input
+              type="text"
+              inputMode="decimal"
+              required
+              disabled={!canManage}
+              value={setterCommissionRate}
+              onChange={(e) => setSetterCommissionRate(e.target.value)}
+              className="dashboard-input"
+              placeholder="0"
+            />
+          </label>
+
+          <label className="block">
+            <span className="mb-1.5 block text-xs font-medium text-muted">
+              Closer Provision (%)
+            </span>
+            <input
+              type="text"
+              inputMode="decimal"
+              required
+              disabled={!canManage}
+              value={closerCommissionRate}
+              onChange={(e) => setCloserCommissionRate(e.target.value)}
+              className="dashboard-input"
+              placeholder="10"
+            />
+          </label>
+        </div>
 
         <div className="flex justify-end gap-3 border-t border-border pt-4">
           <button type="button" onClick={onClose} className="dashboard-btn-secondary">

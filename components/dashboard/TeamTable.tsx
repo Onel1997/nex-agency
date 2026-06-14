@@ -3,22 +3,24 @@
 import { formatDate, formatPercent } from "@/lib/dashboard/format";
 import {
   canManageMember,
-  getAssignableRoles,
+  getAssignableAgencyRoles,
 } from "@/lib/auth/permissions";
-import { getRoleLabel, normalizeUserRole, roleSelectOptions } from "@/lib/auth/roles";
-import type { UserRole } from "@/lib/auth/types";
+import {
+  agencyRoleSelectOptions,
+  getAgencyRoleLabel,
+  getEmploymentTypeLabel,
+} from "@/lib/auth/roles";
+import type { AgencyRole, Profile } from "@/lib/auth/types";
 import type { TeamMember } from "@/lib/dashboard/types";
-import type { Profile } from "@/lib/auth/types";
 import { DataTable } from "./DataTable";
 import { TeamMemberStatusBadge } from "./TeamMemberStatusBadge";
 
 interface TeamTableProps {
   members: TeamMember[];
   currentUserId: string;
-  currentUserRole: UserRole;
-  currentUserProfile: Pick<Profile, "id" | "role">;
+  currentUserProfile: Pick<Profile, "id" | "agency_role" | "role">;
   onEdit: (member: TeamMember) => void;
-  onRoleChange: (memberId: string, role: UserRole) => Promise<void>;
+  onRoleChange: (memberId: string, role: AgencyRole) => Promise<void>;
   onToggleActive: (memberId: string, isActive: boolean) => Promise<void>;
   onDelete: (memberId: string) => Promise<void>;
 }
@@ -26,14 +28,13 @@ interface TeamTableProps {
 export function TeamTable({
   members,
   currentUserId,
-  currentUserRole,
   currentUserProfile,
   onEdit,
   onRoleChange,
   onToggleActive,
   onDelete,
 }: TeamTableProps) {
-  const assignableRoles = getAssignableRoles(currentUserRole);
+  const assignableRoles = getAssignableAgencyRoles(currentUserProfile);
 
   return (
     <DataTable
@@ -58,34 +59,51 @@ export function TeamTable({
           ),
         },
         {
+          key: "employment",
+          header: "Beschäftigungsart",
+          hideOnMobile: true,
+          render: (member) => (
+            <span className="text-muted">
+              {getEmploymentTypeLabel(member.employment_type)}
+            </span>
+          ),
+        },
+        {
           key: "role",
-          header: "Rolle",
+          header: "Agenturrolle",
           render: (member) => {
-            const memberRole = normalizeUserRole(member.role) ?? member.role;
             const canEditRole =
               member.id !== currentUserId &&
-              canManageMember(currentUserProfile, { role: memberRole });
+              canManageMember(currentUserProfile, {
+                agency_role: member.agency_role,
+                role: member.role,
+              });
 
             if (!canEditRole) {
               return (
-                <span className="text-muted">{getRoleLabel(member.role)}</span>
+                <span className="text-muted">
+                  {getAgencyRoleLabel(member.agency_role)}
+                </span>
               );
             }
 
-            const options = roleSelectOptions(assignableRoles, member.role);
+            const options = agencyRoleSelectOptions(
+              assignableRoles,
+              member.agency_role,
+            );
 
             return (
               <select
-                value={memberRole}
+                value={member.agency_role}
                 onChange={(e) =>
-                  onRoleChange(member.id, e.target.value as UserRole)
+                  onRoleChange(member.id, e.target.value as AgencyRole)
                 }
                 className="dashboard-select-sm"
-                aria-label={`Rolle für ${member.email}`}
+                aria-label={`Agenturrolle für ${member.email}`}
               >
                 {options.map((role) => (
                   <option key={role} value={role}>
-                    {getRoleLabel(role)}
+                    {getAgencyRoleLabel(role)}
                   </option>
                 ))}
               </select>
@@ -93,13 +111,24 @@ export function TeamTable({
           },
         },
         {
-          key: "commission",
-          header: "Provision",
+          key: "setter_commission",
+          header: "Setter %",
           className: "text-right",
           hideOnMobile: true,
           render: (member) => (
             <span className="tabular-nums text-foreground">
-              {formatPercent(member.commission_rate)}
+              {formatPercent(member.setter_commission_rate)}
+            </span>
+          ),
+        },
+        {
+          key: "closer_commission",
+          header: "Closer %",
+          className: "text-right",
+          hideOnMobile: true,
+          render: (member) => (
+            <span className="tabular-nums text-foreground">
+              {formatPercent(member.closer_commission_rate)}
             </span>
           ),
         },
@@ -120,9 +149,9 @@ export function TeamTable({
           header: "Aktionen",
           className: "w-[260px]",
           render: (member) => {
-            const memberRole = normalizeUserRole(member.role) ?? member.role;
             const canManage = canManageMember(currentUserProfile, {
-              role: memberRole,
+              agency_role: member.agency_role,
+              role: member.role,
             });
 
             return (

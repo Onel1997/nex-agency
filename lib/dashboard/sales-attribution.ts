@@ -154,6 +154,7 @@ export function buildResolvedSalesAttribution(input: {
   setterProfile?: SalesAttributionProfileRef | null;
   closerProfile?: SalesAttributionProfileRef | null;
   leadOwnerId?: string | null;
+  acquiredByName?: string | null;
   setterName?: string | null;
   closerName?: string | null;
   setterRate?: number | null;
@@ -192,6 +193,9 @@ export function buildResolvedSalesAttribution(input: {
   const setterName =
     input.setterName ??
     formatAttributionMemberName(setterProfile) ??
+    (resolvedIds.setterId && input.acquiredByName?.trim()
+      ? input.acquiredByName.trim()
+      : null) ??
     (resolvedIds.setterId === resolvedIds.closerId
       ? formatAttributionMemberName(closerProfile)
       : null);

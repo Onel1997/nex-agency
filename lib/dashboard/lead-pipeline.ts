@@ -18,9 +18,8 @@ export const SETTER_PIPELINE_STATUSES = [
 /** @alias SETTER_PIPELINE_STATUSES */
 export const SETTER_STATUSES = SETTER_PIPELINE_STATUSES;
 
-/** Closer-visible pipeline statuses. */
+/** Closer-selectable statuses (DB keys). Labels: Qualifiziert, Angebot, Gewonnen, Verloren */
 export const CLOSER_PIPELINE_STATUSES = [
-  "scheduled",
   "qualified",
   "proposal",
   "won",
@@ -77,6 +76,7 @@ export function canCloserChangeLeadStatus(
   if (lead.status === "won" || lead.status === "lost") return false;
   if (lead.status === "scheduled" && !lead.closer_id) return false;
   if (lead.closer_id && lead.closer_id !== profile.id) return false;
+  if (lead.status === "scheduled" && lead.closer_id === profile.id) return true;
   return isCloserPipelineStatus(lead.status);
 }
 
@@ -118,7 +118,11 @@ export function getCloserLeadStatusOptions(
     return ["scheduled"];
   }
   if (lead.status === "won") return ["won"];
-  return [...CLOSER_PIPELINE_STATUSES];
+  const options = [...CLOSER_PIPELINE_STATUSES];
+  if (!options.includes(lead.status)) {
+    return [lead.status, ...options];
+  }
+  return options;
 }
 
 /** All setter dropdown options — always Neu, Kontaktiert, Terminiert, Verloren when editable. */
@@ -141,7 +145,7 @@ function canSetterTransition(from: LeadStatus, to: LeadStatus): boolean {
 
 function canCloserTransition(from: LeadStatus, to: LeadStatus): boolean {
   if (from === "won") return false;
-  if (to === "new" || to === "contacted") return false;
+  if (to === "new" || to === "contacted" || to === "scheduled") return false;
   return CLOSER_STATUS_SET.has(to);
 }
 

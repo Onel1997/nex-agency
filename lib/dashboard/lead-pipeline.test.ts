@@ -57,7 +57,8 @@ describe("lead pipeline", () => {
 
     const qualified = { closer_id: "closer-a", status: "qualified" as const };
     expect(isAllowedLeadStatusTransition(closer, qualified, "proposal")).toBe(true);
-    expect(isAllowedLeadStatusTransition(closer, qualified, "scheduled")).toBe(true);
+    expect(isAllowedLeadStatusTransition(closer, qualified, "won")).toBe(true);
+    expect(isAllowedLeadStatusTransition(closer, qualified, "scheduled")).toBe(false);
   });
 
   it("shows role-specific dropdown options", () => {
@@ -76,6 +77,10 @@ describe("lead pipeline", () => {
     expect(
       getSelectableLeadStatuses(closer, { closer_id: "closer-a", status: "scheduled" }),
     ).toEqual(["scheduled", "qualified", "proposal", "won", "lost"]);
+
+    expect(
+      getSelectableLeadStatuses(closer, { closer_id: "closer-a", status: "qualified" }),
+    ).toEqual(["qualified", "proposal", "won", "lost"]);
   });
 
   it("allows management to move across the full lifecycle", () => {

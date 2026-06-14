@@ -4,6 +4,7 @@ import {
   isCommissionTriggeringInvoiceType,
   shouldCreateCommissionEntry,
 } from "./commission-entries";
+import { resolveLeadSetterIdForPersistence } from "./lead-attribution";
 import { resolveSalesAttributionIds } from "./sales-attribution";
 import { resolveInvoiceType } from "./invoice-type";
 import type { InvoiceRecord } from "./types";
@@ -59,7 +60,7 @@ export async function createCommissionEntryFromPaidInvoice(
   const { data: client, error: clientError } = await supabase
     .from("clients")
     .select(
-      "id, setter_id, closer_id, company_name, lead:leads!clients_lead_id_fkey(owner_id)",
+      "id, setter_id, closer_id, company_name, lead:leads!clients_lead_id_fkey(owner_id, created_by, setter_id)",
     )
     .eq("id", invoice.client_id as string)
     .single();
@@ -69,7 +70,11 @@ export async function createCommissionEntryFromPaidInvoice(
   const lead = Array.isArray(client.lead) ? client.lead[0] : client.lead;
   const leadOwnerId = (lead as { owner_id?: string | null } | null)?.owner_id ?? null;
   const rawCloserId = (client.closer_id as string | null) ?? null;
-  const rawSetterId = (client.setter_id as string | null) ?? null;
+  const rawSetterId = await resolveLeadSetterIdForPersistence(supabase, {
+    setter_id: (client.setter_id as string | null) ?? null,
+    created_by: (lead as { created_by?: string | null } | null)?.created_by ?? null,
+    owner_id: leadOwnerId,
+  });
 
   const initialProfileIds = [rawSetterId, rawCloserId].filter(Boolean) as string[];
   if (initialProfileIds.length === 0) return { created: false };

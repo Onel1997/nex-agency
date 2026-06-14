@@ -58,6 +58,38 @@ function formatMemberName(
   return member.full_name?.trim() || member.email.split("@")[0];
 }
 
+type AttributionProfileRow = {
+  id?: string;
+  full_name: string | null;
+  email: string;
+  setter_commission_rate?: number;
+  closer_commission_rate?: number;
+  agency_role?: string | null;
+};
+
+function readNestedProfile(value: unknown): AttributionProfileRow | null {
+  const profile = Array.isArray(value) ? value[0] : value;
+  if (!profile || typeof profile !== "object") return null;
+  return profile as AttributionProfileRow;
+}
+
+function resolveAttributionProfile(
+  profileId: string | null,
+  ...candidates: unknown[]
+): AttributionProfileRow | null {
+  if (!profileId) return null;
+
+  for (const candidate of candidates) {
+    const profile = readNestedProfile(candidate);
+    if (!profile) continue;
+    if (!profile.id || profile.id === profileId) {
+      return { ...profile, id: profileId };
+    }
+  }
+
+  return { id: profileId, full_name: null, email: "", agency_role: null };
+}
+
 export { calculateCommissionCents, computeTotalRevenueCents } from "./revenue";
 
 function resolveCommissionFields(
@@ -138,26 +170,23 @@ function mapClientRevenueRow(
   } | null;
 
   const commissionRate = member?.commission_rate ?? 0;
-  const setterProfile = Array.isArray(row.setter) ? row.setter[0] : row.setter;
-  const closerProfile = Array.isArray(row.closer) ? row.closer[0] : row.closer;
   const lead = Array.isArray(row.lead) ? row.lead[0] : row.lead;
   const leadOwnerId = (lead as { owner_id?: string | null } | null)?.owner_id ?? null;
-  const rawSetterId = (row.setter_id as string | null) ?? null;
+  const leadSetterId = (lead as { setter_id?: string | null } | null)?.setter_id ?? null;
+  const leadCreatedBy = (lead as { created_by?: string | null } | null)?.created_by ?? null;
+  const rawSetterId = (row.setter_id as string | null) ?? leadSetterId;
   const rawCloserId = (row.closer_id as string | null) ?? null;
-  const setterProfileRef = setterProfile as {
-    id?: string;
-    full_name: string | null;
-    email: string;
-    setter_commission_rate?: number;
-    agency_role?: string | null;
-  } | null;
-  const closerProfileRef = closerProfile as {
-    id?: string;
-    full_name: string | null;
-    email: string;
-    closer_commission_rate?: number;
-    agency_role?: string | null;
-  } | null;
+  const acquiredByName = (row.acquired_by as string | null)?.trim() || null;
+  const resolvedSetterProfile = resolveAttributionProfile(
+    rawSetterId,
+    row.setter,
+    (lead as { setter?: unknown } | null)?.setter,
+    leadCreatedBy === rawSetterId ? (lead as { creator?: unknown } | null)?.creator : null,
+  );
+  const resolvedCloserProfile = resolveAttributionProfile(
+    rawCloserId,
+    row.closer,
+  );
   const assignedFreelancer = Array.isArray(row.assigned_freelancer)
     ? row.assigned_freelancer[0]
     : row.assigned_freelancer;
@@ -187,27 +216,28 @@ function mapClientRevenueRow(
     projectValueCents: commissionEntry?.project_value_cents ?? setupFeeCents,
     setterId: rawSetterId,
     closerId: rawCloserId,
-    setterProfile: setterProfileRef?.id
+    setterProfile: resolvedSetterProfile
       ? {
-          id: setterProfileRef.id,
-          full_name: setterProfileRef.full_name,
-          email: setterProfileRef.email,
-          agency_role: setterProfileRef.agency_role,
-          setter_commission_rate: setterProfileRef.setter_commission_rate,
-          closer_commission_rate: closerProfileRef?.closer_commission_rate,
+          id: resolvedSetterProfile.id ?? rawSetterId ?? "",
+          full_name: resolvedSetterProfile.full_name,
+          email: resolvedSetterProfile.email,
+          agency_role: resolvedSetterProfile.agency_role,
+          setter_commission_rate: resolvedSetterProfile.setter_commission_rate,
+          closer_commission_rate: resolvedCloserProfile?.closer_commission_rate,
         }
       : null,
-    closerProfile: closerProfileRef?.id || rawCloserId
+    closerProfile: resolvedCloserProfile
       ? {
-          id: closerProfileRef?.id ?? rawCloserId ?? "",
-          full_name: closerProfileRef?.full_name ?? null,
-          email: closerProfileRef?.email ?? "",
-          agency_role: closerProfileRef?.agency_role,
-          setter_commission_rate: setterProfileRef?.setter_commission_rate,
-          closer_commission_rate: closerProfileRef?.closer_commission_rate,
+          id: resolvedCloserProfile.id ?? rawCloserId ?? "",
+          full_name: resolvedCloserProfile.full_name,
+          email: resolvedCloserProfile.email,
+          agency_role: resolvedCloserProfile.agency_role,
+          setter_commission_rate: resolvedSetterProfile?.setter_commission_rate,
+          closer_commission_rate: resolvedCloserProfile.closer_commission_rate,
         }
       : null,
     leadOwnerId,
+    acquiredByName,
     setterName: commissionEntry?.setter_name ?? undefined,
     closerName: commissionEntry?.closer_name ?? undefined,
     setterRate: commissionEntry?.setter_rate,

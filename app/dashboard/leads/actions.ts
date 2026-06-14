@@ -8,12 +8,14 @@ import {
   canEditLeads,
   canMarkLeadWon,
   isCloser,
-  isSetter,
 } from "@/lib/auth/permissions";
-import { agencyRoleFromLegacyRole, normalizeAgencyRole } from "@/lib/auth/roles";
-import type { UserRole } from "@/lib/auth/types";
+import { normalizeAgencyRole } from "@/lib/auth/roles";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getAuthUser, getProfile } from "@/lib/auth/session";
+import {
+  resolveLeadSetterId,
+  resolveLeadSetterIdForPersistence,
+} from "@/lib/dashboard/lead-attribution";
 import { LEAD_STATUS_LABELS, type LeadStatus } from "@/lib/dashboard/constants";
 import { logActivity } from "@/lib/dashboard/activity";
 import { logClientActivity } from "@/lib/dashboard/client-activities";
@@ -80,29 +82,6 @@ async function resolveOwnerId(
   return profile.id;
 }
 
-async function resolveLeadSetterId(
-  supabase: SupabaseClient,
-  profile: NonNullable<Awaited<ReturnType<typeof getProfile>>>,
-  ownerId: string | null,
-): Promise<string | null> {
-  if (isSetter(profile)) return profile.id;
-  if (!ownerId) return null;
-
-  const { data: ownerProfile } = await supabase
-    .from("profiles")
-    .select("agency_role, role")
-    .eq("id", ownerId)
-    .maybeSingle();
-
-  if (!ownerProfile) return null;
-
-  const ownerRole =
-    normalizeAgencyRole(ownerProfile.agency_role) ??
-    agencyRoleFromLegacyRole(ownerProfile.role as UserRole);
-
-  return ownerRole === "setter" ? ownerId : null;
-}
-
 async function resolvePersistedLeadAttribution(
   supabase: SupabaseClient,
   input: {
@@ -144,7 +123,11 @@ export async function createLead(data: LeadFormData) {
   const ownerId = await resolveOwnerId(data, profile);
   const estimatedValueCents = parseEuroToCents(data.estimated_value);
   const supabase = await createClient();
-  const setterId = await resolveLeadSetterId(supabase, profile, ownerId);
+  const setterId = await resolveLeadSetterId(supabase, {
+    actorProfile: profile,
+    ownerId,
+    createdById: profile.id,
+  });
 
   const visibleStatuses = getVisibleLeadStatuses(profile);
   if (!visibleStatuses.includes(data.status)) {
@@ -192,7 +175,7 @@ export async function updateLead(id: string, data: LeadFormData) {
   const supabase = await createClient();
   const { data: existing, error: fetchError } = await supabase
     .from("leads")
-    .select("owner_id, company_name, status, closer_id")
+    .select("owner_id, company_name, status, closer_id, setter_id, created_by")
     .eq("id", id)
     .single();
 
@@ -204,7 +187,12 @@ export async function updateLead(id: string, data: LeadFormData) {
 
   const previousOwnerId = existing?.owner_id ?? null;
   const estimatedValueCents = parseEuroToCents(data.estimated_value);
-  const setterId = await resolveLeadSetterId(supabase, profile, ownerId);
+  const setterId = await resolveLeadSetterId(supabase, {
+    actorProfile: profile,
+    ownerId,
+    existingSetterId: (existing.setter_id as string | null) ?? null,
+    createdById: (existing.created_by as string | null) ?? null,
+  });
   const existingStatus = existing.status as LeadStatus;
   const payload = toDbPayload(data, ownerId, estimatedValueCents);
   const leadFields = {
@@ -346,7 +334,7 @@ export async function updateLeadStatus(id: string, status: LeadStatus) {
   const supabase = await createClient();
   const { data: existing, error: fetchError } = await supabase
     .from("leads")
-    .select("company_name, status, closer_id, setter_id, owner_id")
+    .select("company_name, status, closer_id, setter_id, owner_id, created_by")
     .eq("id", id)
     .single();
 
@@ -377,8 +365,13 @@ export async function updateLeadStatus(id: string, status: LeadStatus) {
       : existing.closer_id ?? profile.id;
     updatePayload.closer_id = closerId;
 
+    const persistedSetterId = await resolveLeadSetterIdForPersistence(supabase, {
+      setter_id: (existing.setter_id as string | null) ?? null,
+      created_by: (existing.created_by as string | null) ?? null,
+      owner_id: (existing.owner_id as string | null) ?? null,
+    });
     const resolved = await resolvePersistedLeadAttribution(supabase, {
-      setterId: (existing.setter_id as string | null) ?? null,
+      setterId: persistedSetterId,
       closerId,
       ownerId: (existing.owner_id as string | null) ?? null,
     });
@@ -441,7 +434,7 @@ export async function convertLeadToClient(leadId: string) {
   const { data: lead, error: fetchError } = await supabase
     .from("leads")
     .select(
-      "company_name, contact_name, phone, email, website, status, acquired_by, notes, owner_id, estimated_value_cents, currency, converted_to_client, setter_id, closer_id",
+      "company_name, contact_name, phone, email, website, status, acquired_by, notes, owner_id, estimated_value_cents, currency, converted_to_client, setter_id, closer_id, created_by",
     )
     .eq("id", leadId)
     .single();
@@ -459,25 +452,63 @@ export async function convertLeadToClient(leadId: string) {
 
   const { data: existingClient } = await supabase
     .from("clients")
-    .select("id")
+    .select("id, setter_id, closer_id")
     .eq("lead_id", leadId)
     .maybeSingle();
 
   if (existingClient) {
+    const closerId =
+      lead.closer_id ?? (isCloser(profile) ? profile.id : null);
+    const persistedSetterId = await resolveLeadSetterIdForPersistence(supabase, {
+      setter_id: (lead.setter_id as string | null) ?? null,
+      created_by: (lead.created_by as string | null) ?? null,
+      owner_id: (lead.owner_id as string | null) ?? null,
+    });
+    const resolvedAttribution = await resolvePersistedLeadAttribution(supabase, {
+      setterId: persistedSetterId ?? (existingClient.setter_id as string | null),
+      closerId: closerId ?? (existingClient.closer_id as string | null),
+      ownerId: (lead.owner_id as string | null) ?? null,
+    });
+
     const { error: flagError } = await supabase
       .from("leads")
-      .update({ converted_to_client: true })
+      .update({
+        converted_to_client: true,
+        setter_id: resolvedAttribution.setterId,
+        closer_id: resolvedAttribution.closerId,
+      })
       .eq("id", leadId);
 
     if (flagError) throw new Error(flagError.message);
-    revalidateDashboard();
+
+    if (
+      resolvedAttribution.setterId !== existingClient.setter_id ||
+      resolvedAttribution.closerId !== existingClient.closer_id
+    ) {
+      const { error: clientAttributionError } = await supabase
+        .from("clients")
+        .update({
+          setter_id: resolvedAttribution.setterId,
+          closer_id: resolvedAttribution.closerId,
+        })
+        .eq("id", existingClient.id);
+
+      if (clientAttributionError) throw new Error(clientAttributionError.message);
+    }
+
+    revalidateDashboard(existingClient.id);
     return;
   }
 
   const closerId =
     lead.closer_id ?? (isCloser(profile) ? profile.id : null);
+  const persistedSetterId = await resolveLeadSetterIdForPersistence(supabase, {
+    setter_id: (lead.setter_id as string | null) ?? null,
+    created_by: (lead.created_by as string | null) ?? null,
+    owner_id: (lead.owner_id as string | null) ?? null,
+  });
   const resolvedAttribution = await resolvePersistedLeadAttribution(supabase, {
-    setterId: (lead.setter_id as string | null) ?? null,
+    setterId: persistedSetterId,
     closerId,
     ownerId: (lead.owner_id as string | null) ?? null,
   });

@@ -6,7 +6,11 @@ import {
 } from "./sales-attribution";
 import type { CommissionEntryRecord } from "./types";
 
-function readProfile(row: Record<string, unknown>, key: "setter" | "closer") {
+function readProfile(
+  row: Record<string, unknown> | null | undefined,
+  key: "setter" | "closer" | "creator",
+) {
+  if (!row) return null;
   const profile = Array.isArray(row[key]) ? row[key][0] : row[key];
   return profile as {
     full_name: string | null;
@@ -21,14 +25,25 @@ export function mapResolvedCommissionEntryRow(
   const client = Array.isArray(row.client) ? row.client[0] : row.client;
   const nestedLead = (client as { lead?: unknown } | null)?.lead;
   const lead = Array.isArray(nestedLead) ? nestedLead[0] : nestedLead;
+  const creatorProfile = readProfile(
+    lead as Record<string, unknown> | null | undefined,
+    "creator",
+  );
   const setterProfile = readProfile(row, "setter");
   const closerProfile = readProfile(row, "closer");
 
   const rawSetterId = (row.setter_id as string | null) ?? null;
   const rawCloserId = (row.closer_id as string | null) ?? null;
-  const rawSetterName = setterProfile
-    ? formatAttributionMemberName(setterProfile)
-    : null;
+  const rawSetterName =
+    formatAttributionMemberName(setterProfile) ??
+    (rawSetterId &&
+    (lead as { created_by?: string | null } | null)?.created_by === rawSetterId
+      ? formatAttributionMemberName(creatorProfile)
+      : null) ??
+    ((client as { acquired_by?: string | null } | null)?.acquired_by?.trim() &&
+    rawSetterId
+      ? (client as { acquired_by?: string | null }).acquired_by!.trim()
+      : null);
   const rawCloserName = closerProfile
     ? formatAttributionMemberName(closerProfile)
     : null;

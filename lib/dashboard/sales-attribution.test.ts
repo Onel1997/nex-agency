@@ -144,4 +144,24 @@ describe("full-cycle attribution resolution", () => {
       }),
     ).toBe("owner_full_cycle");
   });
+
+  it("uses acquired_by as setter name fallback when profile join is unavailable", () => {
+    const preview = buildResolvedSalesAttribution({
+      projectValueCents: 100_000,
+      setterId: "setter-1",
+      closerId: "closer-1",
+      closerProfile: {
+        id: "closer-1",
+        full_name: "Ben Closer",
+        email: "ben@example.com",
+        closer_commission_rate: 20,
+      },
+      acquiredByName: "Onel Test Setter",
+      setterRate: 20,
+      closerRate: 20,
+    });
+
+    expect(preview.setter.name).toBe("Onel Test Setter");
+    expect(preview.setterCommissionCents).toBe(20_000);
+  });
 });

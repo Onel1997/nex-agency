@@ -21,7 +21,13 @@ const COMMISSION_ENTRY_SELECT = `
   paid_at,
   client:clients!commission_entries_client_id_fkey(
     company_name,
-    lead:leads!clients_lead_id_fkey(owner_id)
+    acquired_by,
+    lead:leads!clients_lead_id_fkey(
+      owner_id,
+      created_by,
+      setter_id,
+      creator:profiles!leads_created_by_fkey(full_name, email, agency_role)
+    )
   ),
   setter:profiles!commission_entries_setter_id_fkey(full_name, email, agency_role),
   closer:profiles!commission_entries_closer_id_fkey(full_name, email, agency_role)

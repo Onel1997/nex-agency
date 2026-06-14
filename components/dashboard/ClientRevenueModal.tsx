@@ -323,6 +323,8 @@ export function ClientRevenueModal({
         <SalesAttributionPanel
           attribution={salesAttribution}
           commissionEntry={commissionEntry}
+          setterCommissionPaid={client.setter_commission_paid}
+          closerCommissionPaid={client.closer_commission_paid}
           canManageCommissions={canManageFinanceControls}
         />
 

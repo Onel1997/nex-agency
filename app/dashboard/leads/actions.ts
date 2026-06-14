@@ -8,6 +8,7 @@ import {
   canEditLeads,
   canMarkLeadWon,
   isCloser,
+  isSetter,
 } from "@/lib/auth/permissions";
 import { normalizeAgencyRole } from "@/lib/auth/roles";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -359,7 +360,21 @@ export async function updateLeadStatus(id: string, status: LeadStatus) {
   }
 
   const updatePayload: Record<string, unknown> = { status };
-  if (status === "won") {
+  let wonClientAttribution: { setterId: string | null; closerId: string | null } | null =
+    null;
+
+  if (isScheduledHandoffStatus(status)) {
+    const persistedSetterId = await resolveLeadSetterIdForPersistence(supabase, {
+      setter_id: (existing.setter_id as string | null) ?? null,
+      created_by: (existing.created_by as string | null) ?? null,
+      owner_id: (existing.owner_id as string | null) ?? null,
+    });
+    if (persistedSetterId) {
+      updatePayload.setter_id = persistedSetterId;
+    } else if (isSetter(profile)) {
+      updatePayload.setter_id = profile.id;
+    }
+  } else if (status === "won") {
     const closerId = isCloser(profile)
       ? profile.id
       : existing.closer_id ?? profile.id;
@@ -379,6 +394,10 @@ export async function updateLeadStatus(id: string, status: LeadStatus) {
     if (resolved.closerId) {
       updatePayload.closer_id = resolved.closerId;
     }
+    wonClientAttribution = {
+      setterId: resolved.setterId,
+      closerId: resolved.closerId,
+    };
   }
 
   const { error } = await supabase
@@ -402,7 +421,7 @@ export async function updateLeadStatus(id: string, status: LeadStatus) {
       message: `${actorName(profile)} hat Status von ${existing.company_name} auf ${LEAD_STATUS_LABELS[status]} geändert`,
     });
 
-    if (status === "won") {
+    if (status === "won" && wonClientAttribution) {
       const { data: linkedClient } = await supabase
         .from("clients")
         .select("id")
@@ -410,6 +429,16 @@ export async function updateLeadStatus(id: string, status: LeadStatus) {
         .maybeSingle();
 
       if (linkedClient) {
+        const { error: clientSyncError } = await supabase
+          .from("clients")
+          .update({
+            setter_id: wonClientAttribution.setterId,
+            closer_id: wonClientAttribution.closerId,
+          })
+          .eq("id", linkedClient.id);
+
+        if (clientSyncError) throw new Error(clientSyncError.message);
+
         await logClientActivity({
           clientId: linkedClient.id,
           actorId: profile.id,
@@ -481,20 +510,15 @@ export async function convertLeadToClient(leadId: string) {
 
     if (flagError) throw new Error(flagError.message);
 
-    if (
-      resolvedAttribution.setterId !== existingClient.setter_id ||
-      resolvedAttribution.closerId !== existingClient.closer_id
-    ) {
-      const { error: clientAttributionError } = await supabase
-        .from("clients")
-        .update({
-          setter_id: resolvedAttribution.setterId,
-          closer_id: resolvedAttribution.closerId,
-        })
-        .eq("id", existingClient.id);
+    const { error: clientAttributionError } = await supabase
+      .from("clients")
+      .update({
+        setter_id: resolvedAttribution.setterId,
+        closer_id: resolvedAttribution.closerId,
+      })
+      .eq("id", existingClient.id);
 
-      if (clientAttributionError) throw new Error(clientAttributionError.message);
-    }
+    if (clientAttributionError) throw new Error(clientAttributionError.message);
 
     revalidateDashboard(existingClient.id);
     return;

@@ -25,10 +25,11 @@ export const ROLE_COMMISSION_STATUS_ICONS: Record<
 export function resolveRoleCommissionDisplayStatus(
   entryStatus: CommissionEntryStatus | null | undefined,
   commissionCents: number,
+  rolePaid = false,
 ): RoleCommissionDisplayStatus {
   if (commissionCents <= 0 || !entryStatus) return null;
   if (entryStatus === "cancelled") return null;
-  if (entryStatus === "paid") return "paid";
+  if (rolePaid || entryStatus === "paid") return "paid";
   if (entryStatus === "approved") return "ready";
   if (entryStatus === "pending") return "open";
   return null;

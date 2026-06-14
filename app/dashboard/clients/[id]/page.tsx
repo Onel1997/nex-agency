@@ -17,6 +17,7 @@ import { getClientFiles } from "@/lib/dashboard/client-files";
 import { getClientNotes } from "@/lib/dashboard/client-notes";
 import { getClientDetailById } from "@/lib/dashboard/clients";
 import { getClientRevenueRecordById } from "@/lib/dashboard/finance";
+import { getSetterAttributionDiagnosis } from "@/lib/dashboard/setter-attribution-diagnosis";
 import { getInvoicesForClient } from "@/lib/dashboard/invoices";
 import { getAssignableTeamMembers } from "@/lib/dashboard/team";
 
@@ -39,7 +40,7 @@ export default async function ClientDetailPage({ params }: ClientDetailPageProps
     notFound();
   }
 
-  const [notes, activities, communications, files, revenue, invoices, teamMembers] =
+  const [notes, activities, communications, files, revenue, invoices, teamMembers, setterAttributionDiagnosis] =
     await Promise.all([
       getClientNotes(id),
       getClientActivities(id),
@@ -48,7 +49,15 @@ export default async function ClientDetailPage({ params }: ClientDetailPageProps
       getClientRevenueRecordById(id),
       getInvoicesForClient(id),
       getAssignableTeamMembers(),
+      getSetterAttributionDiagnosis(id),
     ]);
+
+  if (setterAttributionDiagnosis) {
+    console.log(
+      "[SetterAttributionDiagnosis]",
+      JSON.stringify(setterAttributionDiagnosis, null, 2),
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -81,6 +90,7 @@ export default async function ClientDetailPage({ params }: ClientDetailPageProps
           canEditOverview={canEditClientProfile(profile, client.responsible_member_id)}
           canAssign={canAssignClientOwner(profile)}
           teamMembers={teamMembers}
+          setterAttributionDiagnosis={setterAttributionDiagnosis}
         />
       </Suspense>
     </div>

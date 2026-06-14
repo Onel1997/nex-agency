@@ -13,6 +13,10 @@ import {
 } from "./client-freelancer-payout";
 import { resolveClientCommissionPayoutStatus } from "./client-commission-status";
 import {
+  buildSetterAttributionDebug,
+  resolveClientSetterId,
+} from "./lead-attribution";
+import {
   fetchCommissionEntries,
   fetchCommissionPayoutProfileIds,
   groupLatestCommissionEntryByClient,
@@ -158,6 +162,8 @@ function mapClientRevenueRow(
   },
   commissionEntry: import("./types").CommissionEntryRecord | null = null,
   paidCommissionProfileIds: Set<string> = new Set(),
+  resolvedSetterId?: string | null,
+  setterAttributionDebug?: import("./lead-attribution").SetterAttributionDebug,
 ): ClientRevenueRecord {
   const responsibleMember = Array.isArray(row.responsible_member)
     ? row.responsible_member[0]
@@ -174,7 +180,9 @@ function mapClientRevenueRow(
   const leadOwnerId = (lead as { owner_id?: string | null } | null)?.owner_id ?? null;
   const leadSetterId = (lead as { setter_id?: string | null } | null)?.setter_id ?? null;
   const leadCreatedBy = (lead as { created_by?: string | null } | null)?.created_by ?? null;
-  const rawSetterId = (row.setter_id as string | null) ?? leadSetterId;
+  const clientSetterId = (row.setter_id as string | null) ?? null;
+  const rawSetterId =
+    resolvedSetterId ?? clientSetterId ?? leadSetterId;
   const rawCloserId = (row.closer_id as string | null) ?? null;
   const acquiredByName = (row.acquired_by as string | null)?.trim() || null;
   const resolvedSetterProfile = resolveAttributionProfile(
@@ -317,6 +325,13 @@ function mapClientRevenueRow(
     is_project_paid: isProjectPaid,
     freelancer_payouts: freelancerPayouts,
     currency: (row.currency as string) ?? "EUR",
+    setter_attribution_debug:
+      setterAttributionDebug ??
+      buildSetterAttributionDebug({
+        leadSetterId,
+        clientSetterId,
+        resolvedSetterId: rawSetterId,
+      }),
   };
 }
 
@@ -495,16 +510,46 @@ async function buildClientRevenueRecords(
   const freelancerPayoutsByClient =
     groupClientFreelancerPayoutsByClient(clientFreelancerPayouts);
 
-  return filteredRows.map((row) =>
-    mapClientRevenueRow(
-      row,
-      invoicesByClient.get(row.id as string) ?? [],
-      payoutsByClient.get(row.id as string) ?? [],
-      freelancerPayoutsByClient.get(row.id as string) ?? [],
-      paidRetainerStatsByClient.get(row.id as string),
-      entriesByClient.get(row.id as string) ?? null,
-      paidProfilesByClient.get(row.id as string) ?? new Set(),
-    ),
+  return Promise.all(
+    filteredRows.map(async (row) => {
+      const lead = Array.isArray(row.lead) ? row.lead[0] : row.lead;
+      const leadSetterId = (lead as { setter_id?: string | null } | null)?.setter_id ?? null;
+      const leadCreatedBy = (lead as { created_by?: string | null } | null)?.created_by ?? null;
+      const leadOwnerId = (lead as { owner_id?: string | null } | null)?.owner_id ?? null;
+      const clientSetterId = (row.setter_id as string | null) ?? null;
+      const resolvedSetterId = await resolveClientSetterId(supabase, {
+        clientSetterId,
+        leadSetterId,
+        leadCreatedBy,
+        leadOwnerId,
+      });
+
+      if (!clientSetterId && resolvedSetterId) {
+        await supabase
+          .from("clients")
+          .update({ setter_id: resolvedSetterId })
+          .eq("id", row.id as string);
+        row.setter_id = resolvedSetterId;
+      }
+
+      const setterAttributionDebug = buildSetterAttributionDebug({
+        leadSetterId,
+        clientSetterId,
+        resolvedSetterId,
+      });
+
+      return mapClientRevenueRow(
+        row,
+        invoicesByClient.get(row.id as string) ?? [],
+        payoutsByClient.get(row.id as string) ?? [],
+        freelancerPayoutsByClient.get(row.id as string) ?? [],
+        paidRetainerStatsByClient.get(row.id as string),
+        entriesByClient.get(row.id as string) ?? null,
+        paidProfilesByClient.get(row.id as string) ?? new Set(),
+        resolvedSetterId,
+        setterAttributionDebug,
+      );
+    }),
   );
 }
 

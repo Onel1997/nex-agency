@@ -30,3 +30,9 @@ export function resolveClientCommissionPayoutStatus(
 export function isCommissionEntryOpen(status: CommissionEntryStatus | null): boolean {
   return status === "pending" || status === "approved";
 }
+
+export function areAllCommissionRolesPaid(
+  payoutStatus: Pick<ClientCommissionPayoutStatus, "setterPaid" | "closerPaid">,
+): boolean {
+  return payoutStatus.setterPaid && payoutStatus.closerPaid;
+}

@@ -13,6 +13,13 @@ describe("resolveRoleCommissionDisplayStatus", () => {
     expect(resolveRoleCommissionDisplayStatus("cancelled", 10_000)).toBeNull();
     expect(resolveRoleCommissionDisplayStatus("paid", 0)).toBeNull();
   });
+
+  it("shows paid for one role while the entry remains approved", () => {
+    expect(resolveRoleCommissionDisplayStatus("approved", 10_000, true)).toBe("paid");
+    expect(resolveRoleCommissionDisplayStatus("approved", 10_000, false)).toBe(
+      "ready",
+    );
+  });
 });
 
 describe("formatRoleCommissionStatusLabel", () => {

@@ -68,6 +68,7 @@ import {
 } from "@/lib/dashboard/format";
 import { resolveRetainerAmountCents } from "@/lib/dashboard/billing-cycle";
 import { buildCommissionEntryFromClientRevenue } from "@/lib/dashboard/commission-display";
+import type { SetterAttributionDiagnosis } from "@/lib/dashboard/setter-attribution-diagnosis";
 import { salesAttributionFromClientRevenue } from "@/lib/dashboard/sales-attribution";
 import {
   formatRetainerPeriodStatus,
@@ -120,6 +121,7 @@ interface ClientDetailPageClientProps {
   canEditOverview: boolean;
   canAssign: boolean;
   teamMembers: TeamMember[];
+  setterAttributionDiagnosis?: SetterAttributionDiagnosis | null;
 }
 
 export function ClientDetailPageClient({
@@ -135,6 +137,7 @@ export function ClientDetailPageClient({
   canEditOverview,
   canAssign,
   teamMembers,
+  setterAttributionDiagnosis = null,
 }: ClientDetailPageClientProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -246,6 +249,7 @@ export function ClientDetailPageClient({
           revenue={revenue}
           canEdit={canEditContracts}
           canManageFinanceControls={canManageFinanceControls}
+          setterAttributionDiagnosis={setterAttributionDiagnosis}
           onEditContract={() => {
             if (!revenue) {
               setToast("Vertragsdaten konnten nicht geladen werden");
@@ -920,12 +924,14 @@ function ContractsTab({
   revenue,
   canEdit,
   canManageFinanceControls,
+  setterAttributionDiagnosis,
   onEditContract,
 }: {
   client: ClientDetailRecord;
   revenue: ClientRevenueRecord | null;
   canEdit: boolean;
   canManageFinanceControls: boolean;
+  setterAttributionDiagnosis: SetterAttributionDiagnosis | null;
   onEditContract: () => void;
 }) {
   const hasRetainer = resolveRetainerAmountCents(client) > 0;
@@ -994,6 +1000,8 @@ function ContractsTab({
             compact
             canManageCommissions={canManageFinanceControls}
             attribution={salesAttributionFromClientRevenue(revenue)}
+            setterCommissionPaid={revenue.setter_commission_paid}
+            closerCommissionPaid={revenue.closer_commission_paid}
             commissionEntry={buildCommissionEntryFromClientRevenue({
               commissionEntryId: revenue.commission_entry_id,
               clientId: revenue.id,
@@ -1011,6 +1019,9 @@ function ContractsTab({
               dealType: revenue.sales_deal_type,
             })}
           />
+          {canManageFinanceControls && setterAttributionDiagnosis ? (
+            <SetterAttributionDiagnosisPanel diagnosis={setterAttributionDiagnosis} />
+          ) : null}
         </div>
       ) : null}
 
@@ -1402,6 +1413,145 @@ function InvoicesTab({
           onDelete={handleDelete}
         />
       </div>
+    </div>
+  );
+}
+
+function SetterAttributionDiagnosisPanel({
+  diagnosis,
+}: {
+  diagnosis: SetterAttributionDiagnosis;
+}) {
+  return (
+    <details className="mt-4 rounded-xl border border-amber-500/30 bg-amber-500/5 p-4 text-xs text-muted" open>
+      <summary className="cursor-pointer font-medium uppercase tracking-wider text-amber-200">
+        Setter-Attribution E2E-Diagnose
+      </summary>
+
+      <p className="mt-3 rounded-lg bg-black/20 px-3 py-2 text-amber-100">
+        <strong>Verlustpunkt:</strong> {diagnosis.lossPoint}
+      </p>
+
+      <div className="mt-4">
+        <h4 className="font-medium uppercase tracking-wider text-muted-soft">
+          Workflow (Activity-Log)
+        </h4>
+        <ul className="mt-2 space-y-1">
+          {diagnosis.workflowTimeline.map((step) => (
+            <li key={`${step.stage}-${step.timestamp}`} className="font-mono text-foreground">
+              {step.timestamp} — {step.stage}: {step.note}
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      <div className="mt-4 grid gap-4 lg:grid-cols-3">
+        <DiagnosisBlock title="LEAD (DB)" rows={[
+          ["id", diagnosis.lead?.id],
+          ["status", diagnosis.lead?.status],
+          ["created_by", diagnosis.lead?.created_by],
+          ["acquired_by", diagnosis.lead?.acquired_by],
+          ["setter_id", diagnosis.lead?.setter_id],
+          ["closer_id", diagnosis.lead?.closer_id],
+        ]} />
+        <DiagnosisBlock title="CLIENT (DB)" rows={[
+          ["id", diagnosis.client?.id],
+          ["lead_id", diagnosis.client?.lead_id],
+          ["created_by", diagnosis.client?.created_by_note],
+          ["setter_id", diagnosis.client?.setter_id],
+          ["closer_id", diagnosis.client?.closer_id],
+        ]} />
+        <DiagnosisBlock title="CONTRACT / Vertragsmodul" rows={[
+          ["id", diagnosis.contract.id],
+          ["client_id", diagnosis.contract.client_id],
+          ["setter_id", diagnosis.contract.setter_id],
+          ["closer_id", diagnosis.contract.closer_id],
+          ["hinweis", diagnosis.contract.note],
+        ]} />
+      </div>
+
+      <div className="mt-4">
+        <h4 className="font-medium uppercase tracking-wider text-muted-soft">FINANCE QUERY (Session)</h4>
+        <dl className="mt-2 grid gap-2 sm:grid-cols-2">
+          <DiagItem label="Query OK" value={String(diagnosis.financeQuery.querySucceeded)} />
+          <DiagItem label="Query Error" value={diagnosis.financeQuery.queryError ?? "—"} />
+          <DiagItem label="raw client.setter_id" value={diagnosis.financeQuery.rawClientSetterId} />
+          <DiagItem label="raw lead.setter_id" value={diagnosis.financeQuery.rawLeadSetterId} />
+          <DiagItem label="raw lead.created_by" value={diagnosis.financeQuery.rawLeadCreatedBy} />
+          <DiagItem label="resolvedSetterId" value={diagnosis.financeQuery.resolvedSetterId} />
+          <DiagItem label="resolvedCloserId" value={diagnosis.financeQuery.resolvedCloserId} />
+          <DiagItem
+            label="setter profile join"
+            value={
+              diagnosis.financeQuery.setterProfileJoin
+                ? JSON.stringify(diagnosis.financeQuery.setterProfileJoin)
+                : "NULL (RLS oder fehlender Join)"
+            }
+          />
+        </dl>
+      </div>
+
+      <div className="mt-4">
+        <h4 className="font-medium uppercase tracking-wider text-muted-soft">UI OUTPUT</h4>
+        <dl className="mt-2 grid gap-2 sm:grid-cols-2">
+          <DiagItem label="revenue loaded" value={String(diagnosis.uiOutput.revenueRecordLoaded)} />
+          <DiagItem label="revenue.setter_id" value={diagnosis.uiOutput.revenueSetterId} />
+          <DiagItem label="revenue.setter_name" value={diagnosis.uiOutput.revenueSetterName} />
+          <DiagItem label="revenue.closer_id" value={diagnosis.uiOutput.revenueCloserId} />
+          <DiagItem label="revenue.closer_name" value={diagnosis.uiOutput.revenueCloserName} />
+          <DiagItem label="UI source" value={diagnosis.uiOutput.salesAttributionSource} />
+        </dl>
+      </div>
+
+      <div className="mt-4">
+        <h4 className="font-medium uppercase tracking-wider text-muted-soft">Checks</h4>
+        <ul className="mt-2 space-y-1 text-foreground">
+          <li>1. setter_id in DB (Lead): {diagnosis.checks.setterIdStoredInLeadDb ? "✓" : "✗"}</li>
+          <li>2. Terminiert persistiert: {diagnosis.checks.setterIdSurvivesScheduledTransition}</li>
+          <li>3. Lead→Client: {diagnosis.checks.setterIdSurvivesLeadToClientTransfer}</li>
+          <li>4. Client→Contract: {diagnosis.checks.setterIdSurvivesClientToContractTransfer}</li>
+          <li>5. UI Feld: {diagnosis.checks.uiLoadsSetterFromField}</li>
+          <li>
+            6. RLS-Migration attribution_profile_visibility:{" "}
+            {diagnosis.checks.attributionProfileRlsMigrationApplied ? "✓ angewendet" : "✗ FEHLT in DB"}
+          </li>
+        </ul>
+      </div>
+
+      <p className="mt-3 text-[10px] text-muted-soft">
+        Generiert: {diagnosis.generatedAt}
+      </p>
+    </details>
+  );
+}
+
+function DiagnosisBlock({
+  title,
+  rows,
+}: {
+  title: string;
+  rows: [string, string | null | undefined][];
+}) {
+  return (
+    <div className="rounded-lg border border-border/70 bg-black/20 p-3">
+      <h4 className="font-medium uppercase tracking-wider text-muted-soft">{title}</h4>
+      <dl className="mt-2 space-y-1">
+        {rows.map(([label, value]) => (
+          <div key={label}>
+            <dt className="text-muted-soft">{label}</dt>
+            <dd className="font-mono text-foreground break-all">{value ?? "—"}</dd>
+          </div>
+        ))}
+      </dl>
+    </div>
+  );
+}
+
+function DiagItem({ label, value }: { label: string; value: string | null }) {
+  return (
+    <div>
+      <dt className="text-muted-soft">{label}</dt>
+      <dd className="mt-0.5 font-mono text-foreground break-all">{value ?? "—"}</dd>
     </div>
   );
 }

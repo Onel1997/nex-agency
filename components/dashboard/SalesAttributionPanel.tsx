@@ -19,6 +19,8 @@ import type { CommissionEntryRecord } from "@/lib/dashboard/types";
 interface SalesAttributionPanelProps {
   attribution: SalesAttributionPreview;
   commissionEntry?: CommissionEntryRecord | null;
+  setterCommissionPaid?: boolean;
+  closerCommissionPaid?: boolean;
   canManageCommissions?: boolean;
   compact?: boolean;
 }
@@ -26,6 +28,8 @@ interface SalesAttributionPanelProps {
 export function SalesAttributionPanel({
   attribution,
   commissionEntry = null,
+  setterCommissionPaid = false,
+  closerCommissionPaid = false,
   canManageCommissions = false,
   compact = false,
 }: SalesAttributionPanelProps) {
@@ -47,10 +51,12 @@ export function SalesAttributionPanel({
   const setterDisplayStatus = resolveRoleCommissionDisplayStatus(
     entryStatus,
     attribution.setterCommissionCents,
+    setterCommissionPaid,
   );
   const closerDisplayStatus = resolveRoleCommissionDisplayStatus(
     entryStatus,
     attribution.closerCommissionCents,
+    closerCommissionPaid,
   );
 
   return (
@@ -85,7 +91,7 @@ export function SalesAttributionPanel({
           }}
           onPay={() => {
             if (!commissionEntry) return;
-            runAction(() => payCommissionEntry(commissionEntry.id));
+            runAction(() => payCommissionEntry(commissionEntry.id, "setter"));
           }}
         />
         <AttributionCard
@@ -105,7 +111,7 @@ export function SalesAttributionPanel({
           }}
           onPay={() => {
             if (!commissionEntry) return;
-            runAction(() => payCommissionEntry(commissionEntry.id));
+            runAction(() => payCommissionEntry(commissionEntry.id, "closer"));
           }}
         />
       </div>
@@ -157,7 +163,8 @@ function AttributionCard({
     canManageCommissions &&
     Boolean(entryId) &&
     entryStatus === "approved" &&
-    commissionCents > 0;
+    commissionCents > 0 &&
+    displayStatus !== "paid";
 
   return (
     <div className="rounded-xl border border-border/70 bg-black/10 p-4">

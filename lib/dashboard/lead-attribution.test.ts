@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  resolveClientSetterId,
   resolveLeadSetterId,
   resolveLeadSetterIdForPersistence,
 } from "./lead-attribution";
@@ -68,6 +69,52 @@ describe("resolveLeadSetterId", () => {
         createdById: "setter-1",
       }),
     ).resolves.toBe("setter-1");
+  });
+});
+
+describe("resolveClientSetterId", () => {
+  it("prefers client setter_id over lead fallbacks", async () => {
+    const supabase = mockSupabase({});
+
+    await expect(
+      resolveClientSetterId(supabase, {
+        clientSetterId: "setter-client",
+        leadSetterId: "setter-lead",
+        leadCreatedBy: "setter-created",
+      }),
+    ).resolves.toBe("setter-client");
+  });
+
+  it("falls back to lead setter_id and created_by", async () => {
+    const supabase = mockSupabase({
+      "setter-1": { agency_role: "setter", role: "employee" },
+    });
+
+    await expect(
+      resolveClientSetterId(supabase, {
+        clientSetterId: null,
+        leadSetterId: null,
+        leadCreatedBy: "setter-1",
+      }),
+    ).resolves.toBe("setter-1");
+  });
+});
+
+describe("buildSetterAttributionDebug", () => {
+  it("maps attribution ids for contract debugging", async () => {
+    const { buildSetterAttributionDebug } = await import("./lead-attribution");
+
+    expect(
+      buildSetterAttributionDebug({
+        leadSetterId: "lead-setter",
+        clientSetterId: null,
+        resolvedSetterId: "lead-setter",
+      }),
+    ).toEqual({
+      lead_setter_id: "lead-setter",
+      client_setter_id: null,
+      resolved_setter_id: "lead-setter",
+    });
   });
 });
 

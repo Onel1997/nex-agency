@@ -333,6 +333,7 @@ export interface ClientRevenueRecord {
   is_project_paid: boolean;
   freelancer_payouts: ClientFreelancerPayoutRecord[];
   currency: string;
+  setter_attribution_debug?: import("./lead-attribution").SetterAttributionDebug;
 }
 
 export interface TeamPerformanceStats {

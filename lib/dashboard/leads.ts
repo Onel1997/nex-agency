@@ -78,11 +78,30 @@ export async function getDashboardStats(): Promise<DashboardStats> {
   const managementView = profile ? isManagement(profile) : false;
 
   const supabase = await createClient();
-  const [{ data: leadRows, error: leadsError }, { count: clientCount, error: clientsError }] =
-    await Promise.all([
-      supabase.from("leads").select("status, estimated_value_cents"),
-      supabase.from("clients").select("*", { count: "exact", head: true }),
-    ]);
+  let clientsQuery = supabase
+    .from("clients")
+    .select("*", { count: "exact", head: true })
+    .eq("is_archived", false)
+    .is("deleted_at", null);
+
+  let { count: clientCount, error: clientsError } = await clientsQuery;
+
+  if (clientsError && clientsError.message.toLowerCase().includes("deleted_at")) {
+    ({ count: clientCount, error: clientsError } = await supabase
+      .from("clients")
+      .select("*", { count: "exact", head: true })
+      .eq("is_archived", false));
+  }
+
+  if (clientsError && clientsError.message.toLowerCase().includes("is_archived")) {
+    ({ count: clientCount, error: clientsError } = await supabase
+      .from("clients")
+      .select("*", { count: "exact", head: true }));
+  }
+
+  const [{ data: leadRows, error: leadsError }] = await Promise.all([
+    supabase.from("leads").select("status, estimated_value_cents"),
+  ]);
 
   if (leadsError) throw new Error(leadsError.message);
   if (clientsError) throw new Error(clientsError.message);

@@ -85,7 +85,7 @@ export function ClientsPageClient({
     try {
       await deleteClient(deleteTarget.id);
       setDeleteTarget(null);
-      setToast(`${deleteTarget.company_name} wurde endgültig gelöscht`);
+      setToast(`${deleteTarget.company_name} wurde gelöscht`);
       refresh();
     } catch (err) {
       setError(
@@ -273,8 +273,8 @@ export function ClientsPageClient({
       <ConfirmDialog
         open={Boolean(deleteTarget)}
         onClose={() => setDeleteTarget(null)}
-        title="Kunde endgültig löschen"
-        description="Diese Aktion kann nicht rückgängig gemacht werden."
+        title="Kunde löschen"
+        description="Der Kunde wird aus der Kundenliste entfernt. Rechnungen, Verträge und Finanzberichte bleiben für die Historie erhalten."
         confirmLabel="Kunde löschen"
         variant="danger"
         onConfirm={handleDeleteConfirm}
@@ -291,15 +291,12 @@ export function ClientsPageClient({
                 <dd className="text-foreground">{deleteTarget.contact_name || "—"}</dd>
               </div>
             </dl>
-            <div className="rounded-xl bg-red-500/10 px-4 py-3 text-sm text-red-200 ring-1 ring-red-500/20">
-              <p className="font-medium">Folgende Daten werden ebenfalls entfernt:</p>
-              <ul className="mt-2 list-disc space-y-1 pl-5 text-red-200/90">
-                <li>Verträge</li>
-                <li>Rechnungen</li>
-                <li>Retainer-Perioden</li>
-                <li>Freelancer-Zuweisungen</li>
-                <li>Provisionen</li>
-                <li>Finanzdaten</li>
+            <div className="rounded-xl bg-amber-500/10 px-4 py-3 text-sm text-amber-100 ring-1 ring-amber-500/20">
+              <p className="font-medium">Folgende Daten bleiben erhalten:</p>
+              <ul className="mt-2 list-disc space-y-1 pl-5 text-amber-100/90">
+                <li>Rechnungen und Verträge</li>
+                <li>Finanz- und Provisionshistorie</li>
+                <li>Freelancer-Rechnungen</li>
               </ul>
             </div>
           </div>

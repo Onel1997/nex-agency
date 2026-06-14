@@ -10,6 +10,9 @@ import {
   isClientFreelancerSchemaMissingError,
   resolveFreelancerPayoutFields,
 } from "./client-freelancer-payout";
+import {
+  isClientSoftDeleteSchemaMissingError,
+} from "./client-soft-delete";
 import type { ClientDetailRecord, ClientRecord } from "./types";
 
 function formatMemberName(
@@ -24,6 +27,13 @@ export function isClientArchiveSchemaMissingError(message: string): boolean {
   return (
     normalized.includes("is_archived") ||
     (normalized.includes("column") && normalized.includes("archived"))
+  );
+}
+
+export function isClientVisibilitySchemaMissingError(message: string): boolean {
+  return (
+    isClientArchiveSchemaMissingError(message) ||
+    isClientSoftDeleteSchemaMissingError(message)
   );
 }
 
@@ -84,6 +94,7 @@ const CLIENT_DETAIL_EMBEDS = `
 const CLIENT_SELECT_WITH_ARCHIVE = `
   ${CLIENT_SCALAR_FIELDS},
   is_archived,
+  deleted_at,
   ${CLIENT_LIST_EMBEDS}
 `;
 
@@ -95,6 +106,7 @@ const CLIENT_SELECT = `
 const CLIENT_DETAIL_SELECT_WITH_ARCHIVE = `
   ${CLIENT_SCALAR_FIELDS},
   is_archived,
+  deleted_at,
   ${CLIENT_DETAIL_SCALAR_FIELDS},
   ${CLIENT_LIST_EMBEDS},
   ${CLIENT_DETAIL_EMBEDS}
@@ -103,6 +115,7 @@ const CLIENT_DETAIL_SELECT_WITH_ARCHIVE = `
 const CLIENT_DETAIL_SELECT_WITHOUT_CONTRACT_STATUS_WITH_ARCHIVE = `
   ${CLIENT_SCALAR_FIELDS},
   is_archived,
+  deleted_at,
   ${CLIENT_DETAIL_SCALAR_FIELDS.replace(",\n  contract_status", "")},
   ${CLIENT_LIST_EMBEDS},
   ${CLIENT_DETAIL_EMBEDS}
@@ -125,6 +138,7 @@ const CLIENT_DETAIL_SELECT_WITHOUT_CONTRACT_STATUS = `
 const CLIENT_DETAIL_MINIMAL_SELECT_WITH_ARCHIVE = `
   ${CLIENT_SCALAR_FIELDS},
   is_archived,
+  deleted_at,
   monthly_revenue_cents,
   setup_fee_cents,
   total_revenue_cents,
@@ -196,10 +210,15 @@ async function queryClients(
     activeOnly?: boolean;
     limit?: number;
   },
-): Promise<{ rows: Record<string, unknown>[]; archiveSupported: boolean }> {
+): Promise<{
+  rows: Record<string, unknown>[];
+  archiveSupported: boolean;
+  softDeleteSupported: boolean;
+}> {
   const runQuery = (
     select: string,
-    filterArchived: boolean,
+    filterActive: boolean,
+    filterDeleted: boolean,
   ) => {
     let query = supabase.from("clients").select(select);
 
@@ -207,8 +226,12 @@ async function queryClients(
       query = query.eq("id", options.id);
     }
 
-    if (filterArchived) {
+    if (filterActive) {
       query = query.eq("is_archived", false);
+    }
+
+    if (filterDeleted) {
+      query = query.is("deleted_at", null);
     }
 
     query = query.order("created_at", { ascending: false });
@@ -221,15 +244,28 @@ async function queryClients(
   };
 
   let archiveSupported = true;
+  let softDeleteSupported = true;
   let result = await runQuery(
     options.selectWithArchive,
     Boolean(options.activeOnly),
+    Boolean(options.activeOnly),
   );
+
+  if (result.error && isClientSoftDeleteSchemaMissingError(result.error.message)) {
+    softDeleteSupported = false;
+    result = await runQuery(
+      options.selectWithArchive,
+      Boolean(options.activeOnly),
+      false,
+    );
+  }
 
   if (result.error && isClientArchiveSchemaMissingError(result.error.message)) {
     archiveSupported = false;
+    softDeleteSupported = false;
     result = await runQuery(
       options.selectWithoutArchive,
+      false,
       false,
     );
   }
@@ -238,12 +274,21 @@ async function queryClients(
 
   if (options.id) {
     const row = result.data as Record<string, unknown> | null;
-    return { rows: row ? [row] : [], archiveSupported };
+    if (
+      row &&
+      options.activeOnly &&
+      softDeleteSupported &&
+      row.deleted_at != null
+    ) {
+      return { rows: [], archiveSupported, softDeleteSupported };
+    }
+    return { rows: row ? [row] : [], archiveSupported, softDeleteSupported };
   }
 
   return {
     rows: (result.data ?? []) as unknown as Record<string, unknown>[],
     archiveSupported,
+    softDeleteSupported,
   };
 }
 
@@ -276,6 +321,7 @@ export async function getClientById(id: string): Promise<ClientRecord | null> {
     selectWithArchive: CLIENT_SELECT_WITH_ARCHIVE,
     selectWithoutArchive: CLIENT_SELECT,
     id,
+    activeOnly: true,
   });
 
   const row = rows[0];
@@ -344,14 +390,26 @@ async function queryClientDetailById(
   error: string | null;
 }> {
   let archiveSupported = true;
+  let softDeleteSupported = true;
   let { data, error } = await supabase
     .from("clients")
     .select(selectWithArchive)
     .eq("id", id)
+    .is("deleted_at", null)
     .maybeSingle();
+
+  if (error && isClientSoftDeleteSchemaMissingError(error.message)) {
+    softDeleteSupported = false;
+    ({ data, error } = await supabase
+      .from("clients")
+      .select(selectWithArchive)
+      .eq("id", id)
+      .maybeSingle());
+  }
 
   if (error && isClientArchiveSchemaMissingError(error.message)) {
     archiveSupported = false;
+    softDeleteSupported = false;
     ({ data, error } = await supabase
       .from("clients")
       .select(selectWithoutArchive)
@@ -361,6 +419,10 @@ async function queryClientDetailById(
 
   if (error) {
     return { row: null, archiveSupported, error: error.message };
+  }
+
+  if (data && softDeleteSupported && (data as { deleted_at?: string | null }).deleted_at) {
+    return { row: null, archiveSupported, error: null };
   }
 
   return {

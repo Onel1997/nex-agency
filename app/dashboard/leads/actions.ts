@@ -9,6 +9,9 @@ import {
   canMarkLeadWon,
   isSetter,
 } from "@/lib/auth/permissions";
+import { agencyRoleFromLegacyRole, normalizeAgencyRole } from "@/lib/auth/roles";
+import type { UserRole } from "@/lib/auth/types";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { getAuthUser, getProfile } from "@/lib/auth/session";
 import { LEAD_STATUS_LABELS, type LeadStatus } from "@/lib/dashboard/constants";
 import { logActivity } from "@/lib/dashboard/activity";
@@ -61,6 +64,29 @@ async function resolveOwnerId(
   return profile.id;
 }
 
+async function resolveLeadSetterId(
+  supabase: SupabaseClient,
+  profile: NonNullable<Awaited<ReturnType<typeof getProfile>>>,
+  ownerId: string | null,
+): Promise<string | null> {
+  if (isSetter(profile)) return profile.id;
+  if (!ownerId) return null;
+
+  const { data: ownerProfile } = await supabase
+    .from("profiles")
+    .select("agency_role, role")
+    .eq("id", ownerId)
+    .maybeSingle();
+
+  if (!ownerProfile) return null;
+
+  const ownerRole =
+    normalizeAgencyRole(ownerProfile.agency_role) ??
+    agencyRoleFromLegacyRole(ownerProfile.role as UserRole);
+
+  return ownerRole === "setter" ? ownerId : null;
+}
+
 export async function createLead(data: LeadFormData) {
   const user = await getAuthUser();
   const profile = await getProfile();
@@ -71,8 +97,8 @@ export async function createLead(data: LeadFormData) {
 
   const ownerId = await resolveOwnerId(data, profile);
   const estimatedValueCents = parseEuroToCents(data.estimated_value);
-  const setterId = isSetter(profile) ? ownerId : null;
   const supabase = await createClient();
+  const setterId = await resolveLeadSetterId(supabase, profile, ownerId);
   const { data: created, error } = await supabase
     .from("leads")
     .insert({
@@ -120,10 +146,14 @@ export async function updateLead(id: string, data: LeadFormData) {
 
   const previousOwnerId = existing?.owner_id ?? null;
   const estimatedValueCents = parseEuroToCents(data.estimated_value);
+  const setterId = await resolveLeadSetterId(supabase, profile, ownerId);
 
   const { error } = await supabase
     .from("leads")
-    .update(toDbPayload(data, ownerId, estimatedValueCents))
+    .update({
+      ...toDbPayload(data, ownerId, estimatedValueCents),
+      setter_id: setterId,
+    })
     .eq("id", id);
 
   if (error) throw new Error(error.message);

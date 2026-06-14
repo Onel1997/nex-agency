@@ -513,7 +513,8 @@ async function applyInvoicePaidSideEffects(
   const { createCommissionEntryFromPaidInvoice } = await import(
     "@/lib/dashboard/commission-entry-service"
   );
-  await createCommissionEntryFromPaidInvoice(supabase, invoiceId);
+  const { createAdminClient } = await import("@/lib/supabase/admin");
+  await createCommissionEntryFromPaidInvoice(createAdminClient(), invoiceId);
 }
 
 export async function updateInvoice(

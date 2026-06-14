@@ -17,9 +17,12 @@ import {
   getClientById,
   isClientArchiveSchemaMissingError,
 } from "@/lib/dashboard/clients";
+import {
+  buildClientSoftDeleteUpdate,
+  CLIENT_SOFT_DELETE_MIGRATION_HINT,
+  isClientSoftDeleteSchemaMissingError,
+} from "@/lib/dashboard/client-soft-delete";
 import { createClient } from "@/lib/supabase/server";
-
-const CLIENT_FILES_BUCKET = "client-files";
 
 function revalidateClients(clientId?: string) {
   revalidatePath("/dashboard");
@@ -138,71 +141,21 @@ export async function deleteClient(id: string) {
     throw new Error("Nur Super Admins dürfen Kunden endgültig löschen");
   }
 
-  const supabase = await createClient();
-  const { data: existing, error: fetchError } = await supabase
-    .from("clients")
-    .select("id, company_name, lead_id")
-    .eq("id", id)
-    .maybeSingle();
-
-  if (fetchError) throw new Error(fetchError.message);
+  const existing = await getClientById(id);
   if (!existing) throw new Error("Kunde nicht gefunden");
 
-  const { data: files, error: filesError } = await supabase
-    .from("client_files")
-    .select("storage_path")
-    .eq("client_id", id);
+  const supabase = await createClient();
+  const { error: deleteError } = await supabase
+    .from("clients")
+    .update(buildClientSoftDeleteUpdate())
+    .eq("id", id)
+    .is("deleted_at", null);
 
-  if (filesError && !filesError.message.toLowerCase().includes("client_files")) {
-    throw new Error(filesError.message);
-  }
-
-  const storagePaths = (files ?? [])
-    .map((file) => file.storage_path as string)
-    .filter(Boolean);
-
-  if (storagePaths.length > 0) {
-    const { error: storageError } = await supabase.storage
-      .from(CLIENT_FILES_BUCKET)
-      .remove(storagePaths);
-
-    if (storageError) throw new Error(storageError.message);
-  }
-
-  const { error: deleteError } = await supabase.from("clients").delete().eq("id", id);
-
-  if (deleteError) throw new Error(deleteError.message);
-
-  const linkedLeadId = existing.lead_id as string | null;
-  if (linkedLeadId) {
-    const { data: linkedLead, error: leadFetchError } = await supabase
-      .from("leads")
-      .select("company_name")
-      .eq("id", linkedLeadId)
-      .maybeSingle();
-
-    if (leadFetchError) throw new Error(leadFetchError.message);
-
-    const { error: leadDeleteError } = await supabase
-      .from("leads")
-      .delete()
-      .eq("id", linkedLeadId);
-
-    if (leadDeleteError) throw new Error(leadDeleteError.message);
-
-    if (linkedLead) {
-      await logActivity({
-        actorId: profile.id,
-        action: "lead_deleted",
-        entityType: "lead",
-        entityId: linkedLeadId,
-        metadata: {
-          company_name: linkedLead.company_name,
-          deleted_with_client_id: id,
-        },
-        message: `${actorName(profile)} hat Lead ${linkedLead.company_name} gelöscht (zugehöriger Kunde entfernt)`,
-      });
+  if (deleteError) {
+    if (isClientSoftDeleteSchemaMissingError(deleteError.message)) {
+      throw new Error(CLIENT_SOFT_DELETE_MIGRATION_HINT);
     }
+    throw new Error(deleteError.message);
   }
 
   await logActivity({
@@ -212,10 +165,9 @@ export async function deleteClient(id: string) {
     entityId: id,
     metadata: {
       company_name: existing.company_name,
-      lead_id: linkedLeadId,
-      lead_deleted: Boolean(linkedLeadId),
+      soft_deleted: true,
     },
-    message: `${actorName(profile)} hat Kunde ${existing.company_name} endgültig gelöscht`,
+    message: `${actorName(profile)} hat Kunde ${existing.company_name} gelöscht`,
   });
 
   revalidateClients();

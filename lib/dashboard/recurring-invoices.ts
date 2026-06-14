@@ -8,6 +8,7 @@ import {
   resolveRetainerAmountCents,
 } from "./billing-cycle";
 import { createInvoiceRecord } from "./invoice-create";
+import { isClientSoftDeleteSchemaMissingError } from "./client-soft-delete";
 
 export interface RecurringContractRow {
   id: string;
@@ -58,10 +59,7 @@ async function fetchDueRecurringContracts(
   supabase: ReturnType<typeof createAdminClient>,
   today: string,
 ): Promise<RecurringContractRow[]> {
-  const { data, error } = await supabase
-    .from("clients")
-    .select(
-      `
+  const select = `
       id,
       company_name,
       contract_start_date,
@@ -71,12 +69,22 @@ async function fetchDueRecurringContracts(
       next_invoice_date,
       last_invoice_date,
       auto_invoice_enabled
-    `,
-    )
-    .eq("auto_invoice_enabled", true)
-    .not("contract_start_date", "is", null)
-    .not("next_invoice_date", "is", null)
-    .lte("next_invoice_date", today);
+    `;
+
+  const buildQuery = () =>
+    supabase
+      .from("clients")
+      .select(select)
+      .eq("auto_invoice_enabled", true)
+      .not("contract_start_date", "is", null)
+      .not("next_invoice_date", "is", null)
+      .lte("next_invoice_date", today);
+
+  let { data, error } = await buildQuery().is("deleted_at", null);
+
+  if (error && isClientSoftDeleteSchemaMissingError(error.message)) {
+    ({ data, error } = await buildQuery());
+  }
 
   if (error) {
     if (error.message.includes("billing_cycle") || error.message.includes("next_invoice_date")) {

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useState, useTransition } from "react";
+import { useCallback, useEffect, useState, useTransition } from "react";
 import {
   Activity,
   Download,
@@ -247,6 +247,7 @@ export function ClientDetailPageClient({
         <ContractsTab
           client={client}
           revenue={revenue}
+          role={profile.agency_role ?? profile.role}
           canEdit={canEditContracts}
           canManageFinanceControls={canManageFinanceControls}
           setterAttributionDiagnosis={setterAttributionDiagnosis}
@@ -922,6 +923,7 @@ function CommunicationTab({
 function ContractsTab({
   client,
   revenue,
+  role,
   canEdit,
   canManageFinanceControls,
   setterAttributionDiagnosis,
@@ -929,11 +931,21 @@ function ContractsTab({
 }: {
   client: ClientDetailRecord;
   revenue: ClientRevenueRecord | null;
+  role: string;
   canEdit: boolean;
   canManageFinanceControls: boolean;
   setterAttributionDiagnosis: SetterAttributionDiagnosis | null;
   onEditContract: () => void;
 }) {
+  useEffect(() => {
+    console.log("[SalesAttributionPanel props]", {
+      role,
+      setterName: revenue?.setter_name,
+      closerName: revenue?.closer_name,
+      revenue,
+    });
+  }, [role, revenue]);
+
   const hasRetainer = resolveRetainerAmountCents(client) > 0;
   const contractStatus = revenue?.contract_status ?? client.contract_status ?? "draft";
   const paymentStatus =

@@ -52,6 +52,13 @@ export default async function ClientDetailPage({ params }: ClientDetailPageProps
       getSetterAttributionDiagnosis(id),
     ]);
 
+  console.log("[SalesAttributionPanel props]", {
+    role: profile.agency_role ?? profile.role,
+    setterName: revenue?.setter_name,
+    closerName: revenue?.closer_name,
+    revenue,
+  });
+
   if (setterAttributionDiagnosis) {
     console.log(
       "[SetterAttributionDiagnosis]",

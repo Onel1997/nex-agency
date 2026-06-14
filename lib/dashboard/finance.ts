@@ -418,6 +418,28 @@ export async function getFinanceStats(): Promise<FinanceStats | null> {
     }
   }
 
+  const openCommissionRows = clients
+    .filter((client) => client.commission_outstanding_cents > 0)
+    .map((client) => ({
+      source: "clients.commission_outstanding_cents",
+      id: client.id,
+      company_name: client.company_name,
+      setter_id: client.setter_id,
+      closer_id: client.closer_id,
+      amount: client.commission_outstanding_cents,
+      commission_total_cents: client.commission_total_cents,
+      commission_paid_cents: client.commission_paid_cents,
+      status: client.commission_status,
+      commission_entry_id: client.commission_entry_id,
+      commission_entry_status: client.commission_entry_status,
+      setter_commission_paid: client.setter_commission_paid,
+      closer_commission_paid: client.closer_commission_paid,
+      paid_at: null,
+      contract_id: client.id,
+    }));
+
+  console.log("OPEN COMMISSIONS", openCommissionRows);
+
   const retainerInvoiceStats = computeRetainerInvoiceStats(invoices);
   const freelancerInvoiceStats = computeFreelancerInvoiceStats(freelancerInvoices);
   const expenseStats = computeExpenseStats(expenses);

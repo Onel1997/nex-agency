@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { updateMemberCommissionRate } from "@/app/dashboard/finance/actions";
 import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
 import { Modal } from "@/components/dashboard/Modal";
@@ -27,6 +27,29 @@ export function PerformancePageClient({
   const [editingMember, setEditingMember] = useState<TeamPerformanceStats | null>(
     null,
   );
+  const viewerMember = !data.isTeamView ? data.members[0] : undefined;
+
+  useEffect(() => {
+    console.log({
+      projects: viewerMember?.projectsCount ?? 0,
+      volume: viewerMember?.projectVolumeCents ?? 0,
+      earned: viewerMember?.freelancerEarnedCents ?? 0,
+      paid: viewerMember?.freelancerPaidCents ?? 0,
+      commissions: data.commissions,
+      contracts: data.members,
+      role: viewerMember?.role ?? "unknown",
+      viewerIsFreelancer: data.viewerIsFreelancer,
+      salesMetrics: viewerMember
+        ? {
+            leads: viewerMember.leadsCount,
+            clients: viewerMember.clientsCount,
+            revenue: viewerMember.revenueCents,
+            commissionTotal: viewerMember.commissionTotalCents,
+            commissionPaid: viewerMember.commissionPaidCents,
+          }
+        : null,
+    });
+  }, [data, viewerMember]);
 
   return (
     <div className="space-y-8">

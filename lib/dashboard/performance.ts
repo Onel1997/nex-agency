@@ -430,6 +430,51 @@ export async function getPerformanceDashboardData(
     supabase.from("appointments").select("id, assigned_user_id, start_time"),
   ]);
 
+  console.log("PERFORMANCE RAW", {
+    query: teamView
+      ? "profiles WHERE status=active AND activated_at IS NOT NULL"
+      : "profiles (viewer only, in-memory)",
+    count: profilesResult.data?.length ?? 0,
+    filter: teamView
+      ? { status: "active", activated_at: "NOT NULL" }
+      : { viewerId: profile.id },
+    error: profilesResult.error?.message ?? null,
+    data: profilesResult.data,
+  });
+  console.log("PERFORMANCE RAW", {
+    query: "leads SELECT id, owner_id, status, created_at",
+    count: leadsResult.data?.length ?? 0,
+    filter: "RLS by role",
+    error: leadsResult.error?.message ?? null,
+    data: leadsResult.data,
+  });
+  console.log("PERFORMANCE RAW", {
+    query: "clients via fetchPerformanceClientRows (PERFORMANCE_CLIENT_SELECT_WITH_CONTRACT)",
+    count: clientsResult.rows?.length ?? 0,
+    filter: "RLS by role; no setter_id/closer_id in select",
+    error: null,
+    data: clientsResult.rows,
+  });
+  console.log("PERFORMANCE RAW", {
+    query: "invoices via fetchRetainerInvoices",
+    count: retainerInvoices?.length ?? 0,
+    filter: "status != cancelled",
+    data: retainerInvoices,
+  });
+  console.log("PERFORMANCE RAW", {
+    query: "appointments SELECT id, assigned_user_id, start_time",
+    count: appointmentsResult.data?.length ?? 0,
+    filter: "RLS by role",
+    error: appointmentsResult.error?.message ?? null,
+    data: appointmentsResult.data,
+  });
+  console.log("PERFORMANCE RAW", {
+    query: "commission_entries",
+    count: 0,
+    filter: "NOT QUERIED by getPerformanceDashboardData",
+    data: [],
+  });
+
   if (profilesResult.error) throw new Error(profilesResult.error.message);
   if (leadsResult.error) throw new Error(leadsResult.error.message);
   if (appointmentsResult.error) {
@@ -451,6 +496,20 @@ export async function getPerformanceDashboardData(
   const filteredAppointments = allAppointments.filter((appointment) =>
     isTimestampInRange(appointment.start_time, range),
   );
+
+  console.log("PERFORMANCE RAW", {
+    step: "post-query filters",
+    period,
+    range,
+    freelancerIds: [...freelancerIds],
+    leadsAfterPeriodFilter: filteredLeads.length,
+    appointmentsAfterPeriodFilter: filteredAppointments.length,
+    attributionRules: {
+      leads: "skip if !owner_id OR owner_id in freelancerIds",
+      clients: "skip if !responsible_member_id OR responsible_member_id in freelancerIds",
+      freelancerProjects: "only assigned_freelancer_id in freelancerIds",
+    },
+  });
 
   const statsByUser = new Map<string, MemberAccumulator>();
 
@@ -553,6 +612,24 @@ export async function getPerformanceDashboardData(
   const members = mapMemberRows(profiles, statsByUser);
   const viewerIsFreelancer = isFreelancerRole(profile.role);
   const viewerMember = members.find((member) => member.userId === profile.id);
+
+  console.log("PERFORMANCE RAW", {
+    step: "aggregation result",
+    statsByUser: Object.fromEntries(statsByUser),
+    members,
+    kpisPreview: buildKpis(
+      filteredLeads.filter(
+        (lead) => !lead.owner_id || !freelancerIds.has(lead.owner_id),
+      ),
+      members,
+      filteredAppointments.filter(
+        (appointment) =>
+          !appointment.assigned_user_id ||
+          !freelancerIds.has(appointment.assigned_user_id),
+      ).length,
+    ),
+  });
+
   const revenueTrend = buildRevenueTrend(
     clientRows as Record<string, unknown>[],
     retainerInvoicesByClient,

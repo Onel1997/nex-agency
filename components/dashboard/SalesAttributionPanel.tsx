@@ -36,6 +36,14 @@ export function SalesAttributionPanel({
   const router = useRouter();
   const [pending, startTransition] = useTransition();
 
+  console.log("[SalesAttributionPanel attribution]", {
+    setterName: attribution.setter.name,
+    closerName: attribution.closer.name,
+    setterId: attribution.setter.id,
+    closerId: attribution.closer.id,
+    attribution,
+  });
+
   const runAction = (action: () => Promise<void>) => {
     startTransition(async () => {
       try {

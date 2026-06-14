@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
+  canAccessContractsRoutes,
   canAccessFinanceRoutes,
+  canAccessKnowledgeCenter,
   canAccessTeamRoutes,
   canCreateContracts,
   canEditLeads,
   canManageFinance,
+  canManageKnowledgeCenter,
   canManageTeam,
   canMarkLeadWon,
   canViewLeads,
@@ -109,5 +112,66 @@ describe("assignable agency roles", () => {
 
   it("setter cannot assign roles", () => {
     expect(getAssignableAgencyRoles(profile("setter"))).toEqual([]);
+  });
+});
+
+describe("knowledge center permissions", () => {
+  it("setter can access knowledge center but not manage it", () => {
+    const setter = profile("setter");
+
+    expect(canAccessKnowledgeCenter(setter)).toBe(true);
+    expect(canManageKnowledgeCenter(setter)).toBe(false);
+    expect(hasPermission(setter, "manage_knowledge_center")).toBe(false);
+  });
+
+  it("closer can access knowledge center", () => {
+    expect(canAccessKnowledgeCenter(profile("closer"))).toBe(true);
+    expect(canManageKnowledgeCenter(profile("closer"))).toBe(false);
+  });
+
+  it("owner can access and manage knowledge center", () => {
+    const owner = profile("owner");
+
+    expect(canAccessKnowledgeCenter(owner)).toBe(true);
+    expect(canManageKnowledgeCenter(owner)).toBe(true);
+  });
+
+  it("admin can access and manage knowledge center", () => {
+    const admin = profile("admin");
+
+    expect(canAccessKnowledgeCenter(admin)).toBe(true);
+    expect(canManageKnowledgeCenter(admin)).toBe(true);
+  });
+
+  it("sales manager can access but not manage knowledge center", () => {
+    const salesManager = profile("sales_manager");
+
+    expect(canAccessKnowledgeCenter(salesManager)).toBe(true);
+    expect(canManageKnowledgeCenter(salesManager)).toBe(false);
+  });
+});
+
+describe("contract center permissions", () => {
+  it("owner and admin can access contracts routes", () => {
+    expect(canAccessContractsRoutes(profile("owner"))).toBe(true);
+    expect(canAccessContractsRoutes(profile("admin"))).toBe(true);
+  });
+
+  it("setter and closer cannot access contracts routes", () => {
+    expect(canAccessContractsRoutes(profile("setter"))).toBe(false);
+    expect(canAccessContractsRoutes(profile("closer"))).toBe(false);
+    expect(canAccessContractsRoutes(profile("sales_manager"))).toBe(false);
+  });
+});
+
+describe("commission center permissions", () => {
+  it("owner and admin can manage commissions", () => {
+    expect(hasPermission(profile("owner"), "manage_commissions")).toBe(true);
+    expect(hasPermission(profile("admin"), "manage_commissions")).toBe(true);
+  });
+
+  it("setter and closer cannot manage commissions", () => {
+    expect(hasPermission(profile("setter"), "manage_commissions")).toBe(false);
+    expect(hasPermission(profile("closer"), "manage_commissions")).toBe(false);
   });
 });

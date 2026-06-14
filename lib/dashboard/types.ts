@@ -5,6 +5,11 @@ import type {
   UserRole,
 } from "@/lib/auth/types";
 import type {
+  ContractStatus as TeamContractStatus,
+  ContractType as TeamContractType,
+} from "./contract-constants";
+import type { CommissionEntryStatus } from "./commission-constants";
+import type {
   AppointmentStatus,
   BillingCycle,
   ClientActivityType,
@@ -574,4 +579,99 @@ export interface Appointment {
   updated_at: string;
   assignee_name?: string | null;
   lead_company_name?: string | null;
+}
+
+export interface TeamContractRecord {
+  id: string;
+  profile_id: string;
+  contract_type: TeamContractType;
+  status: TeamContractStatus;
+  title: string;
+  contract_number: string;
+  start_date: string | null;
+  end_date: string | null;
+  monthly_salary_cents: number | null;
+  commission_rate: number | null;
+  notes: string | null;
+  pdf_url: string | null;
+  signed_at: string | null;
+  created_at: string;
+  updated_at: string;
+  profile_name: string;
+  profile_email: string;
+  profile_agency_role: AgencyRole;
+  profile_employment_type: EmploymentType;
+  profile_agency_role_label: string;
+  profile_employment_type_label: string;
+}
+
+export interface ContractWithDetails extends TeamContractRecord {
+  profile_street: string | null;
+  profile_postal_code: string | null;
+  profile_city: string | null;
+  profile_country: string | null;
+}
+
+export interface TeamMemberDetailData {
+  member: TeamMember;
+  contracts: TeamContractRecord[];
+  commissionSummary: MemberCommissionSummary | null;
+}
+
+export interface ContractsDashboardData {
+  contracts: TeamContractRecord[];
+  stats: {
+    active: number;
+    draft: number;
+    terminated: number;
+    expiring: number;
+  };
+  members: TeamMember[];
+}
+
+export interface CommissionEntryRecord {
+  id: string;
+  client_id: string;
+  client_name: string;
+  setter_id: string | null;
+  setter_name: string | null;
+  closer_id: string | null;
+  closer_name: string | null;
+  project_value_cents: number;
+  setter_rate: number;
+  closer_rate: number;
+  setter_commission_cents: number;
+  closer_commission_cents: number;
+  status: CommissionEntryStatus;
+  triggered_by_invoice_id: string | null;
+  created_at: string;
+  updated_at: string;
+  paid_at: string | null;
+}
+
+export interface CommissionCenterStats {
+  pendingCents: number;
+  approvedCents: number;
+  paidCents: number;
+  totalCostCents: number;
+}
+
+export interface CommissionDashboardKpis {
+  openCents: number;
+  monthCents: number;
+  yearCents: number;
+  topSetters: { profileId: string; name: string; amountCents: number }[];
+  topClosers: { profileId: string; name: string; amountCents: number }[];
+}
+
+export interface MemberCommissionSummary {
+  earnedCents: number;
+  paidCents: number;
+  openCents: number;
+  entries: CommissionEntryRecord[];
+}
+
+export interface CommissionCenterData {
+  entries: CommissionEntryRecord[];
+  stats: CommissionCenterStats;
 }

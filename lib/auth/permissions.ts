@@ -23,7 +23,7 @@ export type Permission =
   | "access_knowledge_center"
   | "manage_knowledge_center";
 
-type PermissionActor = Pick<
+export type PermissionActor = Pick<
   Profile,
   "role" | "agency_role" | "employment_type" | "id"
 > & {
@@ -182,6 +182,10 @@ export function canAccessKnowledgeCenter(profile: PermissionActor): boolean {
   return hasPermission(profile, "access_knowledge_center");
 }
 
+export function canManageKnowledgeCenter(profile: PermissionActor): boolean {
+  return hasPermission(profile, "manage_knowledge_center");
+}
+
 export function canConvertLeadToClient(profile: PermissionActor): boolean {
   return hasPermission(profile, "convert_lead_to_client");
 }
@@ -254,6 +258,10 @@ export function canAccessFinanceRoutes(profile: PermissionActor): boolean {
   return canManageFinance(profile);
 }
 
+export function canAccessContractsRoutes(profile: PermissionActor): boolean {
+  return isManagement(profile);
+}
+
 export function canAccessPerformanceRoutes(profile: PermissionActor): boolean {
   return isManagement(profile) || isFieldStaff(profile);
 }
@@ -300,7 +308,12 @@ export function getAssignableAgencyRoles(actor: PermissionActor): AgencyRole[] {
 /** @deprecated Use getAssignableAgencyRoles */
 export function getAssignableRoles(currentUserRole: UserRole | string): UserRole[] {
   const agencyRole = normalizeAgencyRole(currentUserRole) ?? agencyRoleFromLegacyRole(currentUserRole);
-  return getAssignableAgencyRoles({ role: "employee", agency_role: agencyRole }).map(
+  return getAssignableAgencyRoles({
+    id: "legacy-compat",
+    role: "employee",
+    agency_role: agencyRole,
+    employment_type: "employee",
+  }).map(
     (role) => {
       switch (role) {
         case "owner":

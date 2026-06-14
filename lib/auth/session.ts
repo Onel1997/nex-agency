@@ -1,7 +1,9 @@
 import { redirect } from "next/navigation";
 import type { Profile } from "@/lib/auth/types";
 import {
+  canAccessContractsRoutes,
   canAccessFinanceRoutes,
+  canAccessKnowledgeCenter,
   canAccessPerformanceRoutes,
   isManagement as checkManagement,
   isSuperAdmin as checkSuperAdmin,
@@ -86,6 +88,18 @@ export async function requireFinanceAccess(): Promise<Profile> {
 export async function requirePerformanceAccess(): Promise<Profile> {
   const profile = await requireProfile();
   if (!canAccessPerformanceRoutes(profile)) redirect("/dashboard");
+  return profile;
+}
+
+export async function requireKnowledgeCenterAccess(): Promise<Profile> {
+  const profile = await requireProfile();
+  if (!canAccessKnowledgeCenter(profile)) redirect("/dashboard");
+  return profile;
+}
+
+export async function requireContractsAccess(): Promise<Profile> {
+  const profile = await requireProfile();
+  if (!canAccessContractsRoutes(profile)) redirect("/dashboard");
   return profile;
 }
 

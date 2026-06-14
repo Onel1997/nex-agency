@@ -33,6 +33,7 @@ import {
 
 function revalidateFinance(clientId?: string) {
   revalidatePath("/dashboard/finance");
+  revalidatePath("/dashboard/finance/commissions");
   revalidatePath("/dashboard/performance");
   revalidatePath("/dashboard");
   if (clientId) {

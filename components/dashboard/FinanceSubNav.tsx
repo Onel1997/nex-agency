@@ -7,6 +7,7 @@ const FINANCE_SUB_NAV = [
   { href: "/dashboard/finance", label: "Übersicht", exact: true },
   { href: "/dashboard/finance/freelancers", label: "Freelancer" },
   { href: "/dashboard/finance/payouts", label: "Auszahlungen" },
+  { href: "/dashboard/finance/commissions", label: "Provisionen" },
   { href: "/dashboard/finance/expenses", label: "Ausgaben" },
 ] as const;
 

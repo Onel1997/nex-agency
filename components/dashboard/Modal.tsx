@@ -9,7 +9,7 @@ interface ModalProps {
   onClose: () => void;
   title: string;
   children: ReactNode;
-  size?: "md" | "lg";
+  size?: "md" | "lg" | "xl";
   layer?: "default" | "stacked";
   closeOnEscape?: boolean;
   closeOnBackdrop?: boolean;
@@ -77,7 +77,11 @@ export function Modal({
         aria-modal="true"
         aria-labelledby="modal-title"
         className={`dashboard-modal glass-card relative z-10 w-full rounded-2xl ${
-          size === "lg" ? "max-w-2xl" : "max-w-lg"
+          size === "xl"
+            ? "max-w-5xl"
+            : size === "lg"
+              ? "max-w-2xl"
+              : "max-w-lg"
         }`}
         onClick={(e) => e.stopPropagation()}
       >

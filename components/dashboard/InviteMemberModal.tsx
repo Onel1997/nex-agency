@@ -2,20 +2,20 @@
 
 import { useEffect, useState } from "react";
 import { Modal } from "./Modal";
-import { getAssignableAgencyRoles } from "@/lib/auth/permissions";
+import { getAssignableAgencyRoles, type PermissionActor } from "@/lib/auth/permissions";
 import {
   agencyRoleSelectOptions,
   employmentTypeSelectOptions,
   getAgencyRoleLabel,
   getEmploymentTypeLabel,
 } from "@/lib/auth/roles";
-import type { AgencyRole, EmploymentType, Profile } from "@/lib/auth/types";
+import type { AgencyRole, EmploymentType } from "@/lib/auth/types";
 
 interface InviteMemberModalProps {
   open: boolean;
   onClose: () => void;
   onInvite: (formData: FormData) => Promise<void>;
-  currentUserProfile: Pick<Profile, "agency_role" | "role">;
+  currentUserProfile: PermissionActor;
 }
 
 export function InviteMemberModal({

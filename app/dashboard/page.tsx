@@ -22,9 +22,11 @@ import { getAppointmentStats } from "@/lib/dashboard/appointments";
 import { getRecentClients } from "@/lib/dashboard/clients";
 import { formatCents } from "@/lib/dashboard/format";
 import { getDashboardStats, getRecentLeads, getTeamStats } from "@/lib/dashboard/leads";
+import { getCommissionDashboardKpis } from "@/lib/dashboard/commission-center";
 import type {
   AppointmentStats,
   ClientRecord,
+  CommissionDashboardKpis,
   DashboardStats,
   Lead,
   TeamMemberStats,
@@ -51,10 +53,11 @@ export default async function DashboardPage() {
   let activities: ActivityLog[] = [];
   let recentLeads: Lead[] = [];
   let recentClients: ClientRecord[] = [];
+  let commissionKpis: CommissionDashboardKpis | null = null;
   let dbError: string | null = null;
 
   try {
-    [stats, appointmentStats, teamStats, activities, recentLeads, recentClients] =
+    [stats, appointmentStats, teamStats, activities, recentLeads, recentClients, commissionKpis] =
       await Promise.all([
         getDashboardStats(),
         getAppointmentStats(),
@@ -62,6 +65,7 @@ export default async function DashboardPage() {
         managementView ? getRecentActivities(6) : Promise.resolve([]),
         getRecentLeads(5),
         getRecentClients(5),
+        managementView ? getCommissionDashboardKpis() : Promise.resolve(null),
       ]);
   } catch (err) {
     dbError =
@@ -133,6 +137,54 @@ export default async function DashboardPage() {
           />
         )}
       </div>
+
+      {managementView && commissionKpis && (
+        <div>
+          <h2 className="mb-4 text-sm font-medium uppercase tracking-wider text-muted-soft">
+            Provisionen
+          </h2>
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <KpiCard
+              label="Offene Provisionen"
+              value={formatCents(commissionKpis.openCents)}
+              icon={Euro}
+              href="/dashboard/finance/commissions"
+            />
+            <KpiCard
+              label="Provisionen diesen Monat"
+              value={formatCents(commissionKpis.monthCents)}
+              icon={Euro}
+              href="/dashboard/finance/commissions"
+            />
+            <KpiCard
+              label="Provisionen dieses Jahr"
+              value={formatCents(commissionKpis.yearCents)}
+              icon={Euro}
+              href="/dashboard/finance/commissions"
+            />
+            <KpiCard
+              label="Top Setter"
+              value={
+                commissionKpis.topSetters[0]
+                  ? commissionKpis.topSetters[0].name
+                  : "—"
+              }
+              icon={UserCog}
+              trend={
+                commissionKpis.topSetters[0]
+                  ? formatCents(commissionKpis.topSetters[0].amountCents)
+                  : undefined
+              }
+            />
+          </div>
+          {commissionKpis.topClosers[0] && (
+            <p className="mt-3 text-sm text-muted">
+              Top Closer: {commissionKpis.topClosers[0].name} (
+              {formatCents(commissionKpis.topClosers[0].amountCents)})
+            </p>
+          )}
+        </div>
+      )}
 
       <div>
         <h2 className="mb-4 text-sm font-medium uppercase tracking-wider text-muted-soft">

@@ -2,8 +2,10 @@
 
 import {
   Activity,
+  BookOpen,
   CalendarDays,
   Euro,
+  FileText,
   LayoutDashboard,
   Menu,
   Target,
@@ -16,7 +18,9 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import {
+  canAccessContractsRoutes,
   canAccessFinanceRoutes,
+  canAccessKnowledgeCenter,
   canAccessPerformanceRoutes,
   canAccessTeamRoutes,
 } from "@/lib/auth/permissions";
@@ -45,6 +49,18 @@ const PERFORMANCE_NAV_ITEM = {
   icon: TrendingUp,
 } as const;
 
+const KNOWLEDGE_NAV_ITEM = {
+  href: "/dashboard/knowledge",
+  label: "Knowledge Center",
+  icon: BookOpen,
+} as const;
+
+const CONTRACTS_NAV_ITEM = {
+  href: "/dashboard/contracts",
+  label: "Verträge",
+  icon: FileText,
+} as const;
+
 interface DashboardSidebarProps {
   profile: Profile;
 }
@@ -57,6 +73,8 @@ export function DashboardSidebar({ profile }: DashboardSidebarProps) {
     ...(canAccessTeamRoutes(profile) ? MANAGEMENT_NAV_ITEMS : []),
     ...(canAccessFinanceRoutes(profile) ? FINANCE_NAV_ITEMS : []),
     ...(canAccessPerformanceRoutes(profile) ? [PERFORMANCE_NAV_ITEM] : []),
+    ...(canAccessKnowledgeCenter(profile) ? [KNOWLEDGE_NAV_ITEM] : []),
+    ...(canAccessContractsRoutes(profile) ? [CONTRACTS_NAV_ITEM] : []),
   ];
 
   const isActive = (href: string, exact?: boolean) =>

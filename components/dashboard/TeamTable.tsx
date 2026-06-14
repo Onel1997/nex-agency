@@ -1,16 +1,18 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { formatDate, formatPercent } from "@/lib/dashboard/format";
 import {
   canManageMember,
   getAssignableAgencyRoles,
+  type PermissionActor,
 } from "@/lib/auth/permissions";
 import {
   agencyRoleSelectOptions,
   getAgencyRoleLabel,
   getEmploymentTypeLabel,
 } from "@/lib/auth/roles";
-import type { AgencyRole, Profile } from "@/lib/auth/types";
+import type { AgencyRole } from "@/lib/auth/types";
 import type { TeamMember } from "@/lib/dashboard/types";
 import { DataTable } from "./DataTable";
 import { TeamMemberStatusBadge } from "./TeamMemberStatusBadge";
@@ -18,7 +20,7 @@ import { TeamMemberStatusBadge } from "./TeamMemberStatusBadge";
 interface TeamTableProps {
   members: TeamMember[];
   currentUserId: string;
-  currentUserProfile: Pick<Profile, "id" | "agency_role" | "role">;
+  currentUserProfile: PermissionActor;
   onEdit: (member: TeamMember) => void;
   onRoleChange: (memberId: string, role: AgencyRole) => Promise<void>;
   onToggleActive: (memberId: string, isActive: boolean) => Promise<void>;
@@ -34,12 +36,17 @@ export function TeamTable({
   onToggleActive,
   onDelete,
 }: TeamTableProps) {
+  const router = useRouter();
   const assignableRoles = getAssignableAgencyRoles(currentUserProfile);
 
   return (
     <DataTable
       data={members}
       rowKey={(member) => member.id}
+      onRowClick={(member) => router.push(`/dashboard/team/${member.id}`)}
+      getRowAriaLabel={(member) =>
+        `Teammitglied ${member.full_name?.trim() || member.email} öffnen`
+      }
       columns={[
         {
           key: "name",
@@ -95,6 +102,7 @@ export function TeamTable({
             return (
               <select
                 value={member.agency_role}
+                onClick={(e) => e.stopPropagation()}
                 onChange={(e) =>
                   onRoleChange(member.id, e.target.value as AgencyRole)
                 }
@@ -155,7 +163,11 @@ export function TeamTable({
             });
 
             return (
-              <div className="flex flex-wrap gap-2">
+              <div
+                className="flex flex-wrap gap-2"
+                onClick={(e) => e.stopPropagation()}
+                onKeyDown={(e) => e.stopPropagation()}
+              >
                 <button
                   type="button"
                   onClick={() => onEdit(member)}

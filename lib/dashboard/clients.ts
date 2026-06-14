@@ -41,6 +41,8 @@ const CLIENT_SCALAR_FIELDS = `
   phone,
   website,
   responsible_member_id,
+  setter_id,
+  closer_id,
   lead_estimated_value_cents,
   monthly_retainer_cents,
   one_time_project_value_cents,
@@ -169,6 +171,8 @@ function mapClientRow(
     phone: (row.phone as string | null) ?? null,
     website: (row.website as string | null) ?? null,
     responsible_member_id: (row.responsible_member_id as string | null) ?? null,
+    setter_id: (row.setter_id as string | null) ?? null,
+    closer_id: (row.closer_id as string | null) ?? null,
     lead_estimated_value_cents:
       (row.lead_estimated_value_cents as number | null) ?? null,
     monthly_retainer_cents: (row.monthly_retainer_cents as number | null) ?? null,

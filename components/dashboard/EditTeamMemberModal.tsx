@@ -5,6 +5,7 @@ import { Modal } from "./Modal";
 import {
   canManageMember,
   getAssignableAgencyRoles,
+  type PermissionActor,
 } from "@/lib/auth/permissions";
 import {
   agencyRoleSelectOptions,
@@ -12,7 +13,7 @@ import {
   getAgencyRoleLabel,
   getEmploymentTypeLabel,
 } from "@/lib/auth/roles";
-import type { AgencyRole, EmploymentType, Profile } from "@/lib/auth/types";
+import type { AgencyRole, EmploymentType } from "@/lib/auth/types";
 import { parsePercent } from "@/lib/dashboard/format";
 import type { TeamMember } from "@/lib/dashboard/types";
 
@@ -28,7 +29,7 @@ interface EditTeamMemberModalProps {
   open: boolean;
   member: TeamMember | null;
   currentUserId: string;
-  currentUserProfile: Pick<Profile, "id" | "agency_role" | "role">;
+  currentUserProfile: PermissionActor;
   onClose: () => void;
   onSave: (memberId: string, data: EditTeamMemberData) => Promise<void>;
 }

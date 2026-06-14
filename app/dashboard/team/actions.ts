@@ -24,6 +24,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 function revalidateTeam() {
   revalidatePath("/dashboard");
   revalidatePath("/dashboard/team");
+  revalidatePath("/dashboard/contracts");
   revalidatePath("/dashboard/activities");
   revalidatePath("/dashboard/leads");
 }

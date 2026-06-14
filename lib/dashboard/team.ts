@@ -98,6 +98,23 @@ export async function getAssignableTeamMembers(): Promise<TeamMember[]> {
   ];
 }
 
+export async function getAssignableFreelancers(): Promise<TeamMember[]> {
+  const profile = await getProfile();
+  if (!profile || !isManagement(profile)) return [];
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("profiles")
+    .select(TEAM_MEMBER_SELECT)
+    .eq("employment_type", "freelancer")
+    .eq("status", "active")
+    .not("activated_at", "is", null)
+    .order("full_name");
+
+  if (error) throw new Error(error.message);
+  return (data ?? []).map((row) => mapTeamMember(row as TeamMember));
+}
+
 export async function getActiveTeamCount(): Promise<number> {
   const profile = await getProfile();
   if (!profile || !isManagement(profile)) return 0;

@@ -374,9 +374,9 @@ export async function getFreelancerById(
   const supabase = await createClient();
   const { data: freelancerProfile, error } = await supabase
     .from("profiles")
-    .select("id, email, full_name, commission_rate, status, role, created_at, updated_at")
+    .select("id, email, full_name, commission_rate, status, role, employment_type, created_at, updated_at")
     .eq("id", id)
-    .eq("role", "freelancer")
+    .eq("employment_type", "freelancer")
     .maybeSingle();
 
   if (error) throw new Error(error.message);

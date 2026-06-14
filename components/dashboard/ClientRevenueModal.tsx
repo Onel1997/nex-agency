@@ -40,7 +40,7 @@ import { Check, Circle } from "lucide-react";
 interface ClientRevenueModalProps {
   client: ClientRevenueRecord | null;
   invoices?: InvoiceRecord[];
-  teamMembers?: TeamMember[];
+  freelancers?: TeamMember[];
   open: boolean;
   payoutOpen?: boolean;
   onClose: () => void;
@@ -51,7 +51,7 @@ interface ClientRevenueModalProps {
 export function ClientRevenueModal({
   client,
   invoices = [],
-  teamMembers = [],
+  freelancers = [],
   open,
   payoutOpen = false,
   onClose,
@@ -381,7 +381,7 @@ export function ClientRevenueModal({
                 className="dashboard-input"
               >
                 <option value="">— Kein Freelancer —</option>
-                {teamMembers.map((member) => (
+                {freelancers.map((member) => (
                   <option key={member.id} value={member.id}>
                     {member.full_name?.trim() || member.email.split("@")[0]}
                   </option>

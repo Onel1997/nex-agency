@@ -1,5 +1,6 @@
 import { canAccessFinanceRoutes } from "@/lib/auth/permissions";
 import { getProfile } from "@/lib/auth/session";
+import { assertAssignableFreelancerId } from "./freelancer-assignment";
 import type { FreelancerProfileRecord } from "./types";
 import { createClient } from "@/lib/supabase/server";
 
@@ -97,6 +98,8 @@ export async function getOrCreateFreelancerProfile(
   }
 
   const supabase = await createClient();
+  await assertAssignableFreelancerId(supabase, profileId);
+
   const { data: existing, error: selectError } = await supabase
     .from("freelancer_profiles")
     .select("*")

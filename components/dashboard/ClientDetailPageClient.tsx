@@ -117,6 +117,7 @@ interface ClientDetailPageClientProps {
   canEdit: boolean;
   canAssign: boolean;
   teamMembers: TeamMember[];
+  freelancers: TeamMember[];
 }
 
 export function ClientDetailPageClient({
@@ -131,6 +132,7 @@ export function ClientDetailPageClient({
   canEdit,
   canAssign,
   teamMembers,
+  freelancers,
 }: ClientDetailPageClientProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -302,7 +304,7 @@ export function ClientDetailPageClient({
         <ClientRevenueModal
           client={revenue}
           invoices={clientInvoices}
-          teamMembers={teamMembers}
+          freelancers={freelancers}
           open={contractModalOpen}
           payoutOpen={Boolean(payoutClient || freelancerPayoutClient)}
           onClose={() => setContractModalOpen(false)}

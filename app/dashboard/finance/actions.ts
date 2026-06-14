@@ -12,6 +12,7 @@ import {
   isClientFreelancerPayoutsSchemaMissingError,
   isClientFreelancerSchemaMissingError,
 } from "@/lib/dashboard/client-freelancer-payout";
+import { assertAssignableFreelancerId } from "@/lib/dashboard/freelancer-assignment";
 import {
   backfillFreelancerProfileInvoicesFromPayouts,
   createFreelancerProfileInvoiceForPayout,
@@ -290,6 +291,8 @@ export async function payFreelancerPayout(clientId: string, formData: FormData) 
   if (!freelancerId) {
     throw new Error("Kein Freelancer für diesen Kunden zugewiesen");
   }
+
+  await assertAssignableFreelancerId(supabase, freelancerId);
 
   const payout = applyFreelancerPayout({
     totalCents: (client.freelancer_payout_cents as number) ?? 0,

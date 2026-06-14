@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { assertAssignableFreelancerId } from "./freelancer-assignment";
 import type { CommissionStatus, ContractStatus } from "./constants";
 import {
   COMMISSION_STATUSES,
@@ -50,6 +51,10 @@ export async function saveClientContractData(
   input: SaveClientContractInput,
   profileId?: string | null,
 ): Promise<SaveClientContractResult> {
+  if (input.assignedFreelancerId) {
+    await assertAssignableFreelancerId(supabase, input.assignedFreelancerId);
+  }
+
   const updatePayload: Record<string, unknown> = {
     monthly_revenue_cents: input.monthlyRevenueCents,
     monthly_retainer_cents: input.monthlyRevenueCents,

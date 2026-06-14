@@ -7,13 +7,16 @@ import {
 } from "@/lib/auth/permissions";
 import { LEAD_STATUSES, type LeadStatus } from "./constants";
 
-/** Setter-visible pipeline statuses. */
+/** Setter-visible pipeline statuses (DB keys). Labels: Neu, Kontaktiert, Terminiert, Verloren */
 export const SETTER_PIPELINE_STATUSES = [
   "new",
   "contacted",
   "scheduled",
   "lost",
 ] as const satisfies readonly LeadStatus[];
+
+/** @alias SETTER_PIPELINE_STATUSES */
+export const SETTER_STATUSES = SETTER_PIPELINE_STATUSES;
 
 /** Closer-visible pipeline statuses. */
 export const CLOSER_PIPELINE_STATUSES = [
@@ -23,9 +26,6 @@ export const CLOSER_PIPELINE_STATUSES = [
   "won",
   "lost",
 ] as const satisfies readonly LeadStatus[];
-
-const SETTER_FORWARD_ORDER = ["new", "contacted", "scheduled"] as const;
-const CLOSER_FORWARD_ORDER = ["scheduled", "qualified", "proposal", "won"] as const;
 
 const SETTER_STATUS_SET = new Set<string>(SETTER_PIPELINE_STATUSES);
 const CLOSER_STATUS_SET = new Set<string>(CLOSER_PIPELINE_STATUSES);
@@ -105,40 +105,44 @@ export function getVisibleLeadStatuses(profile: PermissionActor): LeadStatus[] {
   return [...LEAD_STATUSES];
 }
 
-function canSetterTransition(from: LeadStatus, to: LeadStatus): boolean {
-  if (to === "lost") {
-    return from !== "won" && from !== "lost" && isSetterPipelineStatus(from);
+/** All closer dropdown options when the closer can edit the lead. */
+export function getCloserLeadStatusOptions(
+  profile: PermissionActor & Pick<{ id: string }, "id">,
+  lead: LeadPipelineFields,
+): LeadStatus[] {
+  if (!isCloser(profile)) return [];
+  if (lead.closer_id && lead.closer_id !== profile.id) {
+    return [lead.status];
   }
-  if (!SETTER_STATUS_SET.has(to) || to === "lost") return false;
-  if (from === "scheduled") return to === "scheduled";
-  if (isCloserOnlyLeadStatus(from) || from === "won") return false;
+  if (lead.status === "scheduled" && !lead.closer_id) {
+    return ["scheduled"];
+  }
+  if (lead.status === "won") return ["won"];
+  return [...CLOSER_PIPELINE_STATUSES];
+}
 
-  const fromIndex = SETTER_FORWARD_ORDER.indexOf(
-    from as (typeof SETTER_FORWARD_ORDER)[number],
-  );
-  const toIndex = SETTER_FORWARD_ORDER.indexOf(
-    to as (typeof SETTER_FORWARD_ORDER)[number],
-  );
-  if (fromIndex === -1 || toIndex === -1) return false;
-  return Math.abs(toIndex - fromIndex) <= 1;
+/** All setter dropdown options — always Neu, Kontaktiert, Terminiert, Verloren when editable. */
+export function getSetterLeadStatusOptions(
+  profile: PermissionActor,
+  lead: LeadPipelineFields,
+): LeadStatus[] {
+  if (!isSetter(profile)) return [];
+  if (lead.status === "won") return ["won"];
+  if (lead.status === "lost") return ["lost"];
+  if (isCloserOnlyLeadStatus(lead.status)) return [lead.status];
+  return [...SETTER_PIPELINE_STATUSES];
+}
+
+function canSetterTransition(from: LeadStatus, to: LeadStatus): boolean {
+  if (from === "won") return false;
+  if (isCloserOnlyLeadStatus(from)) return false;
+  return SETTER_STATUS_SET.has(to);
 }
 
 function canCloserTransition(from: LeadStatus, to: LeadStatus): boolean {
+  if (from === "won") return false;
   if (to === "new" || to === "contacted") return false;
-  if (to === "lost") {
-    return from !== "won" && from !== "lost" && CLOSER_STATUS_SET.has(from);
-  }
-  if (!CLOSER_STATUS_SET.has(to) || to === "lost") return false;
-  if (from === "won" || from === "lost") return false;
-
-  const fromIndex = CLOSER_FORWARD_ORDER.indexOf(
-    from as (typeof CLOSER_FORWARD_ORDER)[number],
-  );
-  const toIndex = CLOSER_FORWARD_ORDER.indexOf(
-    to as (typeof CLOSER_FORWARD_ORDER)[number],
-  );
-  if (fromIndex === -1 || toIndex === -1) return false;
-  return toIndex >= fromIndex;
+  return CLOSER_STATUS_SET.has(to);
 }
 
 export function isAllowedLeadStatusTransition(
@@ -174,43 +178,20 @@ export function getSelectableLeadStatuses(
     return ["won"];
   }
 
-  const visible = getVisibleLeadStatuses(profile);
-
   if (isManagement(profile) || isSalesManager(profile)) {
-    return LEAD_STATUSES.filter(
-      (status) =>
-        visible.includes(status) &&
-        (status === lead.status ||
-          isAllowedLeadStatusTransition(profile, lead, status)),
-    );
+    if (lead.status === "lost") return ["lost"];
+    return [...LEAD_STATUSES];
   }
 
   if (isSetter(profile)) {
-    if (isCloserOnlyLeadStatus(lead.status)) {
-      return [lead.status];
-    }
-    return SETTER_PIPELINE_STATUSES.filter(
-      (status) =>
-        status === lead.status ||
-        isAllowedLeadStatusTransition(profile, lead, status),
-    );
+    return getSetterLeadStatusOptions(profile, lead);
   }
 
   if (isCloser(profile)) {
-    if (lead.closer_id && lead.closer_id !== profile.id) {
-      return [lead.status];
-    }
-    if (lead.status === "scheduled" && !lead.closer_id) {
-      return ["scheduled"];
-    }
-    return CLOSER_PIPELINE_STATUSES.filter(
-      (status) =>
-        status === lead.status ||
-        isAllowedLeadStatusTransition(profile, lead, status),
-    );
+    return getCloserLeadStatusOptions(profile, lead);
   }
 
-  return LEAD_STATUSES.filter((status) => status === lead.status || visible.includes(status));
+  return getVisibleLeadStatuses(profile);
 }
 
 export function assertRoleLeadStatusTransition(

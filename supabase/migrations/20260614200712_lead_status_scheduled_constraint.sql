@@ -1,0 +1,1 @@
+-- No-op placeholder (CLI scaffold). Constraint fix is in 20260619120000_lead_status_scheduled_constraint.sql.

@@ -18,6 +18,7 @@ export type LeadWorkflowStage =
   | "new"
   | "contacted"
   | "scheduled"
+  | "open_for_closer"
   | "qualified"
   | "offer"
   | "won";
@@ -47,6 +48,7 @@ export const LEAD_WORKFLOW_STAGE_LABELS: Record<LeadWorkflowStage, string> = {
   new: "Neu",
   contacted: "Kontaktiert",
   scheduled: "Terminiert",
+  open_for_closer: "Terminierter Termin",
   qualified: "Qualifiziert",
   offer: "Angebot",
   won: "Gewonnen",
@@ -91,6 +93,7 @@ type WorkflowClientFields = {
 type WorkflowLeadFields = {
   status: LeadStatus;
   converted_to_client: boolean;
+  closer_id?: string | null;
 };
 
 const UNPAID_INVOICE_STATUSES = new Set(["draft", "sent", "overdue"]);
@@ -116,6 +119,9 @@ export function resolveLeadWorkflowStatus(
   }
 
   if (lead.status === "scheduled") {
+    if (!lead.closer_id) {
+      return { stage: "open_for_closer", urgency: "action" };
+    }
     return { stage: "scheduled", urgency: "action" };
   }
 

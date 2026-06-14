@@ -102,22 +102,30 @@ CREATE INDEX IF NOT EXISTS knowledge_categories_sort_order_idx
 
 ALTER TABLE public.knowledge_categories ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Users can read accessible knowledge categories"
+  ON public.knowledge_categories;
 CREATE POLICY "Users can read accessible knowledge categories"
   ON public.knowledge_categories FOR SELECT
   TO authenticated
   USING (public.user_can_access_knowledge_category(slug));
 
+DROP POLICY IF EXISTS "Management can insert knowledge categories"
+  ON public.knowledge_categories;
 CREATE POLICY "Management can insert knowledge categories"
   ON public.knowledge_categories FOR INSERT
   TO authenticated
   WITH CHECK (public.is_management());
 
+DROP POLICY IF EXISTS "Management can update knowledge categories"
+  ON public.knowledge_categories;
 CREATE POLICY "Management can update knowledge categories"
   ON public.knowledge_categories FOR UPDATE
   TO authenticated
   USING (public.is_management())
   WITH CHECK (public.is_management());
 
+DROP POLICY IF EXISTS "Management can delete knowledge categories"
+  ON public.knowledge_categories;
 CREATE POLICY "Management can delete knowledge categories"
   ON public.knowledge_categories FOR DELETE
   TO authenticated
@@ -163,6 +171,8 @@ CREATE INDEX IF NOT EXISTS knowledge_documents_visibility_idx
 
 ALTER TABLE public.knowledge_documents ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Users can read accessible knowledge documents"
+  ON public.knowledge_documents;
 CREATE POLICY "Users can read accessible knowledge documents"
   ON public.knowledge_documents FOR SELECT
   TO authenticated
@@ -176,6 +186,8 @@ CREATE POLICY "Users can read accessible knowledge documents"
     )
   );
 
+DROP POLICY IF EXISTS "Management can insert knowledge documents"
+  ON public.knowledge_documents;
 CREATE POLICY "Management can insert knowledge documents"
   ON public.knowledge_documents FOR INSERT
   TO authenticated
@@ -184,12 +196,16 @@ CREATE POLICY "Management can insert knowledge documents"
     AND (created_by = auth.uid() OR created_by IS NULL)
   );
 
+DROP POLICY IF EXISTS "Management can update knowledge documents"
+  ON public.knowledge_documents;
 CREATE POLICY "Management can update knowledge documents"
   ON public.knowledge_documents FOR UPDATE
   TO authenticated
   USING (public.is_management())
   WITH CHECK (public.is_management());
 
+DROP POLICY IF EXISTS "Management can delete knowledge documents"
+  ON public.knowledge_documents;
 CREATE POLICY "Management can delete knowledge documents"
   ON public.knowledge_documents FOR DELETE
   TO authenticated
@@ -229,6 +245,8 @@ VALUES (
 )
 ON CONFLICT (id) DO NOTHING;
 
+DROP POLICY IF EXISTS "Users can read knowledge center files in storage"
+  ON storage.objects;
 CREATE POLICY "Users can read knowledge center files in storage"
   ON storage.objects FOR SELECT
   TO authenticated
@@ -248,6 +266,8 @@ CREATE POLICY "Users can read knowledge center files in storage"
     )
   );
 
+DROP POLICY IF EXISTS "Management can upload knowledge center files"
+  ON storage.objects;
 CREATE POLICY "Management can upload knowledge center files"
   ON storage.objects FOR INSERT
   TO authenticated
@@ -256,6 +276,8 @@ CREATE POLICY "Management can upload knowledge center files"
     AND public.is_management()
   );
 
+DROP POLICY IF EXISTS "Management can update knowledge center files"
+  ON storage.objects;
 CREATE POLICY "Management can update knowledge center files"
   ON storage.objects FOR UPDATE
   TO authenticated
@@ -268,6 +290,8 @@ CREATE POLICY "Management can update knowledge center files"
     AND public.is_management()
   );
 
+DROP POLICY IF EXISTS "Management can delete knowledge center files"
+  ON storage.objects;
 CREATE POLICY "Management can delete knowledge center files"
   ON storage.objects FOR DELETE
   TO authenticated

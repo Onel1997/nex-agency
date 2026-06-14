@@ -42,7 +42,21 @@ describe("resolveLeadWorkflowStatus", () => {
       urgency: "waiting",
     });
     expect(
-      resolveLeadWorkflowStatus({ status: "scheduled", converted_to_client: false }),
+      resolveLeadWorkflowStatus({
+        status: "scheduled",
+        converted_to_client: false,
+        closer_id: null,
+      }),
+    ).toEqual({
+      stage: "open_for_closer",
+      urgency: "action",
+    });
+    expect(
+      resolveLeadWorkflowStatus({
+        status: "scheduled",
+        converted_to_client: false,
+        closer_id: "closer-a",
+      }),
     ).toEqual({
       stage: "scheduled",
       urgency: "action",

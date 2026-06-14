@@ -82,8 +82,15 @@ export function LeadsPageClient({
   };
 
   const handleStatusChange = async (id: string, status: LeadStatus) => {
-    await updateLeadStatus(id, status);
-    refresh();
+    setError(null);
+    try {
+      await updateLeadStatus(id, status);
+      refresh();
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Status konnte nicht geändert werden",
+      );
+    }
   };
 
   const handleConvert = async (leadId: string) => {

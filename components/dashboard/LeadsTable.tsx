@@ -158,9 +158,7 @@ export function LeadsTable({
             <div className="flex min-w-[9rem] flex-col gap-2">
               <select
                 value={lead.status}
-                onChange={(e) =>
-                  onStatusChange(lead.id, e.target.value as LeadStatus)
-                }
+                onChange={(e) => onStatusChange(lead.id, e.target.value as LeadStatus)}
                 className="dashboard-select-sm"
                 aria-label={`Status für ${lead.company_name}`}
                 disabled={statusLocked}

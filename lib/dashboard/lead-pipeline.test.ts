@@ -33,39 +33,41 @@ describe("lead pipeline", () => {
     expect(isLeadInCloserPool({ closer_id: "closer-a", status: "scheduled" })).toBe(false);
   });
 
-  it("allows setter progression until scheduled, then only lost", () => {
+  it("allows setters to pick any setter status without order enforcement", () => {
     const open = { closer_id: null, status: "new" as const };
     expect(isAllowedLeadStatusTransition(setter, open, "contacted")).toBe(true);
-    expect(isAllowedLeadStatusTransition(setter, open, "scheduled")).toBe(false);
-
-    const contacted = { closer_id: null, status: "contacted" as const };
-    expect(isAllowedLeadStatusTransition(setter, contacted, "scheduled")).toBe(true);
-    expect(isAllowedLeadStatusTransition(setter, contacted, "qualified")).toBe(false);
+    expect(isAllowedLeadStatusTransition(setter, open, "scheduled")).toBe(true);
+    expect(isAllowedLeadStatusTransition(setter, open, "lost")).toBe(true);
+    expect(isAllowedLeadStatusTransition(setter, open, "qualified")).toBe(false);
 
     const scheduled = { closer_id: null, status: "scheduled" as const };
-    expect(isAllowedLeadStatusTransition(setter, scheduled, "qualified")).toBe(false);
+    expect(isAllowedLeadStatusTransition(setter, scheduled, "new")).toBe(true);
+    expect(isAllowedLeadStatusTransition(setter, scheduled, "contacted")).toBe(true);
     expect(isAllowedLeadStatusTransition(setter, scheduled, "lost")).toBe(true);
-    expect(isAllowedLeadStatusTransition(setter, scheduled, "contacted")).toBe(false);
   });
 
-  it("restricts closer to forward-only closer stages after claim", () => {
+  it("allows closers to pick any closer status after claim without order enforcement", () => {
     const poolLead = { closer_id: null, status: "scheduled" as const };
     expect(isAllowedLeadStatusTransition(closer, poolLead, "qualified")).toBe(false);
 
     const owned = { closer_id: "closer-a", status: "scheduled" as const };
     expect(isAllowedLeadStatusTransition(closer, owned, "qualified")).toBe(true);
-    expect(isAllowedLeadStatusTransition(closer, owned, "contacted")).toBe(false);
+    expect(isAllowedLeadStatusTransition(closer, owned, "won")).toBe(true);
     expect(isAllowedLeadStatusTransition(closer, owned, "new")).toBe(false);
 
     const qualified = { closer_id: "closer-a", status: "qualified" as const };
     expect(isAllowedLeadStatusTransition(closer, qualified, "proposal")).toBe(true);
-    expect(isAllowedLeadStatusTransition(closer, qualified, "scheduled")).toBe(false);
+    expect(isAllowedLeadStatusTransition(closer, qualified, "scheduled")).toBe(true);
   });
 
   it("shows role-specific dropdown options", () => {
     expect(
       getSelectableLeadStatuses(setter, { closer_id: null, status: "contacted" }),
-    ).toEqual(expect.arrayContaining(["contacted", "new", "scheduled", "lost"]));
+    ).toEqual(["new", "contacted", "scheduled", "lost"]);
+
+    expect(
+      getSelectableLeadStatuses(setter, { closer_id: null, status: "new" }),
+    ).toEqual(["new", "contacted", "scheduled", "lost"]);
 
     expect(
       getSelectableLeadStatuses(closer, { closer_id: null, status: "scheduled" }),
@@ -73,7 +75,7 @@ describe("lead pipeline", () => {
 
     expect(
       getSelectableLeadStatuses(closer, { closer_id: "closer-a", status: "scheduled" }),
-    ).toEqual(expect.arrayContaining(["scheduled", "qualified", "lost"]));
+    ).toEqual(["scheduled", "qualified", "proposal", "won", "lost"]);
   });
 
   it("allows management to move across the full lifecycle", () => {

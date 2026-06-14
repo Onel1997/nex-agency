@@ -73,7 +73,6 @@ export function LeadModal({
     mode === "edit" &&
     Boolean(lead) &&
     (!canChangeLeadStatus(profile, lead!) || lead!.status === "won");
-
   return (
     <Modal
       open={open}

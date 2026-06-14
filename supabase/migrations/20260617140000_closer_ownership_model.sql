@@ -9,7 +9,7 @@ RETURNS BOOLEAN
 LANGUAGE sql
 IMMUTABLE
 AS $$
-  SELECT p_status IN ('new', 'contacted', 'qualified', 'proposal');
+  SELECT p_status = 'scheduled';
 $$;
 
 CREATE OR REPLACE FUNCTION public.closer_can_read_lead(p_closer_id UUID, p_status TEXT)

@@ -6,7 +6,9 @@ import {
   canPayCommissionEntry,
   isCommissionTriggeringInvoiceType,
   nextCommissionEntryStatus,
+  resolveRetainerCommissionMonthsLimit,
   shouldCreateCommissionEntry,
+  shouldCreateRetainerCommissionEntry,
   sumMemberCommissionEarned,
   sumMemberCommissionOpen,
 } from "./commission-entries";
@@ -90,6 +92,62 @@ describe("commission entry creation rules", () => {
         closerCommissionCents: 0,
       }),
     ).toBe(false);
+  });
+});
+
+describe("retainer commission entry creation rules", () => {
+  it("creates retainer entry for first three paid retainer months", () => {
+    expect(
+      shouldCreateRetainerCommissionEntry({
+        invoiceStatus: "paid",
+        invoiceType: "retainer",
+        existingEntryForInvoice: false,
+        existingRetainerEntryCount: 2,
+        allowedRetainerMonths: 3,
+        setterId: "setter-1",
+        closerId: "closer-1",
+        setterCommissionCents: 15_000,
+        closerCommissionCents: 15_000,
+      }),
+    ).toBe(true);
+  });
+
+  it("stops creating retainer entries after allowed months", () => {
+    expect(
+      shouldCreateRetainerCommissionEntry({
+        invoiceStatus: "paid",
+        invoiceType: "retainer",
+        existingEntryForInvoice: false,
+        existingRetainerEntryCount: 3,
+        allowedRetainerMonths: 3,
+        setterId: "setter-1",
+        closerId: "closer-1",
+        setterCommissionCents: 15_000,
+        closerCommissionCents: 15_000,
+      }),
+    ).toBe(false);
+  });
+
+  it("calculates 10% retainer commission on 1500 EUR", () => {
+    const result = calculateSetterCloserCommissions({
+      projectValueCents: 150_000,
+      setterRate: 10,
+      closerRate: 10,
+      hasSetter: true,
+      hasCloser: true,
+    });
+
+    expect(result.setter_commission_cents).toBe(15_000);
+    expect(result.closer_commission_cents).toBe(15_000);
+  });
+
+  it("uses the higher configured retainer month limit", () => {
+    expect(
+      resolveRetainerCommissionMonthsLimit({
+        setterMonths: 3,
+        closerMonths: 6,
+      }),
+    ).toBe(6);
   });
 });
 

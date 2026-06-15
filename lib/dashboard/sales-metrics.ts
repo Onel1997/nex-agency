@@ -42,8 +42,8 @@ export interface TeamSalesKpis {
 
 export interface SalesMetricsContext {
   clients: SalesClientRow[];
-  entriesByClient: Map<string, CommissionEntryRecord>;
-  paidProfilesByClient: Map<string, Set<string>>;
+  entriesByClient: Map<string, CommissionEntryRecord[]>;
+  paidProfilesByEntry: Map<string, Set<string>>;
   retainerInvoicesByClient: Map<string, RetainerPeriodInvoiceRef[]>;
 }
 
@@ -217,7 +217,7 @@ export function computeEntryCommissionTotals(
 
 export function aggregateCommissionKpisFromEntries(
   entries: CommissionEntryRecord[],
-  paidProfilesByClient: Map<string, Set<string>>,
+  paidProfilesByEntry: Map<string, Set<string>>,
 ): Pick<TeamSalesKpis, "outstandingCommissionsCents" | "paidCommissionsCents"> {
   let outstandingCommissionsCents = 0;
   let paidCommissionsCents = 0;
@@ -226,7 +226,7 @@ export function aggregateCommissionKpisFromEntries(
     if (entry.status === ("cancelled" as CommissionEntryStatus)) continue;
     const totals = computeEntryCommissionTotals(
       entry,
-      paidProfilesByClient.get(entry.client_id) ?? new Set<string>(),
+      paidProfilesByEntry.get(entry.id) ?? new Set<string>(),
     );
     outstandingCommissionsCents += totals.commissionOutstandingCents;
     paidCommissionsCents += totals.commissionPaidCents;
@@ -298,17 +298,16 @@ export function aggregateSalesMetrics(
       continue;
     }
 
-    const entry = context.entriesByClient.get(client.id) ?? null;
-    const paidProfileIds =
-      context.paidProfilesByClient.get(client.id) ?? new Set<string>();
+    const clientEntries = context.entriesByClient.get(client.id) ?? [];
+    const latestEntry = clientEntries[0] ?? null;
     const revenue = computeClientRevenueInRange(
       client,
-      entry,
+      latestEntry,
       context.retainerInvoicesByClient,
       range,
     );
     const includeClientCount = clientIncludedInPeriod(client.created_at, range);
-    const salesMemberIds = resolveSalesMemberIds(client, entry);
+    const salesMemberIds = resolveSalesMemberIds(client, latestEntry);
 
     if (salesMemberIds.length === 0) continue;
 
@@ -321,11 +320,12 @@ export function aggregateSalesMetrics(
       stats.retainerRevenueCents += revenue.retainerRevenueCents;
       if (includeClientCount) stats.clientsCount += 1;
 
-      if (entry && entry.status !== ("cancelled" as CommissionEntryStatus)) {
+      for (const entry of clientEntries) {
+        if (entry.status === ("cancelled" as CommissionEntryStatus)) continue;
         const commission = computeMemberRoleCommission(
           entry,
           memberId,
-          paidProfileIds,
+          context.paidProfilesByEntry.get(entry.id) ?? new Set<string>(),
         );
         stats.commissionTotalCents += commission.earnedCents;
         stats.commissionPaidCents += commission.paidCents;

@@ -31,6 +31,7 @@ const COMMISSION_ENTRY_SELECT = `
   setter_commission_cents,
   closer_commission_cents,
   status,
+  entry_type,
   triggered_by_invoice_id,
   created_at,
   updated_at,

@@ -17,10 +17,12 @@ import {
 } from "./lead-attribution";
 import { traceSetterId } from "./setter-id-trace";
 import {
+  aggregateCommissionTotalsForClient,
   fetchCommissionEntries,
   fetchCommissionPayoutProfileIds,
+  groupCommissionEntriesByClient,
   groupLatestCommissionEntryByClient,
-  groupPaidProfilesByClient,
+  mergePaidProfilesForClientEntries,
 } from "./commission-entries-data";
 import {
   buildResolvedSalesAttribution,
@@ -133,6 +135,12 @@ function mapClientRevenueRow(
   paidCommissionProfileIds: Set<string> = new Set(),
   resolvedSetterId?: string | null,
   setterAttributionDebug?: import("./lead-attribution").SetterAttributionDebug,
+  aggregatedCommissionFields?: {
+    commissionTotalCents: number;
+    commissionPaidCents: number;
+    commissionOutstandingCents: number;
+  },
+  paidProfilesByEntry?: Map<string, Set<string>>,
 ): ClientRevenueRecord {
   const responsibleMember = Array.isArray(row.responsible_member)
     ? row.responsible_member[0]
@@ -178,10 +186,13 @@ function mapClientRevenueRow(
   const contractStartDate = (row.contract_start_date as string | null) ?? null;
   const contractStatus = resolveContractStatus(row);
   const autoInvoiceEnabled = Boolean(row.auto_invoice_enabled);
-  const commissionFields = computeEntryCommissionTotals(
-    commissionEntry,
-    paidCommissionProfileIds,
-  );
+  const commissionFields =
+    aggregatedCommissionFields ??
+    computeEntryCommissionTotals(commissionEntry, paidCommissionProfileIds);
+  const latestEntryPaidProfiles =
+    commissionEntry && paidProfilesByEntry
+      ? paidProfilesByEntry.get(commissionEntry.id) ?? new Set<string>()
+      : paidCommissionProfileIds;
   const isProjectPaid = isClientSetupInvoicePaid(retainerInvoices);
   const freelancerFields = resolveFreelancerFields(
     row,
@@ -225,7 +236,7 @@ function mapClientRevenueRow(
   });
   const commissionPayoutStatus = resolveClientCommissionPayoutStatus(
     commissionEntry,
-    paidCommissionProfileIds,
+    latestEntryPaidProfiles,
   );
   const retainerStats = buildRetainerStats({
     contract_start_date: contractStartDate,
@@ -373,7 +384,11 @@ export async function getFinanceStats(): Promise<FinanceStats | null> {
   for (const client of clients) {
     totalRevenueCents += client.total_revenue_cents ?? 0;
     outstandingRetainerPaymentsCents += client.outstanding_retainer_cents;
-    if (client.commission_entry_id) {
+    if (
+      client.commission_total_cents > 0 ||
+      client.commission_outstanding_cents > 0 ||
+      client.commission_paid_cents > 0
+    ) {
       outstandingCommissionsCents += client.commission_outstanding_cents;
       paidCommissionsCents += client.commission_paid_cents;
     }
@@ -469,11 +484,8 @@ async function buildClientRevenueRecords(
     fetchCommissionPayoutProfileIds(supabase),
   ]);
 
+  const entriesByClientList = groupCommissionEntriesByClient(commissionEntries);
   const entriesByClient = groupLatestCommissionEntryByClient(commissionEntries);
-  const paidProfilesByClient = groupPaidProfilesByClient(
-    entriesByClient,
-    commissionPayoutProfiles,
-  );
 
   const filteredRows = clientIds
     ? rows.filter((row) => clientIds.includes(row.id as string))
@@ -512,16 +524,29 @@ async function buildClientRevenueRecords(
         resolvedSetterId,
       });
 
+      const clientEntries = entriesByClientList.get(row.id as string) ?? [];
+      const commissionEntry = entriesByClient.get(row.id as string) ?? null;
+      const commissionFields = aggregateCommissionTotalsForClient(
+        clientEntries,
+        commissionPayoutProfiles,
+      );
+      const paidCommissionProfileIds = mergePaidProfilesForClientEntries(
+        clientEntries,
+        commissionPayoutProfiles,
+      );
+
       const mapped = mapClientRevenueRow(
         row,
         invoicesByClient.get(row.id as string) ?? [],
         payoutsByClient.get(row.id as string) ?? [],
         freelancerPayoutsByClient.get(row.id as string) ?? [],
         paidRetainerStatsByClient.get(row.id as string),
-        entriesByClient.get(row.id as string) ?? null,
-        paidProfilesByClient.get(row.id as string) ?? new Set(),
+        commissionEntry,
+        paidCommissionProfileIds,
         resolvedSetterId,
         setterAttributionDebug,
+        commissionFields,
+        commissionPayoutProfiles,
       );
 
       traceSetterId("6_contract_open", {

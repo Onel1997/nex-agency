@@ -1,6 +1,9 @@
 import type { InvoiceType } from "./constants";
 import type { CommissionEntryStatus } from "./commission-constants";
-import { COMMISSION_TRIGGERING_INVOICE_TYPES } from "./commission-constants";
+import {
+  COMMISSION_TRIGGERING_INVOICE_TYPES,
+  DEFAULT_RETAINER_COMMISSION_MONTHS,
+} from "./commission-constants";
 
 export function calculateRoleCommissionCents(
   projectValueCents: number,
@@ -37,6 +40,34 @@ export function isCommissionTriggeringInvoiceType(
   return (COMMISSION_TRIGGERING_INVOICE_TYPES as readonly string[]).includes(
     invoiceType,
   );
+}
+
+export function resolveRetainerCommissionMonthsLimit(input: {
+  setterMonths: number | null | undefined;
+  closerMonths: number | null | undefined;
+}): number {
+  const setterMonths = input.setterMonths ?? DEFAULT_RETAINER_COMMISSION_MONTHS;
+  const closerMonths = input.closerMonths ?? DEFAULT_RETAINER_COMMISSION_MONTHS;
+  return Math.max(setterMonths, closerMonths, 0);
+}
+
+export function shouldCreateRetainerCommissionEntry(input: {
+  invoiceStatus: string;
+  invoiceType: InvoiceType | null;
+  existingEntryForInvoice: boolean;
+  existingRetainerEntryCount: number;
+  allowedRetainerMonths: number;
+  setterId: string | null;
+  closerId: string | null;
+  setterCommissionCents: number;
+  closerCommissionCents: number;
+}): boolean {
+  if (input.invoiceStatus !== "paid") return false;
+  if (input.invoiceType !== "retainer") return false;
+  if (input.existingEntryForInvoice) return false;
+  if (!input.setterId && !input.closerId) return false;
+  if (input.existingRetainerEntryCount >= input.allowedRetainerMonths) return false;
+  return input.setterCommissionCents > 0 || input.closerCommissionCents > 0;
 }
 
 export function shouldCreateCommissionEntry(input: {

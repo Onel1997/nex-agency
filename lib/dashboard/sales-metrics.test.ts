@@ -9,6 +9,33 @@ import {
 } from "./sales-metrics";
 import type { CommissionEntryRecord } from "./types";
 
+function retainerEntry(
+  id: string,
+  status: CommissionEntryRecord["status"] = "pending",
+): CommissionEntryRecord {
+  return {
+    id,
+    client_id: "client-retainer",
+    client_name: "Retainer Kunde",
+    setter_id: "setter-1",
+    setter_name: "Setter",
+    closer_id: "closer-1",
+    closer_name: "Closer",
+    project_value_cents: 150_000,
+    setter_rate: 10,
+    closer_rate: 10,
+    setter_commission_cents: 15_000,
+    closer_commission_cents: 15_000,
+    status,
+    entry_type: "retainer",
+    deal_type: "setter_closer",
+    triggered_by_invoice_id: `inv-${id}`,
+    created_at: "2026-06-01T00:00:00.000Z",
+    updated_at: "2026-06-01T00:00:00.000Z",
+    paid_at: null,
+  };
+}
+
 const leonClient = {
   id: "afd03c42-4f2c-4f0d-96e3-14f65bf57987",
   created_at: "2026-06-14T20:34:13.545Z",
@@ -33,6 +60,7 @@ const leonEntry: CommissionEntryRecord = {
   setter_commission_cents: 100_000,
   closer_commission_cents: 100_000,
   status: "paid",
+  entry_type: "setup",
   deal_type: "setter_closer",
   triggered_by_invoice_id: "inv-1",
   created_at: "2026-06-14T21:01:36.300Z",
@@ -54,8 +82,8 @@ describe("sales-metrics Leon case", () => {
     const result = aggregateSalesMetrics(
       {
         clients: [leonClient],
-        entriesByClient: new Map([[leonClient.id, leonEntry]]),
-        paidProfilesByClient: new Map([[leonClient.id, paidProfiles]]),
+        entriesByClient: new Map([[leonClient.id, [leonEntry]]]),
+        paidProfilesByEntry: new Map([[leonEntry.id, paidProfiles]]),
         retainerInvoicesByClient: new Map(),
       },
       range,
@@ -116,12 +144,50 @@ describe("entry commission totals", () => {
 
     const team = aggregateCommissionKpisFromEntries(
       [leonEntry],
-      new Map([[leonClient.id, paidProfiles]]),
+      new Map([[leonEntry.id, paidProfiles]]),
     );
     expect(team).toEqual({
       outstandingCommissionsCents: 0,
       paidCommissionsCents: 200_000,
     });
+  });
+});
+
+describe("retainer commission acceptance case", () => {
+  const retainerClient = {
+    id: "client-retainer",
+    created_at: "2026-06-01T00:00:00.000Z",
+    setter_id: "setter-1",
+    closer_id: "closer-1",
+    setup_fee_cents: 0,
+    monthly_revenue_cents: 150_000,
+    contract_start_date: "2026-06-01",
+  };
+
+  it("totals 450 EUR per role across three retainer months", () => {
+    const entries = [
+      retainerEntry("m1"),
+      retainerEntry("m2"),
+      retainerEntry("m3"),
+    ];
+    const range = {
+      start: null,
+      end: new Date("2099-12-31T23:59:59.999Z"),
+    };
+
+    const result = aggregateSalesMetrics(
+      {
+        clients: [retainerClient],
+        entriesByClient: new Map([[retainerClient.id, entries]]),
+        paidProfilesByEntry: new Map(),
+        retainerInvoicesByClient: new Map(),
+      },
+      range,
+    );
+
+    expect(result.statsByUser.get("setter-1")?.commissionTotalCents).toBe(45_000);
+    expect(result.statsByUser.get("closer-1")?.commissionTotalCents).toBe(45_000);
+    expect(result.teamKpis.outstandingCommissionsCents).toBe(90_000);
   });
 });
 

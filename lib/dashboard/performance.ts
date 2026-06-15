@@ -7,8 +7,7 @@ import { createClient } from "@/lib/supabase/server";
 import {
   fetchCommissionEntries,
   fetchCommissionPayoutProfileIds,
-  groupLatestCommissionEntryByClient,
-  groupPaidProfilesByClient,
+  groupCommissionEntriesByClient,
 } from "./commission-entries-data";
 import { LEAD_STATUS_LABELS, type LeadStatus } from "./constants";
 import {
@@ -150,7 +149,7 @@ function shouldSkipNonSalesOwner(
 
 function buildRevenueTrend(
   clients: SalesClientRow[],
-  entriesByClient: ReturnType<typeof groupLatestCommissionEntryByClient>,
+  entriesByClient: Map<string, import("./types").CommissionEntryRecord[]>,
   retainerInvoicesByClient: Map<string, RetainerPeriodInvoiceRef[]>,
   range: PerformanceDateRange,
 ): PerformanceRevenuePoint[] {
@@ -163,7 +162,7 @@ function buildRevenueTrend(
   };
 
   for (const client of clients) {
-    const entry = entriesByClient.get(client.id) ?? null;
+    const entry = entriesByClient.get(client.id)?.[0] ?? null;
     const revenue = computeClientRevenueInRange(
       client,
       entry,
@@ -373,11 +372,7 @@ export async function getPerformanceDashboardData(
   const salesClients = clientRows.map((row) =>
     mapClientToSalesRow(row as Record<string, unknown>),
   );
-  const entriesByClient = groupLatestCommissionEntryByClient(commissionEntries);
-  const paidProfilesByClient = groupPaidProfilesByClient(
-    entriesByClient,
-    commissionPayoutProfiles,
-  );
+  const entriesByClient = groupCommissionEntriesByClient(commissionEntries);
 
   const filteredLeads = allLeads.filter((lead) =>
     isTimestampInRange(lead.created_at, range),
@@ -397,7 +392,7 @@ export async function getPerformanceDashboardData(
     {
       clients: salesClients,
       entriesByClient,
-      paidProfilesByClient,
+      paidProfilesByEntry: commissionPayoutProfiles,
       retainerInvoicesByClient,
     },
     range,

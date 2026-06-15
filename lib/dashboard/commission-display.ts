@@ -103,6 +103,7 @@ export function buildCommissionEntryFromClientRevenue(input: {
     setter_commission_cents: input.setterCommissionCents,
     closer_commission_cents: input.closerCommissionCents,
     status: input.commissionEntryStatus ?? "pending",
+    entry_type: "setup",
     deal_type:
       input.dealType ??
       detectSalesDealAttributionType({

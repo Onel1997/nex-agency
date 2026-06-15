@@ -9,6 +9,7 @@ import type {
   ContractType as TeamContractType,
 } from "./contract-constants";
 import type { CommissionEntryStatus } from "./commission-constants";
+import type { CommissionEntryType } from "./commission-constants";
 import type {
   AppointmentStatus,
   BillingCycle,
@@ -438,6 +439,8 @@ export interface TeamMember {
   commission_rate: number;
   setter_commission_rate: number;
   closer_commission_rate: number;
+  retainer_commission_rate: number;
+  retainer_commission_months: number;
 }
 
 export interface ClientRecord {
@@ -659,6 +662,7 @@ export interface CommissionEntryRecord {
   setter_commission_cents: number;
   closer_commission_cents: number;
   status: CommissionEntryStatus;
+  entry_type: CommissionEntryType;
   deal_type: import("./sales-attribution").SalesDealAttributionType | null;
   triggered_by_invoice_id: string | null;
   created_at: string;

@@ -34,6 +34,8 @@ export interface Profile {
   commission_rate: number;
   setter_commission_rate: number;
   closer_commission_rate: number;
+  retainer_commission_rate: number;
+  retainer_commission_months: number;
   created_at: string;
   updated_at: string;
 }

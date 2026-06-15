@@ -22,6 +22,7 @@ function entry(
     setter_commission_cents: 10_000,
     closer_commission_cents: 20_000,
     status: "approved",
+    entry_type: "setup",
     deal_type: "setter_closer",
     triggered_by_invoice_id: "inv-1",
     created_at: "2026-01-01",

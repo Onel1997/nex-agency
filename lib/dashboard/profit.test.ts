@@ -70,7 +70,15 @@ describe("sumCommissionFromClients", () => {
   it("ignores clients without commission entries", () => {
     expect(
       sumCommissionFromClients(
-        [leonClientRecord({ commission_entry_id: null, commission_entry_status: null })],
+        [
+          leonClientRecord({
+            commission_entry_id: null,
+            commission_entry_status: null,
+            commission_total_cents: 0,
+            commission_paid_cents: 0,
+            commission_outstanding_cents: 0,
+          }),
+        ],
         "total",
       ),
     ).toBe(0);
@@ -79,7 +87,14 @@ describe("sumCommissionFromClients", () => {
   it("ignores cancelled commission entries", () => {
     expect(
       sumCommissionFromClients(
-        [leonClientRecord({ commission_entry_status: "cancelled" })],
+        [
+          leonClientRecord({
+            commission_entry_status: "cancelled",
+            commission_total_cents: 0,
+            commission_paid_cents: 0,
+            commission_outstanding_cents: 0,
+          }),
+        ],
         "total",
       ),
     ).toBe(0);

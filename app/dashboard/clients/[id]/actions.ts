@@ -547,6 +547,15 @@ async function applyInvoicePaidSideEffects(
       invoice.billing_period_year as number,
       invoice.billing_period_month as number,
     );
+
+    const { createRetainerCommissionEntryFromPaidInvoice } = await import(
+      "@/lib/dashboard/commission-entry-service"
+    );
+    const { createAdminClient } = await import("@/lib/supabase/admin");
+    await createRetainerCommissionEntryFromPaidInvoice(
+      createAdminClient(),
+      invoiceId,
+    );
     return;
   }
 

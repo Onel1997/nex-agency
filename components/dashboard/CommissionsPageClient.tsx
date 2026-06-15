@@ -13,6 +13,7 @@ import { KpiCard } from "@/components/dashboard/KpiCard";
 import { CommissionEntryStatusBadge } from "@/components/dashboard/CommissionEntryStatusBadge";
 import { SalesDealAttributionBadge } from "@/components/dashboard/SalesDealAttributionBadge";
 import { formatCents, formatDate, formatPercent } from "@/lib/dashboard/format";
+import { COMMISSION_ENTRY_TYPE_LABELS } from "@/lib/dashboard/commission-constants";
 import type {
   CommissionCenterData,
 } from "@/lib/dashboard/types";
@@ -43,7 +44,7 @@ export function CommissionsPageClient({ data }: CommissionsPageClientProps) {
     <div className="space-y-6">
       <DashboardHeader
         title="Provisionen"
-        description="Setter- und Closer-Provisionen — ausgelöst durch bezahlte Setup- und Projektrechnungen."
+        description="Setter- und Closer-Provisionen — ausgelöst durch bezahlte Setup-, Projekt- und Retainer-Rechnungen."
       />
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -86,6 +87,12 @@ export function CommissionsPageClient({ data }: CommissionsPageClientProps) {
           />
         }
         columns={[
+          {
+            key: "type",
+            header: "Typ",
+            hideOnMobile: true,
+            render: (entry) => COMMISSION_ENTRY_TYPE_LABELS[entry.entry_type],
+          },
           {
             key: "client",
             header: "Kunde",

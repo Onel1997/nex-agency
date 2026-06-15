@@ -7,11 +7,15 @@ import {
 } from "@/lib/auth/roles";
 import { getProfile } from "@/lib/auth/session";
 import { resolveTeamMemberStatus } from "@/lib/auth/member-status";
+import {
+  DEFAULT_RETAINER_COMMISSION_MONTHS,
+  DEFAULT_RETAINER_COMMISSION_RATE,
+} from "./commission-constants";
 import { createClient } from "@/lib/supabase/server";
 import type { TeamMember } from "./types";
 
 const TEAM_MEMBER_SELECT =
-  "id, email, full_name, role, employment_type, agency_role, created_at, is_active, status, activated_at, commission_rate, setter_commission_rate, closer_commission_rate";
+  "id, email, full_name, role, employment_type, agency_role, created_at, is_active, status, activated_at, commission_rate, setter_commission_rate, closer_commission_rate, retainer_commission_rate, retainer_commission_months";
 
 function mapTeamMember(
   row: Omit<TeamMember, "status" | "role" | "agency_role" | "employment_type"> & {
@@ -40,6 +44,12 @@ function mapTeamMember(
     setter_commission_rate: Number(row.setter_commission_rate ?? 0),
     closer_commission_rate: Number(
       row.closer_commission_rate ?? row.commission_rate ?? 0,
+    ),
+    retainer_commission_rate: Number(
+      row.retainer_commission_rate ?? DEFAULT_RETAINER_COMMISSION_RATE,
+    ),
+    retainer_commission_months: Number(
+      row.retainer_commission_months ?? DEFAULT_RETAINER_COMMISSION_MONTHS,
     ),
     status: resolveTeamMemberStatus(row),
   };
@@ -94,6 +104,8 @@ export async function getAssignableTeamMembers(): Promise<TeamMember[]> {
       commission_rate: profile.commission_rate,
       setter_commission_rate: profile.setter_commission_rate,
       closer_commission_rate: profile.closer_commission_rate,
+      retainer_commission_rate: profile.retainer_commission_rate,
+      retainer_commission_months: profile.retainer_commission_months,
     }),
   ];
 }

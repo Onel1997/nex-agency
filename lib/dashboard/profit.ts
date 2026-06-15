@@ -87,10 +87,7 @@ export function sumCustomerRevenueFromClients(
 }
 
 function clientCommissionCostCents(client: ClientRevenueRecord): number {
-  if (!client.commission_entry_id || client.commission_entry_status === "cancelled") {
-    return 0;
-  }
-  return client.setter_commission_cents + client.closer_commission_cents;
+  return client.commission_total_cents ?? 0;
 }
 
 /**

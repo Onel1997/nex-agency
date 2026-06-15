@@ -23,6 +23,8 @@ export interface EditTeamMemberData {
   agency_role: AgencyRole;
   setter_commission_rate: number;
   closer_commission_rate: number;
+  retainer_commission_rate: number;
+  retainer_commission_months: number;
 }
 
 interface EditTeamMemberModalProps {
@@ -47,6 +49,8 @@ export function EditTeamMemberModal({
   const [agencyRole, setAgencyRole] = useState<AgencyRole>("setter");
   const [setterCommissionRate, setSetterCommissionRate] = useState("");
   const [closerCommissionRate, setCloserCommissionRate] = useState("");
+  const [retainerCommissionRate, setRetainerCommissionRate] = useState("");
+  const [retainerCommissionMonths, setRetainerCommissionMonths] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -67,6 +71,8 @@ export function EditTeamMemberModal({
     setAgencyRole(member.agency_role);
     setSetterCommissionRate(String(member.setter_commission_rate));
     setCloserCommissionRate(String(member.closer_commission_rate));
+    setRetainerCommissionRate(String(member.retainer_commission_rate));
+    setRetainerCommissionMonths(String(member.retainer_commission_months));
     setError(null);
   }, [open, member]);
 
@@ -82,8 +88,18 @@ export function EditTeamMemberModal({
 
     const setterRate = parsePercent(setterCommissionRate);
     const closerRate = parsePercent(closerCommissionRate);
-    if (setterRate == null || closerRate == null) {
+    const retainerRate = parsePercent(retainerCommissionRate);
+    const retainerMonths = Number.parseInt(retainerCommissionMonths, 10);
+    if (setterRate == null || closerRate == null || retainerRate == null) {
       setError("Bitte gültige Prozentsätze zwischen 0 und 100 eingeben.");
+      return;
+    }
+    if (
+      !Number.isFinite(retainerMonths) ||
+      retainerMonths < 0 ||
+      retainerMonths > 120
+    ) {
+      setError("Retainer-Provisionsdauer muss zwischen 0 und 120 Monaten liegen.");
       return;
     }
 
@@ -97,6 +113,8 @@ export function EditTeamMemberModal({
         agency_role: canChangeRole ? agencyRole : member.agency_role,
         setter_commission_rate: setterRate,
         closer_commission_rate: closerRate,
+        retainer_commission_rate: retainerRate,
+        retainer_commission_months: retainerMonths,
       });
       onClose();
     } catch (err) {
@@ -192,38 +210,76 @@ export function EditTeamMemberModal({
           )}
         </label>
 
-        <div className="grid gap-4 sm:grid-cols-2">
-          <label className="block">
-            <span className="mb-1.5 block text-xs font-medium text-muted">
-              Setter Provision (%)
-            </span>
-            <input
-              type="text"
-              inputMode="decimal"
-              required
-              disabled={!canManage}
-              value={setterCommissionRate}
-              onChange={(e) => setSetterCommissionRate(e.target.value)}
-              className="dashboard-input"
-              placeholder="0"
-            />
-          </label>
+        <div className="space-y-3 rounded-xl border border-border/60 bg-black/10 p-4">
+          <p className="text-xs font-medium uppercase tracking-wider text-muted-soft">
+            Provisionen
+          </p>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <label className="block">
+              <span className="mb-1.5 block text-xs font-medium text-muted">
+                Setup-Provision Setter (%)
+              </span>
+              <input
+                type="text"
+                inputMode="decimal"
+                required
+                disabled={!canManage}
+                value={setterCommissionRate}
+                onChange={(e) => setSetterCommissionRate(e.target.value)}
+                className="dashboard-input"
+                placeholder="0"
+              />
+            </label>
 
-          <label className="block">
-            <span className="mb-1.5 block text-xs font-medium text-muted">
-              Closer Provision (%)
-            </span>
-            <input
-              type="text"
-              inputMode="decimal"
-              required
-              disabled={!canManage}
-              value={closerCommissionRate}
-              onChange={(e) => setCloserCommissionRate(e.target.value)}
-              className="dashboard-input"
-              placeholder="10"
-            />
-          </label>
+            <label className="block">
+              <span className="mb-1.5 block text-xs font-medium text-muted">
+                Setup-Provision Closer (%)
+              </span>
+              <input
+                type="text"
+                inputMode="decimal"
+                required
+                disabled={!canManage}
+                value={closerCommissionRate}
+                onChange={(e) => setCloserCommissionRate(e.target.value)}
+                className="dashboard-input"
+                placeholder="10"
+              />
+            </label>
+
+            <label className="block">
+              <span className="mb-1.5 block text-xs font-medium text-muted">
+                Retainer-Provision (%)
+              </span>
+              <input
+                type="text"
+                inputMode="decimal"
+                required
+                disabled={!canManage}
+                value={retainerCommissionRate}
+                onChange={(e) => setRetainerCommissionRate(e.target.value)}
+                className="dashboard-input"
+                placeholder="10"
+              />
+            </label>
+
+            <label className="block">
+              <span className="mb-1.5 block text-xs font-medium text-muted">
+                Retainer-Provisionsdauer (Monate)
+              </span>
+              <input
+                type="number"
+                min={0}
+                max={120}
+                required
+                disabled={!canManage}
+                value={retainerCommissionMonths}
+                onChange={(e) => setRetainerCommissionMonths(e.target.value)}
+                className="dashboard-input"
+                placeholder="3"
+              />
+            </label>
+          </div>
         </div>
 
         <div className="flex justify-end gap-3 border-t border-border pt-4">

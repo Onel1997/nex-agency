@@ -69,7 +69,7 @@ async function fetchMemberProfile(memberId: string) {
   const { data, error } = await adminClient
     .from("profiles")
     .select(
-      "email, full_name, role, agency_role, employment_type, status, commission_rate, setter_commission_rate, closer_commission_rate, activated_at",
+      "email, full_name, role, agency_role, employment_type, status, commission_rate, setter_commission_rate, closer_commission_rate, retainer_commission_rate, retainer_commission_months, activated_at",
     )
     .eq("id", memberId)
     .single();
@@ -139,6 +139,8 @@ export interface UpdateTeamMemberInput {
   agency_role: AgencyRole;
   setter_commission_rate: number;
   closer_commission_rate: number;
+  retainer_commission_rate: number;
+  retainer_commission_months: number;
 }
 
 export async function updateTeamMember(
@@ -151,16 +153,27 @@ export async function updateTeamMember(
   const employmentType = parseEmploymentType(input.employment_type);
   const setterCommissionRate = input.setter_commission_rate;
   const closerCommissionRate = input.closer_commission_rate;
+  const retainerCommissionRate = input.retainer_commission_rate;
+  const retainerCommissionMonths = input.retainer_commission_months;
 
   if (!full_name) throw new Error("Name ist erforderlich");
 
   for (const [label, rate] of [
     ["Setter", setterCommissionRate],
     ["Closer", closerCommissionRate],
+    ["Retainer", retainerCommissionRate],
   ] as const) {
     if (rate < 0 || rate > 100) {
       throw new Error(`${label}-Provisionssatz muss zwischen 0 und 100 liegen`);
     }
+  }
+
+  if (
+    !Number.isFinite(retainerCommissionMonths) ||
+    retainerCommissionMonths < 0 ||
+    retainerCommissionMonths > 120
+  ) {
+    throw new Error("Retainer-Provisionsdauer muss zwischen 0 und 120 Monaten liegen");
   }
 
   if (memberId === admin.id && agencyRole !== admin.agency_role) {
@@ -179,6 +192,8 @@ export async function updateTeamMember(
       employment_type: employmentType,
       setter_commission_rate: setterCommissionRate,
       closer_commission_rate: closerCommissionRate,
+      retainer_commission_rate: retainerCommissionRate,
+      retainer_commission_months: retainerCommissionMonths,
     })
     .eq("id", memberId);
 
@@ -197,6 +212,8 @@ export async function updateTeamMember(
       employment_type: employmentType,
       setter_commission_rate: setterCommissionRate,
       closer_commission_rate: closerCommissionRate,
+      retainer_commission_rate: retainerCommissionRate,
+      retainer_commission_months: retainerCommissionMonths,
       previous_agency_role: member.agency_role,
       previous_employment_type: member.employment_type,
     },

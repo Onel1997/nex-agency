@@ -170,6 +170,7 @@ export async function payCommissionEntry(
       setter_commission_cents: Number(entry.setter_commission_cents),
       closer_commission_cents: Number(entry.closer_commission_cents),
       status,
+      entry_type: "setup",
       deal_type: null,
       triggered_by_invoice_id: null,
       created_at: "",

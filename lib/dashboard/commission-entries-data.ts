@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { CommissionEntryStatus } from "./commission-constants";
 import { isCommissionCenterSchemaMissingError } from "./commission-entry-service";
 import { mapResolvedCommissionEntryRow } from "./commission-entry-attribution";
+import { computeEntryCommissionTotals } from "./sales-metrics";
 import type { CommissionEntryRecord } from "./types";
 
 const COMMISSION_ENTRY_SELECT = `
@@ -15,6 +16,7 @@ const COMMISSION_ENTRY_SELECT = `
   setter_commission_cents,
   closer_commission_cents,
   status,
+  entry_type,
   triggered_by_invoice_id,
   created_at,
   updated_at,
@@ -63,6 +65,65 @@ export function groupLatestCommissionEntryByClient(
   }
 
   return grouped;
+}
+
+export function groupCommissionEntriesByClient(
+  entries: CommissionEntryRecord[],
+): Map<string, CommissionEntryRecord[]> {
+  const grouped = new Map<string, CommissionEntryRecord[]>();
+
+  for (const entry of entries) {
+    const current = grouped.get(entry.client_id) ?? [];
+    current.push(entry);
+    grouped.set(entry.client_id, current);
+  }
+
+  return grouped;
+}
+
+export function aggregateCommissionTotalsForClient(
+  entries: CommissionEntryRecord[],
+  paidProfilesByEntry: Map<string, Set<string>>,
+): {
+  commissionTotalCents: number;
+  commissionPaidCents: number;
+  commissionOutstandingCents: number;
+} {
+  let commissionTotalCents = 0;
+  let commissionPaidCents = 0;
+  let commissionOutstandingCents = 0;
+
+  for (const entry of entries) {
+    if (entry.status === ("cancelled" as CommissionEntryStatus)) continue;
+    const totals = computeEntryCommissionTotals(
+      entry,
+      paidProfilesByEntry.get(entry.id) ?? new Set<string>(),
+    );
+    commissionTotalCents += totals.commissionTotalCents;
+    commissionPaidCents += totals.commissionPaidCents;
+    commissionOutstandingCents += totals.commissionOutstandingCents;
+  }
+
+  return {
+    commissionTotalCents,
+    commissionPaidCents,
+    commissionOutstandingCents,
+  };
+}
+
+export function mergePaidProfilesForClientEntries(
+  entries: CommissionEntryRecord[],
+  paidProfilesByEntry: Map<string, Set<string>>,
+): Set<string> {
+  const merged = new Set<string>();
+
+  for (const entry of entries) {
+    const paid = paidProfilesByEntry.get(entry.id);
+    if (!paid) continue;
+    for (const profileId of paid) merged.add(profileId);
+  }
+
+  return merged;
 }
 
 export async function fetchCommissionPayoutProfileIds(

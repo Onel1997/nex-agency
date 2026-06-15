@@ -73,6 +73,7 @@ export function mapResolvedCommissionEntryRow(
     setter_commission_cents: Number(row.setter_commission_cents ?? 0),
     closer_commission_cents: Number(row.closer_commission_cents ?? 0),
     status: row.status as CommissionEntryStatus,
+    entry_type: (row.entry_type as import("./commission-constants").CommissionEntryType) ?? "setup",
     deal_type: resolved.dealType,
     triggered_by_invoice_id:
       (row.triggered_by_invoice_id as string | null) ?? null,

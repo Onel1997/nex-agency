@@ -35,6 +35,10 @@ import { resolveRetainerAmountCents } from "@/lib/dashboard/billing-cycle";
 import { createInvoiceRecord } from "@/lib/dashboard/invoice-create";
 import { calculateInvoiceAmounts } from "@/lib/dashboard/invoice-math";
 import { createClient } from "@/lib/supabase/server";
+import {
+  fetchClientSetterSnapshot,
+  traceSetterId,
+} from "@/lib/dashboard/setter-id-trace";
 
 const ALLOWED_MIME_TYPES = new Set([
   "application/pdf",
@@ -393,11 +397,20 @@ export async function updateClientContract(clientId: string, formData: FormData)
     const detail = await getClientDetailById(clientId);
     if (detail) {
       input.commissionStatus = detail.commission_status;
-      input.assignedFreelancerId = detail.assigned_freelancer_id;
-      input.freelancerCommissionRate = detail.freelancer_commission_rate;
     }
   }
   const supabase = await createClient();
+
+  const beforeSave = await fetchClientSetterSnapshot(supabase, clientId);
+  traceSetterId("7_contract_before_save", {
+    clientId,
+    companyName: beforeSave.companyName,
+    clientSetterId: beforeSave.clientSetterId,
+    closerId: beforeSave.closerId,
+    leadId: beforeSave.leadId,
+    source: "updateClientContract",
+    note: "saveClientContractData does not write setter_id",
+  });
 
   const { setupInvoice } = await saveClientContractData(
     supabase,
@@ -405,6 +418,17 @@ export async function updateClientContract(clientId: string, formData: FormData)
     input,
     profile.id,
   );
+
+  const afterSave = await fetchClientSetterSnapshot(supabase, clientId);
+  traceSetterId("8_contract_after_save", {
+    clientId,
+    companyName: afterSave.companyName,
+    clientSetterId: afterSave.clientSetterId,
+    closerId: afterSave.closerId,
+    leadId: afterSave.leadId,
+    source: "updateClientContract",
+    note: "setter_id must be unchanged after contract save",
+  });
 
   await logClientActivity({
     clientId,

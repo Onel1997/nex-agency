@@ -118,7 +118,7 @@ export function getCloserLeadStatusOptions(
     return ["scheduled"];
   }
   if (lead.status === "won") return ["won"];
-  const options = [...CLOSER_PIPELINE_STATUSES];
+  const options: LeadStatus[] = [...CLOSER_PIPELINE_STATUSES];
   if (!options.includes(lead.status)) {
     return [lead.status, ...options];
   }

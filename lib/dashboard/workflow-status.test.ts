@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  isActiveCustomerWorkflowStage,
   resolveCustomerWorkflowStatus,
   resolveLeadWorkflowStatus,
 } from "./workflow-status";
@@ -214,5 +215,22 @@ describe("resolveCustomerWorkflowStatus", () => {
         new Set(),
       ).stage,
     ).toBe("commission_paid");
+  });
+});
+
+describe("isActiveCustomerWorkflowStage", () => {
+  it("counts active contract customers including commission workflow stages", () => {
+    expect(isActiveCustomerWorkflowStage("active_paid")).toBe(true);
+    expect(isActiveCustomerWorkflowStage("setter_commission_open")).toBe(true);
+    expect(isActiveCustomerWorkflowStage("closer_commission_open")).toBe(true);
+    expect(isActiveCustomerWorkflowStage("both_commissions_open")).toBe(true);
+    expect(isActiveCustomerWorkflowStage("commission_approved")).toBe(true);
+    expect(isActiveCustomerWorkflowStage("commission_paid")).toBe(true);
+  });
+
+  it("excludes customers without active paid contract workflow", () => {
+    expect(isActiveCustomerWorkflowStage("won_no_contract")).toBe(false);
+    expect(isActiveCustomerWorkflowStage("contract_no_invoice")).toBe(false);
+    expect(isActiveCustomerWorkflowStage("invoice_unpaid")).toBe(false);
   });
 });

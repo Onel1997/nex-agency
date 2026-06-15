@@ -32,7 +32,7 @@ const CLIENT_REVENUE_MEMBER_SELECT = `
 const CLIENT_COMMISSION_COLUMNS = `
   commission_total_cents,
   commission_paid_cents,
-  commission_outstanding_cents,
+  commission_outstanding_cents
 `;
 
 const CLIENT_FREELANCER_COLUMNS = `
@@ -41,7 +41,7 @@ const CLIENT_FREELANCER_COLUMNS = `
   freelancer_payout_cents,
   freelancer_paid_cents,
   freelancer_outstanding_cents,
-  freelancer_payout_status,
+  freelancer_payout_status
 `;
 
 const CLIENT_FREELANCER_MEMBER_SELECT = `
@@ -66,8 +66,8 @@ export const CLIENT_REVENUE_SELECT_WITH_CONTRACT = `
   auto_invoice_enabled,
   total_revenue_cents,
   commission_status,
-  ${CLIENT_COMMISSION_COLUMNS}
-  ${CLIENT_FREELANCER_COLUMNS}
+  ${CLIENT_COMMISSION_COLUMNS},
+  ${CLIENT_FREELANCER_COLUMNS},
   currency,
   ${CLIENT_REVENUE_MEMBER_SELECT},
   ${CLIENT_FREELANCER_MEMBER_SELECT},
@@ -93,8 +93,8 @@ export const CLIENT_REVENUE_SELECT_WITH_CONTRACT_NO_STATUS = `
   auto_invoice_enabled,
   total_revenue_cents,
   commission_status,
-  ${CLIENT_COMMISSION_COLUMNS}
-  ${CLIENT_FREELANCER_COLUMNS}
+  ${CLIENT_COMMISSION_COLUMNS},
+  ${CLIENT_FREELANCER_COLUMNS},
   currency,
   ${CLIENT_REVENUE_MEMBER_SELECT},
   ${CLIENT_FREELANCER_MEMBER_SELECT}
@@ -136,7 +136,7 @@ export const PERFORMANCE_CLIENT_SELECT_WITH_CONTRACT = `
   contract_start_date,
   total_revenue_cents,
   commission_status,
-  ${CLIENT_COMMISSION_COLUMNS}
+  ${CLIENT_COMMISSION_COLUMNS},
   ${CLIENT_FREELANCER_COLUMNS}
 `;
 

@@ -6,6 +6,7 @@ import {
   hasRetainerContract,
   hasSetupFee,
 } from "./contract-invoices";
+import { resolveContractStatus } from "./contract-status";
 import { isClientSetupInvoicePaid } from "./client-freelancer-payout";
 import {
   resolveClientCommissionPayoutStatus,
@@ -66,6 +67,22 @@ export const CUSTOMER_WORKFLOW_STAGE_LABELS: Record<CustomerWorkflowStage, strin
   commission_paid: "Provision ausgezahlt",
 };
 
+/** Workflow stages that count toward the dashboard "Aktive Kunden" KPI. */
+export const ACTIVE_CUSTOMER_WORKFLOW_STAGES = [
+  "active_paid",
+  "setter_commission_open",
+  "closer_commission_open",
+  "both_commissions_open",
+  "commission_approved",
+  "commission_paid",
+] as const satisfies readonly CustomerWorkflowStage[];
+
+export function isActiveCustomerWorkflowStage(
+  stage: CustomerWorkflowStage,
+): boolean {
+  return (ACTIVE_CUSTOMER_WORKFLOW_STAGES as readonly string[]).includes(stage);
+}
+
 export const WORKFLOW_URGENCY_LABELS: Record<WorkflowUrgency, string> = {
   urgent: "Dringend",
   action: "Aktion nötig",
@@ -82,13 +99,24 @@ export const WORKFLOW_URGENCY_STYLES: Record<WorkflowUrgency, string> = {
 
 type WorkflowClientFields = {
   id: string;
-  contract_start_date?: string | null;
-  contract_status?: string | null;
-  setup_fee_cents?: number | null;
-  monthly_retainer_cents?: number | null;
-  monthly_revenue_cents?: number | null;
-  lead_estimated_value_cents?: number | null;
+  contract_start_date: string | null;
+  contract_status: string | null;
+  setup_fee_cents: number | null;
+  monthly_retainer_cents: number | null;
+  monthly_revenue_cents: number | null;
+  lead_estimated_value_cents: number | null;
 };
+
+function toContractClientFields(client: WorkflowClientFields) {
+  return {
+    contract_start_date: client.contract_start_date,
+    contract_status: resolveContractStatus(client),
+    lead_estimated_value_cents: client.lead_estimated_value_cents,
+    setup_fee_cents: client.setup_fee_cents,
+    monthly_retainer_cents: client.monthly_retainer_cents,
+    monthly_revenue_cents: client.monthly_revenue_cents,
+  };
+}
 
 type WorkflowLeadFields = {
   status: LeadStatus;
@@ -180,18 +208,19 @@ export function resolveCustomerWorkflowStatus(
   commissionEntry: CommissionEntryRecord | null = null,
   paidCommissionProfileIds: Set<string> = new Set(),
 ): WorkflowStatus<CustomerWorkflowStage> {
+  const contract = toContractClientFields(client);
   const clientInvoices = filterInvoicesForClient(invoices, client.id);
   const operationalInvoices = clientInvoices.filter(
     (invoice) => invoice.status !== "cancelled",
   );
 
-  if (!hasActiveContract(client)) {
+  if (!hasActiveContract(contract)) {
     return { stage: "won_no_contract", urgency: "action" };
   }
 
-  const needsSetupInvoice = canCreateSetupInvoice(client, clientInvoices);
+  const needsSetupInvoice = canCreateSetupInvoice(contract, clientInvoices);
   const needsAnyInvoice =
-    operationalInvoices.length === 0 && hasRetainerContract(client);
+    operationalInvoices.length === 0 && hasRetainerContract(contract);
 
   if (needsSetupInvoice || needsAnyInvoice) {
     return { stage: "contract_no_invoice", urgency: "action" };
@@ -211,7 +240,7 @@ export function resolveCustomerWorkflowStatus(
     };
   }
 
-  const setupRequired = hasSetupFee(client);
+  const setupRequired = hasSetupFee(contract);
   const setupPaid = !setupRequired || isClientSetupInvoicePaid(clientInvoices);
 
   if (!setupPaid) {

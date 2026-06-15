@@ -17,6 +17,10 @@ import {
   resolveLeadSetterId,
   resolveLeadSetterIdForPersistence,
 } from "@/lib/dashboard/lead-attribution";
+import {
+  fetchLeadSetterSnapshot,
+  traceSetterId,
+} from "@/lib/dashboard/setter-id-trace";
 import { LEAD_STATUS_LABELS, type LeadStatus } from "@/lib/dashboard/constants";
 import { logActivity } from "@/lib/dashboard/activity";
 import { logClientActivity } from "@/lib/dashboard/client-activities";
@@ -153,6 +157,14 @@ export async function createLead(data: LeadFormData) {
 
   if (error) throw new Error(error.message);
 
+  traceSetterId("1_lead_created", {
+    leadId: created.id,
+    companyName: data.company_name.trim(),
+    leadSetterId: setterId,
+    source: "createLead",
+    note: "setter_id written on leads.insert",
+  });
+
   await logActivity({
     actorId: profile.id,
     action: "lead_created",
@@ -281,6 +293,16 @@ export async function claimLead(id: string) {
     throw new Error("Lead wurde gerade von einem anderen Closer übernommen");
   }
 
+  const leadSnapshot = await fetchLeadSetterSnapshot(supabase, id);
+  traceSetterId("3_closer_claimed", {
+    leadId: id,
+    companyName: existing.company_name,
+    leadSetterId: leadSnapshot.leadSetterId,
+    closerId: profile.id,
+    source: "claimLead",
+    note: "only closer_id updated; setter_id must remain on lead",
+  });
+
   await logActivity({
     actorId: profile.id,
     action: "lead_claimed",
@@ -407,6 +429,27 @@ export async function updateLeadStatus(id: string, status: LeadStatus) {
 
   if (error) throw new Error(error.message);
 
+  if (isScheduledHandoffStatus(status)) {
+    traceSetterId("2_appointment", {
+      leadId: id,
+      companyName: existing.company_name,
+      leadSetterId: (updatePayload.setter_id as string | null) ?? (existing.setter_id as string | null),
+      source: "updateLeadStatus:scheduled",
+      note: "scheduled handoff; setter_id persisted if resolved",
+    });
+  }
+
+  if (status === "won") {
+    traceSetterId("4_status_won", {
+      leadId: id,
+      companyName: existing.company_name,
+      leadSetterId: (updatePayload.setter_id as string | null) ?? null,
+      closerId: (updatePayload.closer_id as string | null) ?? null,
+      source: "updateLeadStatus:won",
+      note: "setter_id + closer_id written on leads.update",
+    });
+  }
+
   if (existing.status !== status) {
     await logActivity({
       actorId: profile.id,
@@ -520,6 +563,16 @@ export async function convertLeadToClient(leadId: string) {
 
     if (clientAttributionError) throw new Error(clientAttributionError.message);
 
+    traceSetterId("5_client_conversion", {
+      leadId,
+      clientId: existingClient.id,
+      companyName: lead.company_name,
+      leadSetterId: resolvedAttribution.setterId,
+      clientSetterId: resolvedAttribution.setterId,
+      closerId: resolvedAttribution.closerId,
+      source: "convertLeadToClient:existingClient",
+    });
+
     revalidateDashboard(existingClient.id);
     return;
   }
@@ -569,6 +622,16 @@ export async function convertLeadToClient(leadId: string) {
     .eq("id", leadId);
 
   if (updateError) throw new Error(updateError.message);
+
+  traceSetterId("5_client_conversion", {
+    leadId,
+    clientId: client.id,
+    companyName: lead.company_name,
+    leadSetterId: resolvedAttribution.setterId,
+    clientSetterId: resolvedAttribution.setterId,
+    closerId: resolvedAttribution.closerId,
+    source: "convertLeadToClient:insert",
+  });
 
   await logActivity({
     actorId: profile.id,

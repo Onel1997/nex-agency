@@ -15,6 +15,7 @@ import {
   buildSetterAttributionDebug,
   resolveClientSetterId,
 } from "./lead-attribution";
+import { traceSetterId } from "./setter-id-trace";
 import {
   fetchCommissionEntries,
   fetchCommissionPayoutProfileIds,
@@ -96,7 +97,7 @@ function resolveAttributionProfile(
 
 export { calculateCommissionCents, computeTotalRevenueCents } from "./revenue";
 
-function mapClientRevenueRow(
+function resolveFreelancerFields(
   row: Record<string, unknown>,
   setupFeeCents: number | null,
   isProjectPaid: boolean,
@@ -511,7 +512,7 @@ async function buildClientRevenueRecords(
         resolvedSetterId,
       });
 
-      return mapClientRevenueRow(
+      const mapped = mapClientRevenueRow(
         row,
         invoicesByClient.get(row.id as string) ?? [],
         payoutsByClient.get(row.id as string) ?? [],
@@ -522,6 +523,20 @@ async function buildClientRevenueRecords(
         resolvedSetterId,
         setterAttributionDebug,
       );
+
+      traceSetterId("6_contract_open", {
+        clientId: row.id as string,
+        companyName: row.company_name as string,
+        leadSetterId,
+        clientSetterId: (row.setter_id as string | null) ?? null,
+        resolvedSetterId,
+        setterName: mapped.setter_name,
+        closerId: mapped.closer_id,
+        source: "buildClientRevenueRecords",
+        note: "setter_id from DB; setter_name from profile join / sales attribution",
+      });
+
+      return mapped;
     }),
   );
 }

@@ -6,6 +6,7 @@ import {
 } from "./commission-entries";
 import { resolveLeadSetterIdForPersistence } from "./lead-attribution";
 import { resolveSalesAttributionIds } from "./sales-attribution";
+import { traceSetterId } from "./setter-id-trace";
 import { resolveInvoiceType } from "./invoice-type";
 import type { InvoiceRecord } from "./types";
 
@@ -153,6 +154,17 @@ export async function createCommissionEntryFromPaidInvoice(
     if (insertError.code === "23505") return { created: false };
     throw new Error(insertError.message);
   }
+
+  traceSetterId("9_commission_entry", {
+    clientId: client.id as string,
+    companyName: client.company_name as string,
+    clientSetterId: (client.setter_id as string | null) ?? null,
+    commissionEntrySetterId: setterId,
+    closerId,
+    resolvedSetterId: rawSetterId,
+    source: "createCommissionEntryFromPaidInvoice",
+    note: "commission_entries.setter_id snapshot at invoice-paid time",
+  });
 
   return { created: true, entryId: entry.id as string };
 }

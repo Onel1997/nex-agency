@@ -10,6 +10,7 @@ import {
 import {
   customerWorkflowRequiresAction,
   groupInvoicesByClientId,
+  isActiveCustomerWorkflowStage,
   resolveCustomerWorkflowStatus,
   type CustomerWorkflowStage,
   type WorkflowStatus,
@@ -65,18 +66,20 @@ function mapInvoiceRow(row: Record<string, unknown>): InvoiceRecord {
     invoice_number: row.invoice_number as string,
     amount_cents: (row.amount_cents as number | null) ?? 0,
     status: row.status as InvoiceRecord["status"],
+    created_by: (row.created_by as string | null) ?? null,
     created_at: row.created_at as string,
+    updated_at: (row.updated_at as string) ?? (row.created_at as string),
     due_date: (row.due_date as string | null) ?? null,
     invoice_type: (row.invoice_type as InvoiceRecord["invoice_type"]) ?? null,
     billing_period_year: (row.billing_period_year as number | null) ?? null,
     billing_period_month: (row.billing_period_month as number | null) ?? null,
-    subtotal_cents: (row.subtotal_cents as number | null) ?? null,
-    tax_amount_cents: (row.tax_amount_cents as number | null) ?? null,
-    total_amount_cents: (row.total_amount_cents as number | null) ?? null,
-    vat_rate: (row.vat_rate as number | null) ?? null,
+    subtotal_cents: (row.subtotal_cents as number | null) ?? 0,
+    tax_amount_cents: (row.tax_amount_cents as number | null) ?? 0,
+    total_amount_cents: (row.total_amount_cents as number | null) ?? 0,
+    vat_rate: (row.vat_rate as number | null) ?? 0,
     contract_id: (row.contract_id as string | null) ?? null,
-    company_name: null,
-    customer_number: null,
+    company_name: undefined,
+    customer_number: undefined,
   };
 }
 
@@ -111,7 +114,7 @@ async function fetchWorkflowInvoices(): Promise<InvoiceRecord[]> {
   const { data, error } = await supabase
     .from("invoices")
     .select(
-      "id, client_id, invoice_number, amount_cents, status, created_at, due_date, invoice_type, billing_period_year, billing_period_month, subtotal_cents, tax_amount_cents, total_amount_cents, vat_rate, contract_id",
+      "id, client_id, invoice_number, amount_cents, status, created_by, created_at, updated_at, due_date, invoice_type, billing_period_year, billing_period_month, subtotal_cents, tax_amount_cents, total_amount_cents, vat_rate, contract_id",
     );
 
   if (error) throw new Error(error.message);
@@ -162,7 +165,7 @@ export function computeWorkflowDashboardStats(input: {
     if (status.stage === "won_no_contract") contractsMissing += 1;
     if (status.stage === "contract_no_invoice") invoicesMissing += 1;
     if (status.stage === "contract_no_invoice") customersWithoutInvoice += 1;
-    if (status.stage === "active_paid") activeCustomers += 1;
+    if (isActiveCustomerWorkflowStage(status.stage)) activeCustomers += 1;
     if (customerWorkflowRequiresAction(status)) customersRequiringAction += 1;
   }
 

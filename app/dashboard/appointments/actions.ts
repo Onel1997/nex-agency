@@ -10,6 +10,10 @@ import { canAssignAppointments } from "@/lib/auth/permissions";
 import { getProfile } from "@/lib/auth/session";
 import { logActivity } from "@/lib/dashboard/activity";
 import { combineDateAndTime } from "@/lib/dashboard/calendar";
+import {
+  fetchLeadSetterSnapshot,
+  traceSetterId,
+} from "@/lib/dashboard/setter-id-trace";
 import { createClient } from "@/lib/supabase/server";
 
 function revalidateAppointments() {
@@ -67,6 +71,17 @@ export async function createAppointment(data: AppointmentFormData) {
     .single();
 
   if (error) throw new Error(error.message);
+
+  if (payload.lead_id) {
+    const leadSnapshot = await fetchLeadSetterSnapshot(supabase, payload.lead_id);
+    traceSetterId("2_appointment", {
+      leadId: payload.lead_id,
+      companyName: leadSnapshot.companyName,
+      leadSetterId: leadSnapshot.leadSetterId,
+      source: "createAppointment",
+      note: "appointments do not write setter_id; snapshot after insert",
+    });
+  }
 
   await logActivity({
     actorId: profile.id,

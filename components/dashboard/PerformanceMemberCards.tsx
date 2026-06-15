@@ -2,6 +2,7 @@
 
 import { ROLE_LABELS, type UserRole } from "@/lib/auth/types";
 import { formatCents } from "@/lib/dashboard/format";
+import { isSalesAgencyRole } from "@/lib/dashboard/sales-metrics";
 import type { PerformanceMemberRow } from "@/lib/dashboard/types";
 import {
   Briefcase,
@@ -16,8 +17,8 @@ interface PerformanceMemberCardsProps {
   members: PerformanceMemberRow[];
 }
 
-function isFreelancer(role: string) {
-  return role === "freelancer";
+function isProjectFreelancer(member: PerformanceMemberRow) {
+  return member.role === "freelancer" && !isSalesAgencyRole(member.agencyRole);
 }
 
 export function PerformanceMemberCards({ members }: PerformanceMemberCardsProps) {
@@ -48,7 +49,7 @@ export function PerformanceMemberCards({ members }: PerformanceMemberCardsProps)
               </div>
             </div>
 
-            {isFreelancer(member.role) ? (
+            {isProjectFreelancer(member) ? (
               <dl className="mt-5 grid grid-cols-2 gap-3 text-sm">
                 <Metric
                   label="Projekte"

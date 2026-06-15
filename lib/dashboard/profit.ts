@@ -86,22 +86,33 @@ export function sumCustomerRevenueFromClients(
   return total;
 }
 
+function clientCommissionCostCents(client: ClientRevenueRecord): number {
+  if (!client.commission_entry_id || client.commission_entry_status === "cancelled") {
+    return 0;
+  }
+  return client.setter_commission_cents + client.closer_commission_cents;
+}
+
 /**
- * Provisionen werden dem Vertragsbeginn zugeordnet (Setup-Provision),
- * nicht dem Auszahlungsdatum — dieselbe Datumsregel wie Setup-Umsatz.
+ * Sales-Provisionen aus commission_entries (Setter + Closer je Vertrag).
+ * Zeitraum wie Setup-Umsatz: Vertragsbeginn bzw. Entry-Erstellung.
  */
 export function sumCommissionFromClients(
   clients: ClientRevenueRecord[],
   period: ProfitPeriod,
 ): number {
   if (period === "total") {
-    return clients.reduce((sum, client) => sum + client.commission_total_cents, 0);
+    return clients.reduce(
+      (sum, client) => sum + clientCommissionCostCents(client),
+      0,
+    );
   }
 
   let total = 0;
 
   for (const client of clients) {
-    if (client.commission_total_cents <= 0) continue;
+    const commissionCost = clientCommissionCostCents(client);
+    if (commissionCost <= 0) continue;
     if (!isContractRevenueActive(client)) continue;
 
     const setup = client.setup_fee_cents ?? 0;
@@ -109,7 +120,7 @@ export function sumCommissionFromClients(
 
     const setupDate = parseDate(client.contract_start_date);
     if (isInPeriod(setupDate, period)) {
-      total += client.commission_total_cents;
+      total += commissionCost;
     }
   }
 

@@ -4,7 +4,12 @@ import {
 } from "@/lib/auth/permissions";
 import { getProfile } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
-import { syncCommissionAmounts } from "./commission";
+import {
+  fetchCommissionEntries,
+  fetchCommissionPayoutProfileIds,
+  groupLatestCommissionEntryByClient,
+  groupPaidProfilesByClient,
+} from "./commission-entries-data";
 import { LEAD_STATUS_LABELS, type LeadStatus } from "./constants";
 import {
   getPerformanceDateRange,
@@ -19,7 +24,15 @@ import {
   groupRetainerInvoicesByClient,
 } from "./retainer-data";
 import {
-  buildRetainerStats,
+  aggregateSalesMetrics,
+  clientIncludedInPeriod,
+  computeClientRevenueInRange,
+  isProjectFreelancerProfile,
+  isSalesAgencyRole,
+  type SalesClientRow,
+  type TeamSalesKpis,
+} from "./sales-metrics";
+import {
   listPaidRetainerPeriods,
   type RetainerPeriodInvoiceRef,
 } from "./retainer";
@@ -65,6 +78,7 @@ interface ProfileRow {
   full_name: string | null;
   email: string;
   role: string;
+  agency_role: string | null;
   commission_rate: number | null;
 }
 
@@ -86,10 +100,6 @@ function emptyAccumulator(): MemberAccumulator {
     freelancerPaidCents: 0,
     freelancerOutstandingCents: 0,
   };
-}
-
-function isFreelancerRole(role: string) {
-  return role === "freelancer";
 }
 
 function resolveProjectVolumeCents(client: Record<string, unknown>) {
@@ -116,91 +126,31 @@ function computeConversionRate(leads: number, clients: number) {
   return Math.round((clients / leads) * 1000) / 10;
 }
 
-function resolveCommissionFields(
-  client: Record<string, unknown>,
-  commissionRate: number,
-) {
-  if (client.commission_total_cents !== undefined) {
-    return {
-      commissionTotalCents: (client.commission_total_cents as number) ?? 0,
-      commissionPaidCents: (client.commission_paid_cents as number) ?? 0,
-      commissionOutstandingCents:
-        (client.commission_outstanding_cents as number) ?? 0,
-    };
-  }
-
-  const synced = syncCommissionAmounts({
-    setupFeeCents: (client.setup_fee_cents as number | null) ?? null,
-    commissionRate,
-    currentTotalCents: 0,
-    currentPaidCents: 0,
-  });
-
+function mapClientToSalesRow(client: Record<string, unknown>): SalesClientRow {
   return {
-    commissionTotalCents: synced.commission_total_cents,
-    commissionPaidCents: synced.commission_paid_cents,
-    commissionOutstandingCents: synced.commission_outstanding_cents,
+    id: client.id as string,
+    created_at: (client.created_at as string | null) ?? null,
+    setter_id: (client.setter_id as string | null) ?? null,
+    closer_id: (client.closer_id as string | null) ?? null,
+    setup_fee_cents: (client.setup_fee_cents as number | null) ?? null,
+    monthly_revenue_cents: (client.monthly_revenue_cents as number | null) ?? null,
+    contract_start_date: (client.contract_start_date as string | null) ?? null,
   };
 }
 
-function computeClientRevenueInRange(
-  client: Record<string, unknown>,
-  retainerInvoicesByClient: Map<string, RetainerPeriodInvoiceRef[]>,
-  range: PerformanceDateRange,
-) {
-  const clientId = client.id as string;
-  const createdAt = client.created_at as string | null;
-  const setupFeeCents = (client.setup_fee_cents as number | null) ?? 0;
-  const monthlyRevenueCents = (client.monthly_revenue_cents as number | null) ?? 0;
-  const clientInvoices = retainerInvoicesByClient.get(clientId) ?? [];
-
-  if (range.start === null) {
-    const stats = buildRetainerStats({
-      contract_start_date: (client.contract_start_date as string | null) ?? null,
-      setup_fee_cents: setupFeeCents,
-      monthly_revenue_cents: monthlyRevenueCents,
-      retainerInvoices: clientInvoices,
-    });
-    return {
-      setupRevenueCents: stats.setup_revenue_cents,
-      retainerRevenueCents: stats.retainer_revenue_cents,
-      revenueCents: stats.total_revenue_cents,
-    };
-  }
-
-  const includeSetup = isTimestampInRange(createdAt, range);
-  const setupRevenueCents = includeSetup ? setupFeeCents : 0;
-
-  let retainerRevenueCents = 0;
-  for (const period of listPaidRetainerPeriods(clientInvoices)) {
-    if (
-      isPeriodMonthInRange(
-        period.period_year,
-        period.period_month,
-        range,
-      )
-    ) {
-      retainerRevenueCents += monthlyRevenueCents;
-    }
-  }
-
-  return {
-    setupRevenueCents,
-    retainerRevenueCents,
-    revenueCents: setupRevenueCents + retainerRevenueCents,
-  };
-}
-
-function clientIncludedInPeriod(
-  createdAt: string | null,
-  range: PerformanceDateRange,
-) {
-  if (range.start === null) return true;
-  return isTimestampInRange(createdAt, range);
+function shouldSkipNonSalesOwner(
+  ownerId: string | null,
+  profileById: Map<string, ProfileRow>,
+): boolean {
+  if (!ownerId) return true;
+  const owner = profileById.get(ownerId);
+  if (!owner) return false;
+  return isProjectFreelancerProfile(owner);
 }
 
 function buildRevenueTrend(
-  clients: Record<string, unknown>[],
+  clients: SalesClientRow[],
+  entriesByClient: ReturnType<typeof groupLatestCommissionEntryByClient>,
   retainerInvoicesByClient: Map<string, RetainerPeriodInvoiceRef[]>,
   range: PerformanceDateRange,
 ): PerformanceRevenuePoint[] {
@@ -213,44 +163,31 @@ function buildRevenueTrend(
   };
 
   for (const client of clients) {
-    const clientId = client.id as string;
-    const createdAt = client.created_at as string | null;
-    const setupFeeCents = (client.setup_fee_cents as number | null) ?? 0;
-    const monthlyRevenueCents = (client.monthly_revenue_cents as number | null) ?? 0;
-    const clientInvoices = retainerInvoicesByClient.get(clientId) ?? [];
-
-    if (createdAt) {
-      const created = new Date(createdAt);
-      if (!Number.isNaN(created.getTime()) && setupFeeCents > 0) {
-        if (
-          range.start === null ||
-          isTimestampInRange(createdAt, range)
-        ) {
-          addToMonth(
-            created.getFullYear(),
-            created.getMonth() + 1,
-            setupFeeCents,
-          );
-        }
+    const entry = entriesByClient.get(client.id) ?? null;
+    const revenue = computeClientRevenueInRange(
+      client,
+      entry,
+      retainerInvoicesByClient,
+      range,
+    );
+    const anchor = entry?.created_at ?? client.created_at;
+    if (revenue.setupRevenueCents > 0 && anchor) {
+      const date = new Date(anchor);
+      if (!Number.isNaN(date.getTime())) {
+        addToMonth(date.getFullYear(), date.getMonth() + 1, revenue.setupRevenueCents);
       }
     }
 
+    const monthlyRevenueCents = client.monthly_revenue_cents ?? 0;
+    const clientInvoices = retainerInvoicesByClient.get(client.id) ?? [];
     for (const period of listPaidRetainerPeriods(clientInvoices)) {
       if (
         range.start !== null &&
-        !isPeriodMonthInRange(
-          period.period_year,
-          period.period_month,
-          range,
-        )
+        !isPeriodMonthInRange(period.period_year, period.period_month, range)
       ) {
         continue;
       }
-      addToMonth(
-        period.period_year,
-        period.period_month,
-        monthlyRevenueCents,
-      );
+      addToMonth(period.period_year, period.period_month, monthlyRevenueCents);
     }
   }
 
@@ -281,6 +218,12 @@ function buildLeadStatusSlices(
   }));
 }
 
+function isProjectFreelancerMember(member: PerformanceMemberRow): boolean {
+  return (
+    member.role === "freelancer" && !isSalesAgencyRole(member.agencyRole)
+  );
+}
+
 function mapMemberRows(
   profiles: ProfileRow[],
   statsByUser: Map<string, MemberAccumulator>,
@@ -293,6 +236,7 @@ function mapMemberRows(
         fullName: formatMemberName(profile),
         email: profile.email,
         role: profile.role,
+        agencyRole: profile.agency_role,
         commissionRate: Number(profile.commission_rate ?? 0),
         leadsCount: counts.leadsCount,
         leadsWon: counts.leadsWon,
@@ -314,13 +258,13 @@ function mapMemberRows(
       };
     })
     .sort((a, b) => {
-      const aFreelancer = isFreelancerRole(a.role);
-      const bFreelancer = isFreelancerRole(b.role);
-      if (aFreelancer && bFreelancer) {
+      const aProjectFreelancer = isProjectFreelancerMember(a);
+      const bProjectFreelancer = isProjectFreelancerMember(b);
+      if (aProjectFreelancer && bProjectFreelancer) {
         return b.freelancerEarnedCents - a.freelancerEarnedCents;
       }
-      if (aFreelancer !== bFreelancer) {
-        return aFreelancer ? 1 : -1;
+      if (aProjectFreelancer !== bProjectFreelancer) {
+        return aProjectFreelancer ? 1 : -1;
       }
       return b.revenueCents - a.revenueCents;
     });
@@ -340,12 +284,9 @@ function buildFreelancerKpis(
 
 function buildKpis(
   leads: Array<{ status: string }>,
-  members: PerformanceMemberRow[],
+  teamKpis: TeamSalesKpis,
   appointmentsCount: number,
 ): PerformanceKpis {
-  const salesMembers = members.filter(
-    (member) => !isFreelancerRole(member.role),
-  );
   const totalLeads = leads.length;
   const wonLeads = leads.filter((lead) => lead.status === "won").length;
 
@@ -356,35 +297,17 @@ function buildKpis(
       totalLeads > 0
         ? Math.round((wonLeads / totalLeads) * 1000) / 10
         : 0,
-    totalRevenueCents: salesMembers.reduce(
-      (sum, member) => sum + member.revenueCents,
-      0,
-    ),
-    outstandingCommissionsCents: salesMembers.reduce(
-      (sum, member) => sum + member.commissionOutstandingCents,
-      0,
-    ),
-    paidCommissionsCents: salesMembers.reduce(
-      (sum, member) => sum + member.commissionPaidCents,
-      0,
-    ),
+    totalRevenueCents: teamKpis.totalRevenueCents,
+    outstandingCommissionsCents: teamKpis.outstandingCommissionsCents,
+    paidCommissionsCents: teamKpis.paidCommissionsCents,
     appointmentsCount,
   };
 }
 
-function buildCommissionBars(members: PerformanceMemberRow[]): PerformanceCommissionBars {
-  const salesMembers = members.filter(
-    (member) => !isFreelancerRole(member.role),
-  );
+function buildCommissionBars(teamKpis: TeamSalesKpis): PerformanceCommissionBars {
   return {
-    outstandingCents: salesMembers.reduce(
-      (sum, member) => sum + member.commissionOutstandingCents,
-      0,
-    ),
-    paidCents: salesMembers.reduce(
-      (sum, member) => sum + member.commissionPaidCents,
-      0,
-    ),
+    outstandingCents: teamKpis.outstandingCommissionsCents,
+    paidCents: teamKpis.paidCommissionsCents,
   };
 }
 
@@ -404,11 +327,13 @@ export async function getPerformanceDashboardData(
     clientsResult,
     retainerInvoices,
     appointmentsResult,
+    commissionEntries,
+    commissionPayoutProfiles,
   ] = await Promise.all([
     teamView
       ? supabase
           .from("profiles")
-          .select("id, full_name, email, role, commission_rate")
+          .select("id, full_name, email, role, agency_role, commission_rate")
           .eq("status", "active")
           .not("activated_at", "is", null)
           .order("full_name")
@@ -419,6 +344,7 @@ export async function getPerformanceDashboardData(
               full_name: profile.full_name,
               email: profile.email,
               role: profile.role,
+              agency_role: profile.agency_role,
               commission_rate: profile.commission_rate,
             },
           ],
@@ -428,52 +354,9 @@ export async function getPerformanceDashboardData(
     fetchPerformanceClientRows(supabase),
     fetchRetainerInvoices(supabase),
     supabase.from("appointments").select("id, assigned_user_id, start_time"),
+    fetchCommissionEntries(supabase),
+    fetchCommissionPayoutProfileIds(supabase),
   ]);
-
-  console.log("PERFORMANCE RAW", {
-    query: teamView
-      ? "profiles WHERE status=active AND activated_at IS NOT NULL"
-      : "profiles (viewer only, in-memory)",
-    count: profilesResult.data?.length ?? 0,
-    filter: teamView
-      ? { status: "active", activated_at: "NOT NULL" }
-      : { viewerId: profile.id },
-    error: profilesResult.error?.message ?? null,
-    data: profilesResult.data,
-  });
-  console.log("PERFORMANCE RAW", {
-    query: "leads SELECT id, owner_id, status, created_at",
-    count: leadsResult.data?.length ?? 0,
-    filter: "RLS by role",
-    error: leadsResult.error?.message ?? null,
-    data: leadsResult.data,
-  });
-  console.log("PERFORMANCE RAW", {
-    query: "clients via fetchPerformanceClientRows (PERFORMANCE_CLIENT_SELECT_WITH_CONTRACT)",
-    count: clientsResult.rows?.length ?? 0,
-    filter: "RLS by role; no setter_id/closer_id in select",
-    error: null,
-    data: clientsResult.rows,
-  });
-  console.log("PERFORMANCE RAW", {
-    query: "invoices via fetchRetainerInvoices",
-    count: retainerInvoices?.length ?? 0,
-    filter: "status != cancelled",
-    data: retainerInvoices,
-  });
-  console.log("PERFORMANCE RAW", {
-    query: "appointments SELECT id, assigned_user_id, start_time",
-    count: appointmentsResult.data?.length ?? 0,
-    filter: "RLS by role",
-    error: appointmentsResult.error?.message ?? null,
-    data: appointmentsResult.data,
-  });
-  console.log("PERFORMANCE RAW", {
-    query: "commission_entries",
-    count: 0,
-    filter: "NOT QUERIED by getPerformanceDashboardData",
-    data: [],
-  });
 
   if (profilesResult.error) throw new Error(profilesResult.error.message);
   if (leadsResult.error) throw new Error(leadsResult.error.message);
@@ -482,13 +365,19 @@ export async function getPerformanceDashboardData(
   }
 
   const profiles = (profilesResult.data ?? []) as ProfileRow[];
-  const freelancerIds = new Set(
-    profiles.filter((entry) => isFreelancerRole(entry.role)).map((entry) => entry.id),
-  );
+  const profileById = new Map(profiles.map((entry) => [entry.id, entry]));
   const allLeads = leadsResult.data ?? [];
   const allAppointments = appointmentsResult.data ?? [];
   const { rows: clientRows } = clientsResult;
   const retainerInvoicesByClient = groupRetainerInvoicesByClient(retainerInvoices);
+  const salesClients = clientRows.map((row) =>
+    mapClientToSalesRow(row as Record<string, unknown>),
+  );
+  const entriesByClient = groupLatestCommissionEntryByClient(commissionEntries);
+  const paidProfilesByClient = groupPaidProfilesByClient(
+    entriesByClient,
+    commissionPayoutProfiles,
+  );
 
   const filteredLeads = allLeads.filter((lead) =>
     isTimestampInRange(lead.created_at, range),
@@ -496,34 +385,46 @@ export async function getPerformanceDashboardData(
   const filteredAppointments = allAppointments.filter((appointment) =>
     isTimestampInRange(appointment.start_time, range),
   );
+  const attributedLeads = filteredLeads.filter(
+    (lead) => !shouldSkipNonSalesOwner(lead.owner_id, profileById),
+  );
+  const attributedAppointments = filteredAppointments.filter(
+    (appointment) =>
+      !shouldSkipNonSalesOwner(appointment.assigned_user_id, profileById),
+  );
 
-  console.log("PERFORMANCE RAW", {
-    step: "post-query filters",
-    period,
-    range,
-    freelancerIds: [...freelancerIds],
-    leadsAfterPeriodFilter: filteredLeads.length,
-    appointmentsAfterPeriodFilter: filteredAppointments.length,
-    attributionRules: {
-      leads: "skip if !owner_id OR owner_id in freelancerIds",
-      clients: "skip if !responsible_member_id OR responsible_member_id in freelancerIds",
-      freelancerProjects: "only assigned_freelancer_id in freelancerIds",
+  const salesAggregation = aggregateSalesMetrics(
+    {
+      clients: salesClients,
+      entriesByClient,
+      paidProfilesByClient,
+      retainerInvoicesByClient,
     },
-  });
+    range,
+  );
 
   const statsByUser = new Map<string, MemberAccumulator>();
 
-  for (const lead of filteredLeads) {
-    if (!lead.owner_id || freelancerIds.has(lead.owner_id)) continue;
+  for (const [userId, salesStats] of salesAggregation.statsByUser.entries()) {
+    const current = getOrCreateAccumulator(statsByUser, userId);
+    current.clientsCount = salesStats.clientsCount;
+    current.setupRevenueCents = salesStats.setupRevenueCents;
+    current.retainerRevenueCents = salesStats.retainerRevenueCents;
+    current.revenueCents = salesStats.revenueCents;
+    current.commissionTotalCents = salesStats.commissionTotalCents;
+    current.commissionPaidCents = salesStats.commissionPaidCents;
+    current.commissionOutstandingCents = salesStats.commissionOutstandingCents;
+  }
+
+  for (const lead of attributedLeads) {
+    if (!lead.owner_id) continue;
     const current = getOrCreateAccumulator(statsByUser, lead.owner_id);
     current.leadsCount += 1;
     if (lead.status === "won") current.leadsWon += 1;
   }
 
-  for (const appointment of filteredAppointments) {
-    if (!appointment.assigned_user_id || freelancerIds.has(appointment.assigned_user_id)) {
-      continue;
-    }
+  for (const appointment of attributedAppointments) {
+    if (!appointment.assigned_user_id) continue;
     const current = getOrCreateAccumulator(
       statsByUser,
       appointment.assigned_user_id,
@@ -533,57 +434,14 @@ export async function getPerformanceDashboardData(
 
   for (const clientRow of clientRows) {
     const client = clientRow as Record<string, unknown>;
-    const responsibleMemberId = client.responsible_member_id as string | null;
-    if (!responsibleMemberId || freelancerIds.has(responsibleMemberId)) continue;
-
-    const createdAt = client.created_at as string | null;
-    const includeClientCount = clientIncludedInPeriod(createdAt, range);
-    if (!includeClientCount && range.start !== null) {
-      const clientId = client.id as string;
-      const hasRetainerInRange = listPaidRetainerPeriods(
-        retainerInvoicesByClient.get(clientId) ?? [],
-      ).some((period) =>
-        isPeriodMonthInRange(
-          period.period_year,
-          period.period_month,
-          range,
-        ),
-      );
-      if (!hasRetainerInRange && !isTimestampInRange(createdAt, range)) {
-        continue;
-      }
-    }
-
-    const member = Array.isArray(client.responsible_member)
-      ? client.responsible_member[0]
-      : client.responsible_member;
-    const rate =
-      (member as { commission_rate: number } | null)?.commission_rate ?? 0;
-    const revenue = computeClientRevenueInRange(
-      client,
-      retainerInvoicesByClient,
-      range,
-    );
-    const commission = resolveCommissionFields(client, rate);
-
-    const current = getOrCreateAccumulator(statsByUser, responsibleMemberId);
-    if (includeClientCount) current.clientsCount += 1;
-    current.setupRevenueCents += revenue.setupRevenueCents;
-    current.retainerRevenueCents += revenue.retainerRevenueCents;
-    current.revenueCents += revenue.revenueCents;
-
-    if (includeClientCount || range.start === null) {
-      current.commissionTotalCents += commission.commissionTotalCents;
-      current.commissionPaidCents += commission.commissionPaidCents;
-      current.commissionOutstandingCents +=
-        commission.commissionOutstandingCents;
-    }
-  }
-
-  for (const clientRow of clientRows) {
-    const client = clientRow as Record<string, unknown>;
     const assignedFreelancerId = client.assigned_freelancer_id as string | null;
-    if (!assignedFreelancerId || !freelancerIds.has(assignedFreelancerId)) {
+    if (!assignedFreelancerId) continue;
+
+    const freelancerProfile = profileById.get(assignedFreelancerId);
+    if (
+      !freelancerProfile ||
+      !isProjectFreelancerProfile(freelancerProfile)
+    ) {
       continue;
     }
 
@@ -610,59 +468,34 @@ export async function getPerformanceDashboardData(
   }
 
   const members = mapMemberRows(profiles, statsByUser);
-  const viewerIsFreelancer = isFreelancerRole(profile.role);
+  const viewerIsProjectFreelancer = isProjectFreelancerProfile(profile);
   const viewerMember = members.find((member) => member.userId === profile.id);
-
-  console.log("PERFORMANCE RAW", {
-    step: "aggregation result",
-    statsByUser: Object.fromEntries(statsByUser),
-    members,
-    kpisPreview: buildKpis(
-      filteredLeads.filter(
-        (lead) => !lead.owner_id || !freelancerIds.has(lead.owner_id),
-      ),
-      members,
-      filteredAppointments.filter(
-        (appointment) =>
-          !appointment.assigned_user_id ||
-          !freelancerIds.has(appointment.assigned_user_id),
-      ).length,
-    ),
-  });
-
   const revenueTrend = buildRevenueTrend(
-    clientRows as Record<string, unknown>[],
+    salesClients,
+    entriesByClient,
     retainerInvoicesByClient,
     range,
   );
+  const kpis = buildKpis(
+    attributedLeads,
+    salesAggregation.teamKpis,
+    attributedAppointments.length,
+  );
+  const freelancerKpis =
+    viewerIsProjectFreelancer && viewerMember
+      ? buildFreelancerKpis(viewerMember)
+      : null;
 
   return {
     period,
     isTeamView: teamView,
-    viewerIsFreelancer,
-    kpis: buildKpis(
-      filteredLeads.filter(
-        (lead) => !lead.owner_id || !freelancerIds.has(lead.owner_id),
-      ),
-      members,
-      filteredAppointments.filter(
-        (appointment) =>
-          !appointment.assigned_user_id ||
-          !freelancerIds.has(appointment.assigned_user_id),
-      ).length,
-    ),
-    freelancerKpis:
-      viewerIsFreelancer && viewerMember
-        ? buildFreelancerKpis(viewerMember)
-        : null,
+    viewerIsFreelancer: viewerIsProjectFreelancer,
+    kpis,
+    freelancerKpis,
     members,
     revenueTrend,
-    leadsByStatus: buildLeadStatusSlices(
-      filteredLeads.filter(
-        (lead) => !lead.owner_id || !freelancerIds.has(lead.owner_id),
-      ),
-    ),
-    commissions: buildCommissionBars(members),
+    leadsByStatus: buildLeadStatusSlices(attributedLeads),
+    commissions: buildCommissionBars(salesAggregation.teamKpis),
   };
 }
 
@@ -675,21 +508,26 @@ export async function getTeamPerformanceStats(): Promise<TeamPerformanceStats[] 
   if (!data) return null;
 
   return data.members
-    .filter((member) => !isFreelancerRole(member.role))
+    .filter(
+      (member) =>
+        isSalesAgencyRole(member.agencyRole) ||
+        member.revenueCents > 0 ||
+        member.commissionTotalCents > 0,
+    )
     .map((member) => ({
-    userId: member.userId,
-    fullName: member.fullName,
-    email: member.email,
-    role: member.role,
-    commissionRate: member.commissionRate,
-    leadsCreated: member.leadsCount,
-    leadsWon: member.leadsWon,
-    clientsOwned: member.clientsCount,
-    setupRevenueCents: 0,
-    retainerRevenueCents: 0,
-    revenueGeneratedCents: member.revenueCents,
-    commissionsTotalCents: member.commissionTotalCents,
-    commissionsPaidCents: member.commissionPaidCents,
-    commissionsOutstandingCents: member.commissionOutstandingCents,
-  }));
+      userId: member.userId,
+      fullName: member.fullName,
+      email: member.email,
+      role: member.role,
+      commissionRate: member.commissionRate,
+      leadsCreated: member.leadsCount,
+      leadsWon: member.leadsWon,
+      clientsOwned: member.clientsCount,
+      setupRevenueCents: 0,
+      retainerRevenueCents: 0,
+      revenueGeneratedCents: member.revenueCents,
+      commissionsTotalCents: member.commissionTotalCents,
+      commissionsPaidCents: member.commissionPaidCents,
+      commissionsOutstandingCents: member.commissionOutstandingCents,
+    }));
 }

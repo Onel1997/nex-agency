@@ -376,6 +376,7 @@ export interface PerformanceMemberRow {
   fullName: string;
   email: string;
   role: string;
+  agencyRole?: string | null;
   commissionRate: number;
   leadsCount: number;
   leadsWon: number;

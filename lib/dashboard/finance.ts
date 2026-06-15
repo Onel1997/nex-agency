@@ -4,7 +4,6 @@ import { fetchPaidRetainerInvoiceStatsByClient } from "@/lib/dashboard/client-re
 import { getClientById } from "@/lib/dashboard/clients";
 import type { CommissionStatus } from "@/lib/dashboard/constants";
 import { createClient } from "@/lib/supabase/server";
-import { syncCommissionAmounts } from "./commission";
 import {
   calculateAgencyShareCents,
   calculateFreelancerPayoutCents,
@@ -49,6 +48,7 @@ import {
 } from "./freelancer-invoices";
 import { getAllInvoices, getInvoiceStats } from "./invoices";
 import { computeAllProfitBreakdowns } from "./profit";
+import { computeEntryCommissionTotals } from "./sales-metrics";
 import type {
   ClientRevenueRecord,
   FinanceStats,
@@ -96,39 +96,7 @@ function resolveAttributionProfile(
 
 export { calculateCommissionCents, computeTotalRevenueCents } from "./revenue";
 
-function resolveCommissionFields(
-  row: Record<string, unknown>,
-  commissionRate: number,
-): {
-  commission_total_cents: number;
-  commission_paid_cents: number;
-  commission_outstanding_cents: number;
-} {
-  if (row.commission_total_cents !== undefined) {
-    return {
-      commission_total_cents: (row.commission_total_cents as number) ?? 0,
-      commission_paid_cents: (row.commission_paid_cents as number) ?? 0,
-      commission_outstanding_cents:
-        (row.commission_outstanding_cents as number) ?? 0,
-    };
-  }
-
-  const setupFeeCents = (row.setup_fee_cents as number | null) ?? null;
-  const synced = syncCommissionAmounts({
-    setupFeeCents,
-    commissionRate,
-    currentTotalCents: 0,
-    currentPaidCents: 0,
-  });
-
-  return {
-    commission_total_cents: synced.commission_total_cents,
-    commission_paid_cents: synced.commission_paid_cents,
-    commission_outstanding_cents: synced.commission_outstanding_cents,
-  };
-}
-
-function resolveFreelancerFields(
+function mapClientRevenueRow(
   row: Record<string, unknown>,
   setupFeeCents: number | null,
   isProjectPaid: boolean,
@@ -209,7 +177,10 @@ function mapClientRevenueRow(
   const contractStartDate = (row.contract_start_date as string | null) ?? null;
   const contractStatus = resolveContractStatus(row);
   const autoInvoiceEnabled = Boolean(row.auto_invoice_enabled);
-  const commissionFields = resolveCommissionFields(row, commissionRate);
+  const commissionFields = computeEntryCommissionTotals(
+    commissionEntry,
+    paidCommissionProfileIds,
+  );
   const isProjectPaid = isClientSetupInvoicePaid(retainerInvoices);
   const freelancerFields = resolveFreelancerFields(
     row,
@@ -306,10 +277,10 @@ function mapClientRevenueRow(
     commission_entry_status: commissionEntry?.status ?? null,
     setter_commission_paid: commissionPayoutStatus.setterPaid,
     closer_commission_paid: commissionPayoutStatus.closerPaid,
-    commission_cents: commissionFields.commission_total_cents,
-    commission_total_cents: commissionFields.commission_total_cents,
-    commission_paid_cents: commissionFields.commission_paid_cents,
-    commission_outstanding_cents: commissionFields.commission_outstanding_cents,
+    commission_cents: commissionFields.commissionTotalCents,
+    commission_total_cents: commissionFields.commissionTotalCents,
+    commission_paid_cents: commissionFields.commissionPaidCents,
+    commission_outstanding_cents: commissionFields.commissionOutstandingCents,
     commission_payouts: commissionPayouts,
     assigned_freelancer_id: (row.assigned_freelancer_id as string | null) ?? null,
     assigned_freelancer_name: formatMemberName(freelancerMember),
@@ -401,8 +372,10 @@ export async function getFinanceStats(): Promise<FinanceStats | null> {
   for (const client of clients) {
     totalRevenueCents += client.total_revenue_cents ?? 0;
     outstandingRetainerPaymentsCents += client.outstanding_retainer_cents;
-    outstandingCommissionsCents += client.commission_outstanding_cents;
-    paidCommissionsCents += client.commission_paid_cents;
+    if (client.commission_entry_id) {
+      outstandingCommissionsCents += client.commission_outstanding_cents;
+      paidCommissionsCents += client.commission_paid_cents;
+    }
     outstandingClientFreelancerPayoutsCents += client.freelancer_outstanding_cents;
     paidClientFreelancerPayoutsCents += client.freelancer_paid_cents;
     if (
@@ -417,28 +390,6 @@ export async function getFinanceStats(): Promise<FinanceStats | null> {
       monthlyRecurringRevenueCents += resolveRetainerAmountCents(client);
     }
   }
-
-  const openCommissionRows = clients
-    .filter((client) => client.commission_outstanding_cents > 0)
-    .map((client) => ({
-      source: "clients.commission_outstanding_cents",
-      id: client.id,
-      company_name: client.company_name,
-      setter_id: client.setter_id,
-      closer_id: client.closer_id,
-      amount: client.commission_outstanding_cents,
-      commission_total_cents: client.commission_total_cents,
-      commission_paid_cents: client.commission_paid_cents,
-      status: client.commission_status,
-      commission_entry_id: client.commission_entry_id,
-      commission_entry_status: client.commission_entry_status,
-      setter_commission_paid: client.setter_commission_paid,
-      closer_commission_paid: client.closer_commission_paid,
-      paid_at: null,
-      contract_id: client.id,
-    }));
-
-  console.log("OPEN COMMISSIONS", openCommissionRows);
 
   const retainerInvoiceStats = computeRetainerInvoiceStats(invoices);
   const freelancerInvoiceStats = computeFreelancerInvoiceStats(freelancerInvoices);

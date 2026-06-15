@@ -128,7 +128,8 @@ export const CLIENT_REVENUE_SELECT_WITH_CONTRACT_NO_COMMISSION = `
 export const PERFORMANCE_CLIENT_SELECT_WITH_CONTRACT = `
   id,
   created_at,
-  responsible_member_id,
+  setter_id,
+  closer_id,
   monthly_revenue_cents,
   setup_fee_cents,
   one_time_project_value_cents,
@@ -137,24 +138,24 @@ export const PERFORMANCE_CLIENT_SELECT_WITH_CONTRACT = `
   commission_status,
   ${CLIENT_COMMISSION_COLUMNS}
   ${CLIENT_FREELANCER_COLUMNS}
-  responsible_member:profiles!clients_responsible_member_id_fkey(commission_rate)
 `;
 
 export const PERFORMANCE_CLIENT_SELECT_LEGACY = `
   id,
   created_at,
-  responsible_member_id,
+  setter_id,
+  closer_id,
   monthly_revenue_cents,
   setup_fee_cents,
   total_revenue_cents,
-  commission_status,
-  responsible_member:profiles!clients_responsible_member_id_fkey(commission_rate)
+  commission_status
 `;
 
 export const PERFORMANCE_CLIENT_SELECT_WITH_CONTRACT_NO_COMMISSION = `
   id,
   created_at,
-  responsible_member_id,
+  setter_id,
+  closer_id,
   monthly_revenue_cents,
   setup_fee_cents,
   one_time_project_value_cents,
@@ -162,7 +163,6 @@ export const PERFORMANCE_CLIENT_SELECT_WITH_CONTRACT_NO_COMMISSION = `
   total_revenue_cents,
   commission_status,
   ${CLIENT_FREELANCER_COLUMNS}
-  responsible_member:profiles!clients_responsible_member_id_fkey(commission_rate)
 `;
 
 async function fetchClientRowsWithFallback(

@@ -2,6 +2,7 @@
 
 import { ROLE_LABELS, type UserRole } from "@/lib/auth/types";
 import { formatCents } from "@/lib/dashboard/format";
+import { isSalesAgencyRole } from "@/lib/dashboard/sales-metrics";
 import type { PerformanceMemberRow } from "@/lib/dashboard/types";
 import { EmptyState } from "@/components/dashboard/EmptyState";
 import { TrendingUp } from "lucide-react";
@@ -11,8 +12,8 @@ interface PerformanceRankingTableProps {
   isTeamView: boolean;
 }
 
-function isFreelancer(role: string) {
-  return role === "freelancer";
+function isProjectFreelancer(member: PerformanceMemberRow) {
+  return member.role === "freelancer" && !isSalesAgencyRole(member.agencyRole);
 }
 
 export function PerformanceRankingTable({
@@ -58,7 +59,7 @@ export function PerformanceRankingTable({
           </thead>
           <tbody>
             {members.map((member) => {
-              const freelancer = isFreelancer(member.role);
+              const projectFreelancer = isProjectFreelancer(member);
 
               return (
                 <tr
@@ -72,32 +73,32 @@ export function PerformanceRankingTable({
                     </div>
                   </td>
                   <td className="px-3 py-3 text-right tabular-nums text-foreground">
-                    {freelancer ? "—" : member.leadsCount}
+                    {projectFreelancer ? "—" : member.leadsCount}
                   </td>
                   <td className="px-3 py-3 text-right tabular-nums text-foreground">
-                    {freelancer ? "—" : member.clientsCount}
+                    {projectFreelancer ? "—" : member.clientsCount}
                   </td>
                   <td className="px-3 py-3 text-right tabular-nums text-foreground">
-                    {freelancer ? "—" : formatCents(member.revenueCents)}
+                    {projectFreelancer ? "—" : formatCents(member.revenueCents)}
                   </td>
                   <td className="px-3 py-3 text-right tabular-nums text-foreground">
-                    {freelancer ? "—" : formatCents(member.commissionTotalCents)}
+                    {projectFreelancer ? "—" : formatCents(member.commissionTotalCents)}
                   </td>
                   <td className="px-3 py-3 text-right tabular-nums text-foreground">
-                    {freelancer
+                    {projectFreelancer
                       ? "—"
                       : `${member.conversionRate.toLocaleString("de-DE")} %`}
                   </td>
                   <td className="px-3 py-3 text-right tabular-nums text-foreground">
-                    {freelancer ? member.projectsCount : "—"}
+                    {projectFreelancer ? member.projectsCount : "—"}
                   </td>
                   <td className="px-3 py-3 text-right tabular-nums text-foreground">
-                    {freelancer
+                    {projectFreelancer
                       ? formatCents(member.freelancerEarnedCents)
                       : "—"}
                   </td>
                   <td className="px-3 py-3 text-right tabular-nums text-foreground">
-                    {freelancer
+                    {projectFreelancer
                       ? formatCents(member.freelancerPaidCents)
                       : "—"}
                   </td>

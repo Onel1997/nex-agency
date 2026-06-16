@@ -1,11 +1,13 @@
 import PDFDocument from "pdfkit";
 import { formatCents, formatDate } from "./format";
 import {
+  CONTRACT_CATEGORY_LABELS,
   CONTRACT_STATUS_LABELS,
   CONTRACT_TYPE_LABELS,
   type ContractStatus,
   type ContractType,
 } from "./contract-constants";
+import { getAgencyRoleLabel } from "@/lib/auth/roles";
 import { INVOICE_COMPANY } from "./invoice-company";
 import { registerInvoicePdfFonts } from "./invoice-pdf-fonts";
 import type { ContractWithDetails } from "./types";
@@ -41,6 +43,24 @@ function pdfToBuffer(doc: InstanceType<typeof PDFDocument>): Promise<Buffer> {
   });
 }
 
+function appendRows(
+  doc: InstanceType<typeof PDFDocument>,
+  fonts: { regular: string; bold: string },
+  rows: [string, string][],
+  startY: number,
+): number {
+  let y = startY;
+  for (const [label, value] of rows) {
+    doc.fontSize(8).font(fonts.regular).fillColor(COLORS.muted).text(`${label}:`, PAGE.margin, y);
+    y += 12;
+    doc.fontSize(10).font(fonts.bold).fillColor(COLORS.body).text(value, PAGE.margin, y, {
+      width: 495,
+    });
+    y += LINE + 6;
+  }
+  return y;
+}
+
 export async function generateContractPdfBuffer(
   contract: ContractWithDetails,
 ): Promise<Buffer> {
@@ -60,10 +80,11 @@ export async function generateContractPdfBuffer(
   doc.text(INVOICE_COMPANY.email, PAGE.margin, y);
   y += 28;
 
-  doc.fontSize(16).font(bold).fillColor(COLORS.title).text("Vertrag", PAGE.margin, y);
+  const categoryLabel = CONTRACT_CATEGORY_LABELS[contract.contract_category];
+  doc.fontSize(16).font(bold).fillColor(COLORS.title).text(categoryLabel, PAGE.margin, y);
   y += 24;
 
-  const rows: [string, string][] = [
+  const commonRows: [string, string][] = [
     ["Vertragsnummer", contract.contract_number],
     ["Titel", contract.title],
     ["Status", CONTRACT_STATUS_LABELS[contract.status as ContractStatus] ?? contract.status],
@@ -71,29 +92,80 @@ export async function generateContractPdfBuffer(
     ["Name", contract.profile_name],
     ["E-Mail", contract.profile_email],
     ["Adresse", formatAddress(contract)],
-    ["Agenturrolle", contract.profile_agency_role_label],
-    ["Beschäftigungsart", contract.profile_employment_type_label],
+    [
+      "Rolle",
+      contract.agency_role
+        ? getAgencyRoleLabel(contract.agency_role)
+        : contract.profile_agency_role_label,
+    ],
     ["Beginn", contract.start_date ? formatDate(contract.start_date) : "—"],
     ["Ende", contract.end_date ? formatDate(contract.end_date) : "—"],
-    [
-      "Monatsgehalt",
-      contract.monthly_salary_cents != null
-        ? formatCents(contract.monthly_salary_cents)
-        : "—",
-    ],
-    [
-      "Provision",
-      contract.commission_rate != null ? `${contract.commission_rate} %` : "—",
-    ],
   ];
 
-  for (const [label, value] of rows) {
-    doc.fontSize(8).font(regular).fillColor(COLORS.muted).text(`${label}:`, PAGE.margin, y);
-    y += 12;
-    doc.fontSize(10).font(bold).fillColor(COLORS.body).text(value, PAGE.margin, y, {
-      width: 495,
-    });
-    y += LINE + 6;
+  y = appendRows(doc, { regular, bold }, commonRows, y);
+
+  if (contract.contract_category === "employee") {
+    y += 8;
+    doc.fontSize(11).font(bold).fillColor(COLORS.title).text("Mitarbeiter-Konditionen", PAGE.margin, y);
+    y += 18;
+    y = appendRows(doc, { regular, bold }, [
+      [
+        "Monatsgehalt",
+        contract.monthly_salary_cents != null
+          ? formatCents(contract.monthly_salary_cents)
+          : "—",
+      ],
+      [
+        "Arbeitszeit",
+        contract.working_hours_per_week != null
+          ? `${contract.working_hours_per_week} Std./Woche`
+          : "—",
+      ],
+      [
+        "Urlaubstage",
+        contract.vacation_days_per_year != null
+          ? `${contract.vacation_days_per_year} Tage/Jahr`
+          : "—",
+      ],
+    ], y);
+  } else {
+    y += 8;
+    doc.fontSize(11).font(bold).fillColor(COLORS.title).text("Freelancer-Konditionen", PAGE.margin, y);
+    y += 18;
+    y = appendRows(doc, { regular, bold }, [
+      [
+        "Setup-Provision",
+        contract.setup_commission_rate != null
+          ? `${contract.setup_commission_rate} %`
+          : contract.commission_rate != null
+            ? `${contract.commission_rate} %`
+            : "—",
+      ],
+      [
+        "Retainer-Provision",
+        contract.retainer_commission_rate != null
+          ? `${contract.retainer_commission_rate} %`
+          : "—",
+      ],
+      [
+        "Retainer-Monate",
+        contract.retainer_commission_months != null
+          ? String(contract.retainer_commission_months)
+          : "—",
+      ],
+    ], y);
+
+    y += 8;
+    doc.fontSize(11).font(bold).fillColor(COLORS.title).text("Zahlungs- & Steuerdaten", PAGE.margin, y);
+    y += 18;
+    y = appendRows(doc, { regular, bold }, [
+      ["Firma", contract.profile_business_name ?? "—"],
+      ["IBAN", contract.profile_iban ?? "—"],
+      ["BIC", contract.profile_bic ?? "—"],
+      ["Bank", contract.profile_bank_name ?? "—"],
+      ["Steuernummer", contract.profile_tax_number ?? "—"],
+      ["USt-ID", contract.profile_vat_id ?? "—"],
+    ], y);
   }
 
   if (contract.notes?.trim()) {

@@ -1,4 +1,5 @@
 import { isManagement } from "@/lib/auth/permissions";
+import type { AgencyRole } from "@/lib/auth/types";
 import {
   agencyRoleFromLegacyRole,
   getAgencyRoleLabel,
@@ -9,9 +10,14 @@ import {
 import { getProfile } from "@/lib/auth/session";
 import {
   CONTRACT_PDFS_BUCKET,
+  type ContractCategory,
+  type ContractOverviewTab,
   type ContractStatus,
   type ContractType,
+  resolveContractCategory,
 } from "./contract-constants";
+import { getContractDocuments } from "./contract-documents";
+import { getCustomerContractOverviews } from "./customer-contracts";
 import { generateContractPdfBuffer } from "./contract-pdf";
 import { computeTeamContractStats, filterTeamContractsByStatus } from "./team-contract-status";
 import { getMemberCommissionSummary } from "./commission-center";
@@ -29,8 +35,10 @@ export type { CreateContractInput } from "./contract-form";
 export {
   defaultContractTitle,
   defaultContractTypeForProfile,
+  defaultContractCategoryForProfile,
   parseContractFormData,
   validateContractInput,
+  contractInputToDbPayload,
 } from "./contract-form";
 
 export function isContractsSchemaMissingError(message: string): boolean {
@@ -72,6 +80,9 @@ function mapContractRow(row: Record<string, unknown>): TeamContractRecord {
     id: row.id as string,
     profile_id: row.profile_id as string,
     contract_type: row.contract_type as ContractType,
+    contract_category:
+      (row.contract_category as ContractCategory | null) ??
+      resolveContractCategory(row.contract_type as ContractType),
     status: row.status as ContractStatus,
     title: row.title as string,
     contract_number: row.contract_number as string,
@@ -83,6 +94,30 @@ function mapContractRow(row: Record<string, unknown>): TeamContractRecord {
         : null,
     commission_rate:
       row.commission_rate != null ? Number(row.commission_rate) : null,
+    agency_role:
+      normalizeAgencyRole(row.agency_role as string | null) ??
+      agencyRole,
+    working_hours_per_week:
+      row.working_hours_per_week != null
+        ? Number(row.working_hours_per_week)
+        : null,
+    vacation_days_per_year:
+      row.vacation_days_per_year != null
+        ? Number(row.vacation_days_per_year)
+        : null,
+    setup_commission_rate:
+      row.setup_commission_rate != null
+        ? Number(row.setup_commission_rate)
+        : null,
+    retainer_commission_rate:
+      row.retainer_commission_rate != null
+        ? Number(row.retainer_commission_rate)
+        : null,
+    retainer_commission_months:
+      row.retainer_commission_months != null
+        ? Number(row.retainer_commission_months)
+        : null,
+    freelancer_profile_id: (row.freelancer_profile_id as string | null) ?? null,
     notes: (row.notes as string | null) ?? null,
     pdf_url: (row.pdf_url as string | null) ?? null,
     signed_at: (row.signed_at as string | null) ?? null,
@@ -103,6 +138,7 @@ const CONTRACT_SELECT = `
   id,
   profile_id,
   contract_type,
+  contract_category,
   status,
   title,
   contract_number,
@@ -110,6 +146,13 @@ const CONTRACT_SELECT = `
   end_date,
   monthly_salary_cents,
   commission_rate,
+  agency_role,
+  working_hours_per_week,
+  vacation_days_per_year,
+  setup_commission_rate,
+  retainer_commission_rate,
+  retainer_commission_months,
+  freelancer_profile_id,
   notes,
   pdf_url,
   signed_at,
@@ -124,19 +167,28 @@ const CONTRACT_SELECT = `
   )
 `;
 
-async function fetchBillingAddress(profileId: string) {
+async function fetchBillingProfile(profileId: string) {
   const supabase = await createClient();
   const { data } = await supabase
     .from("freelancer_profiles")
-    .select("street, postal_code, city, country")
+    .select(
+      "id, street, postal_code, city, country, iban, bic, bank_name, tax_number, vat_id, business_name",
+    )
     .eq("profile_id", profileId)
     .maybeSingle();
 
   return {
+    freelancer_profile_id: (data?.id as string | null) ?? null,
     profile_street: (data?.street as string | null) ?? null,
     profile_postal_code: (data?.postal_code as string | null) ?? null,
     profile_city: (data?.city as string | null) ?? null,
     profile_country: (data?.country as string | null) ?? "Deutschland",
+    profile_iban: (data?.iban as string | null) ?? null,
+    profile_bic: (data?.bic as string | null) ?? null,
+    profile_bank_name: (data?.bank_name as string | null) ?? null,
+    profile_tax_number: (data?.tax_number as string | null) ?? null,
+    profile_vat_id: (data?.vat_id as string | null) ?? null,
+    profile_business_name: (data?.business_name as string | null) ?? null,
   };
 }
 
@@ -204,27 +256,43 @@ export async function getContractWithDetails(
   if (!data) return null;
 
   const base = mapContractRow(data as Record<string, unknown>);
-  const address = await fetchBillingAddress(base.profile_id);
+  const [billing, documents] = await Promise.all([
+    fetchBillingProfile(base.profile_id),
+    getContractDocuments(contractId),
+  ]);
 
-  return { ...base, ...address };
+  return { ...base, ...billing, documents };
 }
 
 export async function getContractsDashboardData(
   filters?: {
+    tab?: ContractOverviewTab | null;
     status?: string | null;
     agencyRole?: string | null;
     employmentType?: string | null;
     search?: string | null;
   },
 ): Promise<ContractsDashboardData> {
-  const [contracts, members] = await Promise.all([
+  const tab = filters?.tab ?? "freelancer";
+  const [allContracts, members, customerContracts] = await Promise.all([
     getContracts(),
     getTeamMembers(),
+    tab === "kunden" ? getCustomerContractOverviews() : Promise.resolve([]),
   ]);
 
   const referenceDate = new Date();
-  let filtered = filterTeamContractsByStatus(
-    contracts,
+  let filtered = allContracts;
+
+  if (tab === "freelancer") {
+    filtered = filtered.filter((contract) => contract.contract_category === "freelancer");
+  } else if (tab === "mitarbeiter") {
+    filtered = filtered.filter((contract) => contract.contract_category === "employee");
+  } else {
+    filtered = [];
+  }
+
+  filtered = filterTeamContractsByStatus(
+    filtered,
     filters?.status ?? null,
     referenceDate,
   );
@@ -254,7 +322,9 @@ export async function getContractsDashboardData(
 
   return {
     contracts: filtered,
-    stats: computeTeamContractStats(contracts, referenceDate),
+    customerContracts,
+    activeTab: tab,
+    stats: computeTeamContractStats(allContracts, referenceDate),
     members,
   };
 }

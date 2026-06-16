@@ -11,9 +11,9 @@ import { parseEuroToCents } from "@/lib/dashboard/format";
 import { isFreelancerSchemaMissingError } from "@/lib/dashboard/freelancers";
 import { createClient } from "@/lib/supabase/server";
 
-function revalidatePayoutPaths(freelancerId?: string) {
+function revalidateVendorPayoutPaths(freelancerId?: string) {
   revalidatePath("/dashboard/finance");
-  revalidatePath("/dashboard/finance/payouts");
+  revalidatePath("/dashboard/finance/vendor-payouts");
   revalidatePath("/dashboard/finance/freelancers");
   if (freelancerId) {
     revalidatePath(`/dashboard/finance/freelancers/${freelancerId}`);
@@ -113,7 +113,7 @@ export async function createFreelancerPayout(formData: FormData) {
     if (linkError) throw new Error(linkError.message);
   }
 
-  revalidatePayoutPaths(freelancerId);
+  revalidateVendorPayoutPaths(freelancerId);
 }
 
 export async function updateFreelancerPayoutStatus(
@@ -156,7 +156,7 @@ export async function updateFreelancerPayoutStatus(
     .eq("id", payoutId);
 
   if (error) throw new Error(error.message);
-  revalidatePayoutPaths(payout.freelancer_id as string);
+  revalidateVendorPayoutPaths(payout.freelancer_id as string);
 }
 
 export async function deleteFreelancerPayout(payoutId: string) {
@@ -180,5 +180,5 @@ export async function deleteFreelancerPayout(payoutId: string) {
     .eq("id", payoutId);
 
   if (error) throw new Error(error.message);
-  revalidatePayoutPaths(payout.freelancer_id as string);
+  revalidateVendorPayoutPaths(payout.freelancer_id as string);
 }

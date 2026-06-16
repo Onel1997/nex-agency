@@ -11,12 +11,14 @@ import {
   areAllCommissionRolesPaid,
   resolveClientCommissionPayoutStatus,
 } from "@/lib/dashboard/client-commission-status";
+import { createCommissionFreelancerInvoicesForPayouts } from "@/lib/dashboard/commission-freelancer-invoices";
 import { createClient } from "@/lib/supabase/server";
 
 export type CommissionPayoutRole = "setter" | "closer";
 
 function revalidateCommissions() {
   revalidatePath("/dashboard/finance/commissions");
+  revalidatePath("/dashboard/finance/payouts");
   revalidatePath("/dashboard/finance");
   revalidatePath("/dashboard/performance");
   revalidatePath("/dashboard");
@@ -144,11 +146,24 @@ export async function payCommissionEntry(
   }
 
   const supabase = await createClient();
-  const { error: payoutError } = await supabase
+  const { data: insertedPayouts, error: payoutError } = await supabase
     .from("commission_payouts")
-    .insert(payouts);
+    .insert(payouts)
+    .select("id, profile_id, amount_cents, paid_at");
 
   if (payoutError) throw new Error(payoutError.message);
+
+  if (insertedPayouts && insertedPayouts.length > 0) {
+    await createCommissionFreelancerInvoicesForPayouts({
+      commissionEntryId: entryId,
+      payouts: insertedPayouts.map((row) => ({
+        id: row.id as string,
+        profile_id: row.profile_id as string,
+        amount_cents: Number(row.amount_cents),
+        paid_at: row.paid_at as string,
+      })),
+    });
+  }
 
   const paidProfileIds = new Set(alreadyPaidProfileIds);
   for (const payout of payouts) {
@@ -173,6 +188,11 @@ export async function payCommissionEntry(
       entry_type: "setup",
       deal_type: null,
       triggered_by_invoice_id: null,
+      billing_period_year: null,
+      billing_period_month: null,
+      allowed_retainer_months: null,
+      contract_start_date: null,
+      monthly_retainer_cents: null,
       created_at: "",
       updated_at: "",
       paid_at: null,
@@ -228,4 +248,14 @@ export async function cancelCommissionEntry(entryId: string) {
 
   if (error) throw new Error(error.message);
   revalidateCommissions();
+}
+
+export async function backfillCommissionFreelancerInvoices(profileId?: string) {
+  await requireFinanceAccess();
+  const { backfillCommissionFreelancerInvoicesFromPayouts } = await import(
+    "@/lib/dashboard/commission-freelancer-invoices"
+  );
+  const result = await backfillCommissionFreelancerInvoicesFromPayouts(profileId);
+  revalidateCommissions();
+  return result;
 }

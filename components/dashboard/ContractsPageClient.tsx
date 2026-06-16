@@ -1,27 +1,40 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useState, useTransition } from "react";
 import {
   AlertTriangle,
+  Building2,
   CheckCircle2,
   FileText,
   FileX2,
   Plus,
   Search,
+  UserRound,
+  Users,
 } from "lucide-react";
-import { createContract } from "@/app/dashboard/contracts/actions";
+import { createContract, fetchContractDetails } from "@/app/dashboard/contracts/actions";
+import { ContractDetailPanel } from "@/components/dashboard/ContractDetailPanel";
 import { CreateContractModal } from "@/components/dashboard/CreateContractModal";
 import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
 import { DataTable } from "@/components/dashboard/DataTable";
 import { EmptyState } from "@/components/dashboard/EmptyState";
 import { KpiCard } from "@/components/dashboard/KpiCard";
 import {
+  CONTRACT_OVERVIEW_TABS,
+  CONTRACT_OVERVIEW_TAB_LABELS,
   CONTRACT_STATUS_LABELS,
   CONTRACT_TYPE_LABELS,
+  type ContractOverviewTab,
 } from "@/lib/dashboard/contract-constants";
-import { formatDate } from "@/lib/dashboard/format";
-import type { ContractsDashboardData, TeamContractRecord } from "@/lib/dashboard/types";
+import { formatCents, formatDate } from "@/lib/dashboard/format";
+import type {
+  ContractWithDetails,
+  ContractsDashboardData,
+  CustomerContractOverviewRecord,
+  TeamContractRecord,
+} from "@/lib/dashboard/types";
 import { AGENCY_ROLES, EMPLOYMENT_TYPES } from "@/lib/auth/permissions";
 import { getAgencyRoleLabel, getEmploymentTypeLabel } from "@/lib/auth/roles";
 
@@ -36,6 +49,12 @@ interface ContractsPageClientProps {
   preselectedProfileId: string | null;
 }
 
+const TAB_ICONS: Record<ContractOverviewTab, typeof Users> = {
+  kunden: Building2,
+  freelancer: UserRound,
+  mitarbeiter: Users,
+};
+
 export function ContractsPageClient({
   data,
   filters,
@@ -45,8 +64,22 @@ export function ContractsPageClient({
   const searchParams = useSearchParams();
   const [search, setSearch] = useState(filters.search);
   const [createOpen, setCreateOpen] = useState(Boolean(preselectedProfileId));
+  const [selectedContract, setSelectedContract] = useState<ContractWithDetails | null>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+
+  const activeTab = data.activeTab;
+  const isTeamTab = activeTab !== "kunden";
+
+  const setTab = useCallback(
+    (tab: ContractOverviewTab) => {
+      const params = new URLSearchParams(searchParams.toString());
+      params.set("tab", tab);
+      router.push(`/dashboard/contracts?${params.toString()}`);
+    },
+    [router, searchParams],
+  );
 
   const updateFilters = useCallback(
     (next: Partial<typeof filters>) => {
@@ -92,20 +125,51 @@ export function ContractsPageClient({
     });
   };
 
+  const openContractDetail = (contractId: string) => {
+    setError(null);
+    startTransition(async () => {
+      try {
+        const contract = await fetchContractDetails(contractId);
+        setSelectedContract(contract);
+        setDetailOpen(true);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Vertrag konnte nicht geladen werden");
+      }
+    });
+  };
+
+  const refreshDetail = () => {
+    if (!selectedContract) {
+      router.refresh();
+      return;
+    }
+    startTransition(async () => {
+      try {
+        const contract = await fetchContractDetails(selectedContract.id);
+        setSelectedContract(contract);
+        router.refresh();
+      } catch {
+        router.refresh();
+      }
+    });
+  };
+
   return (
     <div className="space-y-6">
       <DashboardHeader
         title="Verträge"
-        description="Vertragsverwaltung für Mitarbeiter, Freelancer und externe Partner."
+        description="Kunden-, Freelancer- und Mitarbeiter-Verträge zentral verwalten."
         actions={
-          <button
-            type="button"
-            onClick={() => setCreateOpen(true)}
-            className="dashboard-btn-primary inline-flex items-center gap-2 px-4 py-2 text-sm"
-          >
-            <Plus className="h-4 w-4" />
-            Vertrag erstellen
-          </button>
+          isTeamTab ? (
+            <button
+              type="button"
+              onClick={() => setCreateOpen(true)}
+              className="dashboard-btn-primary inline-flex items-center gap-2 px-4 py-2 text-sm"
+            >
+              <Plus className="h-4 w-4" />
+              Vertrag erstellen
+            </button>
+          ) : undefined
         }
       />
 
@@ -116,58 +180,82 @@ export function ContractsPageClient({
         <KpiCard label="Auslaufend" value={data.stats.expiring} icon={AlertTriangle} />
       </div>
 
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-        <form onSubmit={handleSearchSubmit} className="relative max-w-xl flex-1">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-soft" />
-          <input
-            type="search"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Name, E-Mail oder Vertragsnummer…"
-            className="dashboard-input w-full rounded-xl py-2.5 pl-10 pr-4 text-sm"
-          />
-        </form>
-
-        <div className="flex flex-wrap gap-2">
-          <FilterSelect
-            label="Status"
-            value={filters.status}
-            onChange={(value) => updateFilters({ status: value })}
-            options={[
-              { value: "all", label: "Alle Status" },
-              { value: "active", label: "Aktiv" },
-              { value: "draft", label: "Entwurf" },
-              { value: "terminated", label: "Gekündigt" },
-              { value: "expired", label: "Ausgelaufen" },
-              { value: "expiring", label: "Auslaufend" },
-            ]}
-          />
-          <FilterSelect
-            label="Rolle"
-            value={filters.role}
-            onChange={(value) => updateFilters({ role: value })}
-            options={[
-              { value: "all", label: "Alle Rollen" },
-              ...AGENCY_ROLES.map((role) => ({
-                value: role,
-                label: getAgencyRoleLabel(role),
-              })),
-            ]}
-          />
-          <FilterSelect
-            label="Beschäftigung"
-            value={filters.employment}
-            onChange={(value) => updateFilters({ employment: value })}
-            options={[
-              { value: "all", label: "Alle Arten" },
-              ...EMPLOYMENT_TYPES.map((type) => ({
-                value: type,
-                label: getEmploymentTypeLabel(type),
-              })),
-            ]}
-          />
-        </div>
+      <div className="flex flex-wrap gap-2">
+        {CONTRACT_OVERVIEW_TABS.map((tab) => {
+          const Icon = TAB_ICONS[tab];
+          const isActive = activeTab === tab;
+          return (
+            <button
+              key={tab}
+              type="button"
+              onClick={() => setTab(tab)}
+              className={`inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium transition-colors ${
+                isActive
+                  ? "bg-violet-500/15 text-violet-200 ring-1 ring-violet-500/25"
+                  : "text-muted hover:bg-white/5 hover:text-foreground"
+              }`}
+            >
+              <Icon className="h-4 w-4" />
+              {CONTRACT_OVERVIEW_TAB_LABELS[tab]}
+            </button>
+          );
+        })}
       </div>
+
+      {isTeamTab && (
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <form onSubmit={handleSearchSubmit} className="relative max-w-xl flex-1">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-soft" />
+            <input
+              type="search"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Name, E-Mail oder Vertragsnummer…"
+              className="dashboard-input w-full rounded-xl py-2.5 pl-10 pr-4 text-sm"
+            />
+          </form>
+
+          <div className="flex flex-wrap gap-2">
+            <FilterSelect
+              label="Status"
+              value={filters.status}
+              onChange={(value) => updateFilters({ status: value })}
+              options={[
+                { value: "all", label: "Alle Status" },
+                { value: "active", label: "Aktiv" },
+                { value: "draft", label: "Entwurf" },
+                { value: "terminated", label: "Gekündigt" },
+                { value: "expired", label: "Ausgelaufen" },
+                { value: "expiring", label: "Auslaufend" },
+              ]}
+            />
+            <FilterSelect
+              label="Rolle"
+              value={filters.role}
+              onChange={(value) => updateFilters({ role: value })}
+              options={[
+                { value: "all", label: "Alle Rollen" },
+                ...AGENCY_ROLES.map((role) => ({
+                  value: role,
+                  label: getAgencyRoleLabel(role),
+                })),
+              ]}
+            />
+            <FilterSelect
+              label="Beschäftigung"
+              value={filters.employment}
+              onChange={(value) => updateFilters({ employment: value })}
+              options={[
+                { value: "all", label: "Alle Arten" },
+                ...EMPLOYMENT_TYPES.map((type) => ({
+                  value: type,
+                  label: getEmploymentTypeLabel(type),
+                })),
+              ]}
+            />
+          </div>
+        </div>
+      )}
 
       {error && (
         <div className="rounded-xl bg-red-500/10 px-4 py-3 text-sm text-red-300 ring-1 ring-red-500/20">
@@ -175,91 +263,211 @@ export function ContractsPageClient({
         </div>
       )}
 
-      <DataTable
-        data={data.contracts}
-        rowKey={(contract) => contract.id}
-        onRowClick={(contract) =>
-          router.push(`/dashboard/team/${contract.profile_id}?tab=contracts`)
-        }
-        getRowAriaLabel={(contract) =>
-          `Vertrag ${contract.contract_number} für ${contract.profile_name}`
-        }
-        emptyState={
-          <EmptyState
-            icon={FileText}
-            title="Keine Verträge"
-            description="Es wurden keine Verträge für die aktuellen Filter gefunden."
-          />
-        }
-        columns={[
-          {
-            key: "number",
-            header: "Vertragsnummer",
-            render: (contract) => (
-              <span className="font-medium text-foreground">{contract.contract_number}</span>
-            ),
-          },
-          {
-            key: "person",
-            header: "Person",
-            render: (contract) => (
-              <div>
-                <p className="font-medium">{contract.profile_name}</p>
-                <p className="text-xs text-muted-soft">{contract.profile_email}</p>
-              </div>
-            ),
-          },
-          {
-            key: "role",
-            header: "Rolle",
-            hideOnMobile: true,
-            render: (contract) => contract.profile_agency_role_label,
-          },
-          {
-            key: "employment",
-            header: "Beschäftigungsart",
-            hideOnMobile: true,
-            render: (contract) => contract.profile_employment_type_label,
-          },
-          {
-            key: "type",
-            header: "Typ",
-            hideOnMobile: true,
-            render: (contract) => CONTRACT_TYPE_LABELS[contract.contract_type],
-          },
-          {
-            key: "status",
-            header: "Status",
-            render: (contract) => (
-              <ContractStatusBadge status={contract.status} />
-            ),
-          },
-          {
-            key: "start",
-            header: "Beginn",
-            hideOnMobile: true,
-            render: (contract) =>
-              contract.start_date ? formatDate(contract.start_date) : "—",
-          },
-          {
-            key: "end",
-            header: "Ende",
-            hideOnMobile: true,
-            render: (contract) =>
-              contract.end_date ? formatDate(contract.end_date) : "—",
-          },
-        ]}
-      />
+      {activeTab === "kunden" ? (
+        <CustomerContractsTable contracts={data.customerContracts} />
+      ) : (
+        <TeamContractsTable
+          contracts={data.contracts}
+          tab={activeTab}
+          onOpen={openContractDetail}
+        />
+      )}
 
       <CreateContractModal
         open={createOpen}
         members={data.members}
         preselectedProfileId={preselectedProfileId}
+        defaultCategory={activeTab === "mitarbeiter" ? "employee" : "freelancer"}
         onClose={() => setCreateOpen(false)}
         onSubmit={handleCreate}
         pending={pending}
       />
+
+      <ContractDetailPanel
+        contract={selectedContract}
+        open={detailOpen}
+        onClose={() => {
+          setDetailOpen(false);
+          setSelectedContract(null);
+        }}
+        onRefresh={refreshDetail}
+      />
     </div>
+  );
+}
+
+function TeamContractsTable({
+  contracts,
+  tab,
+  onOpen,
+}: {
+  contracts: TeamContractRecord[];
+  tab: ContractOverviewTab;
+  onOpen: (contractId: string) => void;
+}) {
+  return (
+    <DataTable
+      data={contracts}
+      rowKey={(contract) => contract.id}
+      onRowClick={(contract) => onOpen(contract.id)}
+      getRowAriaLabel={(contract) =>
+        `Vertrag ${contract.contract_number} für ${contract.profile_name}`
+      }
+      emptyState={
+        <EmptyState
+          icon={FileText}
+          title={`Keine ${CONTRACT_OVERVIEW_TAB_LABELS[tab]}`}
+          description="Erstellen Sie einen neuen Vertrag für diese Kategorie."
+        />
+      }
+      columns={[
+        {
+          key: "number",
+          header: "Vertragsnummer",
+          render: (contract) => (
+            <span className="font-medium text-foreground">{contract.contract_number}</span>
+          ),
+        },
+        {
+          key: "person",
+          header: "Name",
+          render: (contract) => (
+            <div>
+              <p className="font-medium">{contract.profile_name}</p>
+              <p className="text-xs text-muted-soft">{contract.profile_agency_role_label}</p>
+            </div>
+          ),
+        },
+        {
+          key: "type",
+          header: "Typ",
+          hideOnMobile: true,
+          render: (contract) => CONTRACT_TYPE_LABELS[contract.contract_type],
+        },
+        {
+          key: "terms",
+          header: tab === "mitarbeiter" ? "Gehalt" : "Provision",
+          hideOnMobile: true,
+          render: (contract) =>
+            tab === "mitarbeiter"
+              ? contract.monthly_salary_cents != null
+                ? formatCents(contract.monthly_salary_cents)
+                : "—"
+              : contract.setup_commission_rate != null
+                ? `${contract.setup_commission_rate} % Setup`
+                : contract.commission_rate != null
+                  ? `${contract.commission_rate} %`
+                  : "—",
+        },
+        {
+          key: "status",
+          header: "Status",
+          render: (contract) => (
+            <span className="text-sm">{CONTRACT_STATUS_LABELS[contract.status]}</span>
+          ),
+        },
+        {
+          key: "start",
+          header: "Beginn",
+          hideOnMobile: true,
+          render: (contract) =>
+            contract.start_date ? formatDate(contract.start_date) : "—",
+        },
+        {
+          key: "pdf",
+          header: "PDF",
+          hideOnMobile: true,
+          render: (contract) =>
+            contract.pdf_url ? (
+              <a
+                href={`/api/contracts/${contract.id}/pdf`}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(event) => event.stopPropagation()}
+                className="dashboard-link text-xs"
+              >
+                Download
+              </a>
+            ) : (
+              "—"
+            ),
+        },
+      ]}
+    />
+  );
+}
+
+function CustomerContractsTable({
+  contracts,
+}: {
+  contracts: CustomerContractOverviewRecord[];
+}) {
+  const router = useRouter();
+
+  return (
+    <DataTable
+      data={contracts}
+      rowKey={(contract) => contract.id}
+      onRowClick={(contract) =>
+        router.push(`/dashboard/clients/${contract.id}?tab=contracts`)
+      }
+      getRowAriaLabel={(contract) => `Kundenvertrag ${contract.company_name}`}
+      emptyState={
+        <EmptyState
+          icon={Building2}
+          title="Keine Kundenverträge"
+          description="Kunden mit Vertragsstart-Datum erscheinen hier."
+        />
+      }
+      columns={[
+        {
+          key: "company",
+          header: "Kunde",
+          render: (contract) => (
+            <Link
+              href={`/dashboard/clients/${contract.id}?tab=contracts`}
+              onClick={(event) => event.stopPropagation()}
+              className="font-medium dashboard-link"
+            >
+              {contract.company_name}
+            </Link>
+          ),
+        },
+        {
+          key: "status",
+          header: "Status",
+          render: (contract) => contract.contract_status_label,
+        },
+        {
+          key: "setup",
+          header: "Setup",
+          hideOnMobile: true,
+          render: (contract) => contract.setup_fee_label,
+        },
+        {
+          key: "retainer",
+          header: "Retainer",
+          hideOnMobile: true,
+          render: (contract) => contract.monthly_revenue_label,
+        },
+        {
+          key: "start",
+          header: "Vertragsbeginn",
+          hideOnMobile: true,
+          render: (contract) =>
+            contract.contract_start_date
+              ? formatDate(contract.contract_start_date)
+              : "—",
+        },
+        {
+          key: "billing",
+          header: "Abrechnung",
+          hideOnMobile: true,
+          render: (contract) =>
+            contract.auto_invoice_enabled ? "Automatisch" : "Manuell",
+        },
+      ]}
+    />
   );
 }
 
@@ -289,26 +497,5 @@ function FilterSelect({
         ))}
       </select>
     </label>
-  );
-}
-
-function ContractStatusBadge({
-  status,
-}: {
-  status: TeamContractRecord["status"];
-}) {
-  const colors: Record<TeamContractRecord["status"], string> = {
-    draft: "bg-slate-500/15 text-slate-200 ring-slate-500/20",
-    active: "bg-emerald-500/15 text-emerald-200 ring-emerald-500/20",
-    terminated: "bg-amber-500/15 text-amber-200 ring-amber-500/20",
-    expired: "bg-red-500/15 text-red-200 ring-red-500/20",
-  };
-
-  return (
-    <span
-      className={`inline-flex rounded-md px-2 py-0.5 text-xs font-medium ring-1 ${colors[status]}`}
-    >
-      {CONTRACT_STATUS_LABELS[status]}
-    </span>
   );
 }

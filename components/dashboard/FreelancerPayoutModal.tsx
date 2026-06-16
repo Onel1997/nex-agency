@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { createFreelancerPayout } from "@/app/dashboard/finance/payouts/actions";
+import { createFreelancerPayout } from "@/app/dashboard/finance/vendor-payouts/actions";
 import { Modal } from "@/components/dashboard/Modal";
 import type { ClientRecord, FreelancerRecord } from "@/lib/dashboard/types";
 

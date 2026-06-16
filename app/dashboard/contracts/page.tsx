@@ -1,15 +1,27 @@
 import { requireContractsAccess } from "@/lib/auth/session";
+import {
+  CONTRACT_OVERVIEW_TABS,
+  type ContractOverviewTab,
+} from "@/lib/dashboard/contract-constants";
 import { getContractsDashboardData } from "@/lib/dashboard/contracts";
 import { ContractsPageClient } from "@/components/dashboard/ContractsPageClient";
 
 interface ContractsPageProps {
   searchParams: Promise<{
+    tab?: string;
     status?: string;
     role?: string;
     employment?: string;
     q?: string;
     createFor?: string;
   }>;
+}
+
+function resolveTab(value: string | undefined): ContractOverviewTab {
+  if (value && CONTRACT_OVERVIEW_TABS.includes(value as ContractOverviewTab)) {
+    return value as ContractOverviewTab;
+  }
+  return "freelancer";
 }
 
 export default async function ContractsPage({ searchParams }: ContractsPageProps) {
@@ -21,6 +33,7 @@ export default async function ContractsPage({ searchParams }: ContractsPageProps
 
   try {
     data = await getContractsDashboardData({
+      tab: resolveTab(params.tab),
       status: params.status ?? null,
       agencyRole: params.role ?? null,
       employmentType: params.employment ?? null,

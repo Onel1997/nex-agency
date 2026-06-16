@@ -11,6 +11,10 @@ import type {
 import type { CommissionEntryStatus } from "./commission-constants";
 import type { CommissionEntryType } from "./commission-constants";
 import type {
+  CommissionFreelancerInvoiceStatus,
+  CommissionPayoutRole,
+} from "./commission-freelancer-invoice-constants";
+import type {
   AppointmentStatus,
   BillingCycle,
   ClientActivityType,
@@ -184,6 +188,35 @@ export interface FreelancerProfileInvoiceRecord {
 }
 
 export interface FreelancerProfileInvoiceWithDetails extends FreelancerProfileInvoiceRecord {
+  profile: FreelancerProfileRecord;
+  freelancer_name: string;
+  freelancer_email: string | null;
+  client_name: string;
+  business_name: string | null;
+}
+
+export interface CommissionFreelancerInvoiceRecord {
+  id: string;
+  commission_payout_id: string;
+  freelancer_profile_id: string | null;
+  profile_id: string;
+  commission_entry_id: string;
+  client_id: string;
+  role: CommissionPayoutRole;
+  invoice_number: string;
+  amount_cents: number;
+  service_description: string;
+  billing_period_year: number | null;
+  billing_period_month: number | null;
+  invoice_date: string;
+  status: CommissionFreelancerInvoiceStatus;
+  pdf_url: string | null;
+  created_at: string;
+  client_name?: string;
+  profile_name?: string;
+}
+
+export interface CommissionFreelancerInvoiceWithDetails extends CommissionFreelancerInvoiceRecord {
   profile: FreelancerProfileRecord;
   freelancer_name: string;
   freelancer_email: string | null;
@@ -604,6 +637,7 @@ export interface TeamContractRecord {
   id: string;
   profile_id: string;
   contract_type: TeamContractType;
+  contract_category: import("./contract-constants").ContractCategory;
   status: TeamContractStatus;
   title: string;
   contract_number: string;
@@ -611,6 +645,13 @@ export interface TeamContractRecord {
   end_date: string | null;
   monthly_salary_cents: number | null;
   commission_rate: number | null;
+  agency_role: AgencyRole | null;
+  working_hours_per_week: number | null;
+  vacation_days_per_year: number | null;
+  setup_commission_rate: number | null;
+  retainer_commission_rate: number | null;
+  retainer_commission_months: number | null;
+  freelancer_profile_id: string | null;
   notes: string | null;
   pdf_url: string | null;
   signed_at: string | null;
@@ -624,11 +665,45 @@ export interface TeamContractRecord {
   profile_employment_type_label: string;
 }
 
+export interface ContractDocumentRecord {
+  id: string;
+  contract_id: string;
+  uploaded_by: string | null;
+  file_name: string;
+  storage_path: string;
+  file_size_bytes: number;
+  mime_type: string;
+  created_at: string;
+  uploader_name: string | null;
+}
+
+export interface CustomerContractOverviewRecord {
+  id: string;
+  company_name: string;
+  contract_status: string;
+  contract_status_label: string;
+  contract_start_date: string | null;
+  setup_fee_cents: number | null;
+  monthly_revenue_cents: number | null;
+  billing_cycle: string | null;
+  auto_invoice_enabled: boolean;
+  setup_fee_label: string;
+  monthly_revenue_label: string;
+  created_at: string;
+}
+
 export interface ContractWithDetails extends TeamContractRecord {
   profile_street: string | null;
   profile_postal_code: string | null;
   profile_city: string | null;
   profile_country: string | null;
+  profile_iban: string | null;
+  profile_bic: string | null;
+  profile_bank_name: string | null;
+  profile_tax_number: string | null;
+  profile_vat_id: string | null;
+  profile_business_name: string | null;
+  documents: ContractDocumentRecord[];
 }
 
 export interface TeamMemberDetailData {
@@ -639,6 +714,8 @@ export interface TeamMemberDetailData {
 
 export interface ContractsDashboardData {
   contracts: TeamContractRecord[];
+  customerContracts: CustomerContractOverviewRecord[];
+  activeTab: import("./contract-constants").ContractOverviewTab;
   stats: {
     active: number;
     draft: number;
@@ -665,9 +742,56 @@ export interface CommissionEntryRecord {
   entry_type: CommissionEntryType;
   deal_type: import("./sales-attribution").SalesDealAttributionType | null;
   triggered_by_invoice_id: string | null;
+  billing_period_year: number | null;
+  billing_period_month: number | null;
+  allowed_retainer_months: number | null;
+  contract_start_date: string | null;
+  monthly_retainer_cents: number | null;
   created_at: string;
   updated_at: string;
   paid_at: string | null;
+}
+
+export interface CommissionGroupDisplayStatus {
+  label: string;
+  detail: string | null;
+  variant: "open" | "partial" | "paid" | "active" | "limit" | "cancelled" | "approved";
+}
+
+export interface CommissionRetainerProgress {
+  primary: string;
+  secondary: string | null;
+}
+
+export interface RetainerMonthPlanRow {
+  id: string;
+  billing_period_year: number;
+  billing_period_month: number;
+  setter_commission_cents: number;
+  closer_commission_cents: number;
+  status: CommissionEntryStatus;
+  entry: CommissionEntryRecord | null;
+  isPlanned: boolean;
+}
+
+export interface CommissionEntryGroup {
+  key: string;
+  client_id: string;
+  client_name: string;
+  entry_type: CommissionEntryType;
+  entries: CommissionEntryRecord[];
+  openCents: number;
+  paidCents: number;
+  totalCents: number;
+  openEntryCount: number;
+  paidEntryCount: number;
+  retainerMonthCount: number;
+  allowedRetainerMonths: number | null;
+  status: CommissionEntryStatus;
+  displayStatus: CommissionGroupDisplayStatus;
+  retainerProgress: CommissionRetainerProgress | null;
+  plannedMonths: RetainerMonthPlanRow[];
+  expandable: boolean;
 }
 
 export interface CommissionCenterStats {
@@ -675,6 +799,49 @@ export interface CommissionCenterStats {
   approvedCents: number;
   paidCents: number;
   totalCostCents: number;
+}
+
+export interface PayoutCenterStats {
+  offenCents: number;
+  freigegebenCents: number;
+  ausgezahltCents: number;
+  abgeschlossenCents: number;
+  freelancerInvoiceCount: number;
+  freelancerCostsCents: number;
+}
+
+export interface PayoutCenterLineItem {
+  lineKey: string;
+  entryId: string;
+  profileId: string;
+  profileName: string;
+  role: import("./commission-freelancer-invoice-constants").CommissionPayoutRole;
+  roleLabel: string;
+  clientId: string;
+  clientName: string;
+  entryType: CommissionEntryType;
+  entryTypeLabel: string;
+  billingPeriodLabel: string;
+  amountCents: number;
+  commissionRate: number;
+  derivedStatus: import("./payout-center-constants").PayoutDerivedStatus;
+  entryStatus: CommissionEntryStatus;
+  payoutId: string | null;
+  payoutPaidAt: string | null;
+  invoiceId: string | null;
+  invoiceNumber: string | null;
+  invoicePdfUrl: string | null;
+  triggeredInvoiceId: string | null;
+  triggeredInvoiceNumber: string | null;
+  approvedAt: string | null;
+  entryCreatedAt: string;
+}
+
+export interface PayoutCenterData {
+  lines: PayoutCenterLineItem[];
+  allLines: PayoutCenterLineItem[];
+  stats: PayoutCenterStats;
+  activeStatus: import("./payout-center-constants").PayoutDerivedStatus;
 }
 
 export interface CommissionDashboardKpis {
@@ -695,4 +862,8 @@ export interface MemberCommissionSummary {
 export interface CommissionCenterData {
   entries: CommissionEntryRecord[];
   stats: CommissionCenterStats;
+  retainerInvoicesByClient: Record<
+    string,
+    import("./retainer").RetainerPeriodInvoiceRef[]
+  >;
 }

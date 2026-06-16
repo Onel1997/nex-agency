@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { Banknote } from "lucide-react";
-import { updateFreelancerPayoutStatus } from "@/app/dashboard/finance/payouts/actions";
+import { updateFreelancerPayoutStatus } from "@/app/dashboard/finance/vendor-payouts/actions";
 import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
 import { DataTable } from "@/components/dashboard/DataTable";
 import { EmptyState } from "@/components/dashboard/EmptyState";
@@ -16,17 +16,17 @@ import type {
   FreelancerRecord,
 } from "@/lib/dashboard/types";
 
-interface PayoutsPageClientProps {
+interface VendorPayoutsPageClientProps {
   payouts: FreelancerPayoutRecord[];
   freelancers: FreelancerRecord[];
   clients: ClientRecord[];
 }
 
-export function PayoutsPageClient({
+export function VendorPayoutsPageClient({
   payouts,
   freelancers,
   clients,
-}: PayoutsPageClientProps) {
+}: VendorPayoutsPageClientProps) {
   const router = useRouter();
   const [modalOpen, setModalOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -50,7 +50,7 @@ export function PayoutsPageClient({
     <div className="space-y-8">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <DashboardHeader
-          title="Auszahlungen"
+          title="Vendor-Auszahlungen"
           description="Freelancer-Auszahlungen erfassen und offene Forderungen reduzieren."
         />
         <button type="button" onClick={() => setModalOpen(true)} className="dashboard-btn-primary">

@@ -21,6 +21,7 @@ function revalidateFreelancerPaths(freelancerId?: string) {
   revalidatePath("/dashboard/finance");
   revalidatePath("/dashboard/finance/freelancers");
   revalidatePath("/dashboard/finance/payouts");
+  revalidatePath("/dashboard/finance/vendor-payouts");
   if (freelancerId) {
     revalidatePath(`/dashboard/finance/freelancers/${freelancerId}`);
   }

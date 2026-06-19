@@ -287,7 +287,7 @@ async function fetchCommissionFreelancerInvoiceRows(): Promise<
 }
 
 interface PayoutCenterSnapshot {
-  allLines: PayoutCenterLineItem[];
+  lines: PayoutCenterLineItem[];
   invoices: CommissionFreelancerInvoiceRow[];
 }
 
@@ -310,14 +310,14 @@ async function loadPayoutCenterSnapshot(): Promise<PayoutCenterSnapshot> {
     triggeredInvoiceIds,
   );
 
-  const allLines = buildPayoutCenterLines({
+  const lines = buildPayoutCenterLines({
     entries,
     payouts,
     invoices,
     triggeredInvoiceNumbers,
   });
 
-  return { allLines, invoices };
+  return { lines, invoices };
 }
 
 export async function getPayoutDashboardKpis(): Promise<PayoutCenterStats | null> {
@@ -373,8 +373,8 @@ export async function getPayoutCenterData(
   const snapshot = await loadPayoutCenterSnapshot();
 
   return {
-    lines: filterPayoutCenterLinesByStatus(snapshot.allLines, status),
-    allLines: snapshot.allLines,
+    lines: filterPayoutCenterLinesByStatus(snapshot.lines, status),
+    allLines: snapshot.lines,
     stats: buildPayoutCenterKpis(snapshot),
     activeStatus: status,
   };

@@ -8,6 +8,7 @@ import {
   FileText,
   LayoutDashboard,
   Menu,
+  Settings,
   Target,
   TrendingUp,
   UserCog,
@@ -22,6 +23,7 @@ import {
   canAccessFinanceRoutes,
   canAccessKnowledgeCenter,
   canAccessPerformanceRoutes,
+  canAccessSystemRoutes,
   canAccessTeamRoutes,
 } from "@/lib/auth/permissions";
 import { UserMenu } from "@/components/dashboard/UserMenu";
@@ -61,6 +63,12 @@ const CONTRACTS_NAV_ITEM = {
   icon: FileText,
 } as const;
 
+const SYSTEM_NAV_ITEM = {
+  href: "/dashboard/system/maintenance",
+  label: "Wartung",
+  icon: Settings,
+} as const;
+
 interface DashboardSidebarProps {
   profile: Profile;
 }
@@ -75,6 +83,7 @@ export function DashboardSidebar({ profile }: DashboardSidebarProps) {
     ...(canAccessPerformanceRoutes(profile) ? [PERFORMANCE_NAV_ITEM] : []),
     ...(canAccessKnowledgeCenter(profile) ? [KNOWLEDGE_NAV_ITEM] : []),
     ...(canAccessContractsRoutes(profile) ? [CONTRACTS_NAV_ITEM] : []),
+    ...(canAccessSystemRoutes(profile) ? [SYSTEM_NAV_ITEM] : []),
   ];
 
   const isActive = (href: string, exact?: boolean) =>

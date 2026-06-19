@@ -324,7 +324,7 @@ export async function fetchRetainerInvoices(
   const { data, error } = await supabase
     .from("invoices")
     .select(
-      "client_id, billing_period_year, billing_period_month, status, invoice_type",
+      "client_id, billing_period_year, billing_period_month, status, invoice_type, invoice_number",
     )
     .neq("status", "cancelled");
 
@@ -344,6 +344,7 @@ export async function fetchRetainerInvoices(
     billing_period_month: (invoice.billing_period_month as number | null) ?? null,
     status: invoice.status as string,
     invoice_type: (invoice.invoice_type as string | null) ?? null,
+    invoice_number: (invoice.invoice_number as string | null) ?? null,
   }));
 }
 
@@ -359,6 +360,7 @@ export function groupRetainerInvoicesByClient(
       billing_period_month: invoice.billing_period_month,
       status: invoice.status,
       invoice_type: invoice.invoice_type,
+      invoice_number: invoice.invoice_number,
     });
     invoicesByClient.set(invoice.client_id, current);
   }

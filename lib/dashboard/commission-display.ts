@@ -1,6 +1,9 @@
+import { formatBillingPeriodLabel } from "./billing-cycle";
 import type { CommissionEntryStatus } from "./commission-constants";
 import { detectSalesDealAttributionType } from "./sales-attribution";
+import { formatDate } from "./format";
 import type { CommissionEntryRecord } from "./types";
+import type { RetainerMonthPlanRow } from "./types";
 
 export type RoleCommissionDisplayStatus = "open" | "ready" | "paid" | null;
 
@@ -71,6 +74,44 @@ export function formatCommissionEntryStatusLabel(
   return `${ROLE_COMMISSION_STATUS_ICONS[displayStatus]} ${ROLE_COMMISSION_STATUS_LABELS[displayStatus]}`;
 }
 
+export function formatCommissionEntryPeriod(
+  entry: Pick<
+    CommissionEntryRecord,
+    | "entry_type"
+    | "billing_period_year"
+    | "billing_period_month"
+    | "created_at"
+  >,
+): string {
+  if (
+    entry.entry_type === "retainer" &&
+    entry.billing_period_year != null &&
+    entry.billing_period_month != null
+  ) {
+    return formatBillingPeriodLabel(
+      {
+        year: entry.billing_period_year,
+        month: entry.billing_period_month,
+      },
+      "monthly",
+    );
+  }
+
+  return formatDate(entry.created_at);
+}
+
+export function formatRetainerPlanPeriod(
+  row: Pick<RetainerMonthPlanRow, "billing_period_year" | "billing_period_month">,
+): string {
+  return formatBillingPeriodLabel(
+    {
+      year: row.billing_period_year,
+      month: row.billing_period_month,
+    },
+    "monthly",
+  );
+}
+
 export function buildCommissionEntryFromClientRevenue(input: {
   commissionEntryId: string | null;
   clientId: string;
@@ -111,6 +152,11 @@ export function buildCommissionEntryFromClientRevenue(input: {
         closerId: input.closerId,
       }),
     triggered_by_invoice_id: null,
+    billing_period_year: null,
+    billing_period_month: null,
+    allowed_retainer_months: null,
+    contract_start_date: null,
+    monthly_retainer_cents: null,
     created_at: "",
     updated_at: "",
     paid_at: null,

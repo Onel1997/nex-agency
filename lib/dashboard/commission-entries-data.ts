@@ -24,6 +24,9 @@ const COMMISSION_ENTRY_SELECT = `
   client:clients!commission_entries_client_id_fkey(
     company_name,
     acquired_by,
+    contract_start_date,
+    monthly_retainer_cents,
+    monthly_revenue_cents,
     lead:leads!clients_lead_id_fkey(
       owner_id,
       created_by,
@@ -31,8 +34,22 @@ const COMMISSION_ENTRY_SELECT = `
       creator:profiles!leads_created_by_fkey(full_name, email, agency_role)
     )
   ),
-  setter:profiles!commission_entries_setter_id_fkey(full_name, email, agency_role),
-  closer:profiles!commission_entries_closer_id_fkey(full_name, email, agency_role)
+  setter:profiles!commission_entries_setter_id_fkey(
+    full_name,
+    email,
+    agency_role,
+    retainer_commission_months
+  ),
+  closer:profiles!commission_entries_closer_id_fkey(
+    full_name,
+    email,
+    agency_role,
+    retainer_commission_months
+  ),
+  invoice:invoices!commission_entries_triggered_by_invoice_id_fkey(
+    billing_period_year,
+    billing_period_month
+  )
 `;
 
 export async function fetchCommissionEntries(

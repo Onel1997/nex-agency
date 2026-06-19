@@ -11,6 +11,8 @@ import {
 } from "./commission-entries";
 import { isCommissionCenterSchemaMissingError } from "./commission-entry-service";
 import { mapResolvedCommissionEntryRow } from "./commission-entry-attribution";
+import { fetchCommissionEntries } from "./commission-entries-data";
+import { fetchRetainerInvoices, groupRetainerInvoicesByClient } from "./retainer-data";
 import type {
   CommissionCenterData,
   CommissionCenterStats,
@@ -19,30 +21,6 @@ import type {
   MemberCommissionSummary,
 } from "./types";
 import { createClient } from "@/lib/supabase/server";
-
-const COMMISSION_ENTRY_SELECT = `
-  id,
-  client_id,
-  setter_id,
-  closer_id,
-  project_value_cents,
-  setter_rate,
-  closer_rate,
-  setter_commission_cents,
-  closer_commission_cents,
-  status,
-  entry_type,
-  triggered_by_invoice_id,
-  created_at,
-  updated_at,
-  paid_at,
-  client:clients!commission_entries_client_id_fkey(
-    company_name,
-    lead:leads!clients_lead_id_fkey(owner_id)
-  ),
-  setter:profiles!commission_entries_setter_id_fkey(full_name, email, agency_role),
-  closer:profiles!commission_entries_closer_id_fkey(full_name, email, agency_role)
-`;
 
 function computeCenterStats(entries: CommissionEntryRecord[]): CommissionCenterStats {
   return entries.reduce(
@@ -66,19 +44,7 @@ export async function getCommissionEntries(): Promise<CommissionEntryRecord[]> {
   if (!profile) throw new Error("Nicht angemeldet");
 
   const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("commission_entries")
-    .select(COMMISSION_ENTRY_SELECT)
-    .order("created_at", { ascending: false });
-
-  if (error) {
-    if (isCommissionCenterSchemaMissingError(error.message)) return [];
-    throw new Error(error.message);
-  }
-
-  return (data ?? []).map((row) =>
-    mapResolvedCommissionEntryRow(row as Record<string, unknown>),
-  );
+  return fetchCommissionEntries(supabase);
 }
 
 export async function getCommissionCenterData(): Promise<CommissionCenterData> {
@@ -87,10 +53,17 @@ export async function getCommissionCenterData(): Promise<CommissionCenterData> {
     throw new Error("Keine Berechtigung");
   }
 
-  const entries = await getCommissionEntries();
+  const supabase = await createClient();
+  const [entries, retainerInvoices] = await Promise.all([
+    fetchCommissionEntries(supabase),
+    fetchRetainerInvoices(supabase),
+  ]);
+  const retainerInvoicesByClient = groupRetainerInvoicesByClient(retainerInvoices);
+
   return {
     entries,
     stats: computeCenterStats(entries),
+    retainerInvoicesByClient: Object.fromEntries(retainerInvoicesByClient),
   };
 }
 
@@ -109,7 +82,31 @@ export async function getMemberCommissionSummary(
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("commission_entries")
-    .select(COMMISSION_ENTRY_SELECT)
+    .select(
+      `id, client_id, setter_id, closer_id, project_value_cents, setter_rate, closer_rate,
+      setter_commission_cents, closer_commission_cents, status, entry_type,
+      triggered_by_invoice_id, created_at, updated_at, paid_at,
+      client:clients!commission_entries_client_id_fkey(
+        company_name,
+        acquired_by,
+        lead:leads!clients_lead_id_fkey(
+          owner_id,
+          created_by,
+          setter_id,
+          creator:profiles!leads_created_by_fkey(full_name, email, agency_role)
+        )
+      ),
+      setter:profiles!commission_entries_setter_id_fkey(
+        full_name, email, agency_role, retainer_commission_months
+      ),
+      closer:profiles!commission_entries_closer_id_fkey(
+        full_name, email, agency_role, retainer_commission_months
+      ),
+      invoice:invoices!commission_entries_triggered_by_invoice_id_fkey(
+        billing_period_year,
+        billing_period_month
+      )`,
+    )
     .or(`setter_id.eq.${profileId},closer_id.eq.${profileId}`)
     .order("created_at", { ascending: false });
 

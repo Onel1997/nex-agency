@@ -7,16 +7,10 @@ import {
   payCommissionEntry,
 } from "@/app/dashboard/finance/commissions/actions";
 import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
-import { DataTable } from "@/components/dashboard/DataTable";
-import { EmptyState } from "@/components/dashboard/EmptyState";
+import { CommissionEntriesTable } from "@/components/dashboard/CommissionEntriesTable";
 import { KpiCard } from "@/components/dashboard/KpiCard";
-import { CommissionEntryStatusBadge } from "@/components/dashboard/CommissionEntryStatusBadge";
-import { SalesDealAttributionBadge } from "@/components/dashboard/SalesDealAttributionBadge";
-import { formatCents, formatDate, formatPercent } from "@/lib/dashboard/format";
-import { COMMISSION_ENTRY_TYPE_LABELS } from "@/lib/dashboard/commission-constants";
-import type {
-  CommissionCenterData,
-} from "@/lib/dashboard/types";
+import { formatCents } from "@/lib/dashboard/format";
+import type { CommissionCenterData } from "@/lib/dashboard/types";
 import { Banknote, CheckCircle2, Clock, Wallet } from "lucide-react";
 
 interface CommissionsPageClientProps {
@@ -33,6 +27,25 @@ export function CommissionsPageClient({ data }: CommissionsPageClientProps) {
     startTransition(async () => {
       try {
         await action();
+        router.refresh();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Aktion fehlgeschlagen");
+      }
+    });
+  };
+
+  const runBulkAction = (
+    entryIds: string[],
+    action: (entryId: string) => Promise<void>,
+  ) => {
+    if (entryIds.length === 0) return;
+
+    setError(null);
+    startTransition(async () => {
+      try {
+        for (const entryId of entryIds) {
+          await action(entryId);
+        }
         router.refresh();
       } catch (err) {
         setError(err instanceof Error ? err.message : "Aktion fehlgeschlagen");
@@ -76,128 +89,18 @@ export function CommissionsPageClient({ data }: CommissionsPageClientProps) {
         </div>
       )}
 
-      <DataTable
-        data={data.entries}
-        rowKey={(entry) => entry.id}
-        emptyState={
-          <EmptyState
-            icon={Banknote}
-            title="Keine Provisionen"
-            description="Provisionen entstehen automatisch, wenn Setup- oder Projektrechnungen als bezahlt markiert werden."
-          />
+      <CommissionEntriesTable
+        entries={data.entries}
+        retainerInvoicesByClient={data.retainerInvoicesByClient}
+        pending={pending}
+        onApprove={(entryId) =>
+          runAction(() => approveCommissionEntry(entryId))
         }
-        columns={[
-          {
-            key: "type",
-            header: "Typ",
-            hideOnMobile: true,
-            render: (entry) => COMMISSION_ENTRY_TYPE_LABELS[entry.entry_type],
-          },
-          {
-            key: "client",
-            header: "Kunde",
-            render: (entry) => (
-              <span className="font-medium">{entry.client_name}</span>
-            ),
-          },
-          {
-            key: "setter",
-            header: "Setter",
-            hideOnMobile: true,
-            render: (entry) => entry.setter_name ?? "—",
-          },
-          {
-            key: "closer",
-            header: "Closer",
-            hideOnMobile: true,
-            render: (entry) => entry.closer_name ?? "—",
-          },
-          {
-            key: "project",
-            header: "Projektwert",
-            hideOnMobile: true,
-            render: (entry) => formatCents(entry.project_value_cents),
-          },
-          {
-            key: "setter_pct",
-            header: "Setter %",
-            className: "text-right",
-            hideOnMobile: true,
-            render: (entry) => formatPercent(entry.setter_rate),
-          },
-          {
-            key: "setter_amount",
-            header: "Setter Betrag",
-            className: "text-right",
-            render: (entry) => formatCents(entry.setter_commission_cents),
-          },
-          {
-            key: "closer_pct",
-            header: "Closer %",
-            className: "text-right",
-            hideOnMobile: true,
-            render: (entry) => formatPercent(entry.closer_rate),
-          },
-          {
-            key: "closer_amount",
-            header: "Closer Betrag",
-            className: "text-right",
-            render: (entry) => formatCents(entry.closer_commission_cents),
-          },
-          {
-            key: "attribution",
-            header: "Attribution",
-            hideOnMobile: true,
-            render: (entry) => (
-              <SalesDealAttributionBadge dealType={entry.deal_type} />
-            ),
-          },
-          {
-            key: "status",
-            header: "Status",
-            render: (entry) => (
-              <CommissionEntryStatusBadge status={entry.status} />
-            ),
-          },
-          {
-            key: "date",
-            header: "Datum",
-            hideOnMobile: true,
-            render: (entry) => formatDate(entry.created_at),
-          },
-          {
-            key: "actions",
-            header: "Aktionen",
-            render: (entry) => (
-              <div className="flex flex-wrap gap-2">
-                {entry.status === "pending" && (
-                  <button
-                    type="button"
-                    disabled={pending}
-                    onClick={() =>
-                      runAction(() => approveCommissionEntry(entry.id))
-                    }
-                    className="dashboard-btn-secondary px-2.5 py-1.5 text-xs"
-                  >
-                    Freigeben
-                  </button>
-                )}
-                {entry.status === "approved" && (
-                  <button
-                    type="button"
-                    disabled={pending}
-                    onClick={() =>
-                      runAction(() => payCommissionEntry(entry.id))
-                    }
-                    className="dashboard-btn-primary px-2.5 py-1.5 text-xs"
-                  >
-                    Auszahlen
-                  </button>
-                )}
-              </div>
-            ),
-          },
-        ]}
+        onPay={(entryId) => runAction(() => payCommissionEntry(entryId))}
+        onApproveMany={(entryIds) =>
+          runBulkAction(entryIds, approveCommissionEntry)
+        }
+        onPayMany={(entryIds) => runBulkAction(entryIds, payCommissionEntry)}
       />
     </div>
   );

@@ -1,4 +1,6 @@
 import type { CommissionEntryStatus } from "./commission-constants";
+import { resolveRetainerCommissionMonthsLimit } from "./commission-entries";
+import { resolveRetainerAmountCents } from "./billing-cycle";
 import {
   detectSalesDealAttributionType,
   formatAttributionMemberName,
@@ -29,8 +31,20 @@ export function mapResolvedCommissionEntryRow(
     lead as Record<string, unknown> | null | undefined,
     "creator",
   );
-  const setterProfile = readProfile(row, "setter");
-  const closerProfile = readProfile(row, "closer");
+  const setterProfile = readProfile(row, "setter") as {
+    full_name: string | null;
+    email: string;
+    agency_role?: string | null;
+    retainer_commission_months?: number | null;
+  } | null;
+  const closerProfile = readProfile(row, "closer") as {
+    full_name: string | null;
+    email: string;
+    agency_role?: string | null;
+    retainer_commission_months?: number | null;
+  } | null;
+
+  const invoice = Array.isArray(row.invoice) ? row.invoice[0] : row.invoice;
 
   const rawSetterId = (row.setter_id as string | null) ?? null;
   const rawCloserId = (row.closer_id as string | null) ?? null;
@@ -77,6 +91,25 @@ export function mapResolvedCommissionEntryRow(
     deal_type: resolved.dealType,
     triggered_by_invoice_id:
       (row.triggered_by_invoice_id as string | null) ?? null,
+    billing_period_year:
+      (invoice as { billing_period_year?: number | null } | null)
+        ?.billing_period_year ?? null,
+    billing_period_month:
+      (invoice as { billing_period_month?: number | null } | null)
+        ?.billing_period_month ?? null,
+    allowed_retainer_months: resolveRetainerCommissionMonthsLimit({
+      setterMonths: setterProfile?.retainer_commission_months,
+      closerMonths: closerProfile?.retainer_commission_months,
+    }),
+    contract_start_date:
+      (client as { contract_start_date?: string | null } | null)
+        ?.contract_start_date ?? null,
+    monthly_retainer_cents: resolveRetainerAmountCents({
+      monthly_retainer_cents: (client as { monthly_retainer_cents?: number | null } | null)
+        ?.monthly_retainer_cents ?? null,
+      monthly_revenue_cents: (client as { monthly_revenue_cents?: number | null } | null)
+        ?.monthly_revenue_cents ?? null,
+    }) || null,
     created_at: row.created_at as string,
     updated_at: row.updated_at as string,
     paid_at: (row.paid_at as string | null) ?? null,

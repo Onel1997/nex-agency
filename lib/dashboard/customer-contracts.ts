@@ -33,7 +33,8 @@ export async function getCustomerContractOverviews(): Promise<
       created_at
     `,
     )
-    .is("archived_at", null)
+    .eq("is_archived", false)
+    .is("deleted_at", null)
     .not("contract_start_date", "is", null)
     .order("contract_start_date", { ascending: false });
 

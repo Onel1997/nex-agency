@@ -23,6 +23,7 @@ export interface RetainerPeriodInvoiceRef {
   billing_period_month: number | null;
   status: string;
   invoice_type?: string | null;
+  invoice_number?: string | null;
 }
 
 export interface RetainerPeriodView {

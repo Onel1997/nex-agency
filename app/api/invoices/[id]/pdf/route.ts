@@ -28,7 +28,13 @@ export async function GET(request: Request, context: RouteContext) {
   }
 
   const client = await getClientById(invoice.client_id);
-  if (!client || !canAccessClient(profile, client.responsible_member_id)) {
+  if (
+    !client ||
+    !canAccessClient(profile, client.responsible_member_id, {
+      setterId: client.setter_id,
+      closerId: client.closer_id,
+    })
+  ) {
     return NextResponse.json({ error: "Keine Berechtigung" }, { status: 403 });
   }
 

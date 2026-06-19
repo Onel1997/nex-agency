@@ -10,6 +10,10 @@ import {
 import { getAgencyRoleLabel } from "@/lib/auth/roles";
 import { INVOICE_COMPANY } from "./invoice-company";
 import { registerInvoicePdfFonts } from "./invoice-pdf-fonts";
+import {
+  formatMasterDataAddress,
+  formatMasterDataValue,
+} from "./team-master-data";
 import type { ContractWithDetails } from "./types";
 
 const PAGE = { margin: 50 } as const;
@@ -21,17 +25,6 @@ const COLORS = {
   muted: "#6b7280",
   accent: "#7c3aed",
 } as const;
-
-function formatAddress(contract: ContractWithDetails): string {
-  const parts: string[] = [];
-  if (contract.profile_street) parts.push(contract.profile_street);
-  const cityLine = [contract.profile_postal_code, contract.profile_city]
-    .filter(Boolean)
-    .join(" ");
-  if (cityLine) parts.push(cityLine);
-  if (contract.profile_country) parts.push(contract.profile_country);
-  return parts.length > 0 ? parts.join("\n") : "—";
-}
 
 function pdfToBuffer(doc: InstanceType<typeof PDFDocument>): Promise<Buffer> {
   return new Promise((resolve, reject) => {
@@ -91,7 +84,14 @@ export async function generateContractPdfBuffer(
     ["Vertragstyp", CONTRACT_TYPE_LABELS[contract.contract_type as ContractType] ?? contract.contract_type],
     ["Name", contract.profile_name],
     ["E-Mail", contract.profile_email],
-    ["Adresse", formatAddress(contract)],
+    ["Telefon", formatMasterDataValue(contract.profile_phone)],
+    ["Adresse", formatMasterDataAddress({
+      street: contract.profile_street,
+      house_number: contract.profile_house_number,
+      postal_code: contract.profile_postal_code,
+      city: contract.profile_city,
+      country: contract.profile_country,
+    })],
     [
       "Rolle",
       contract.agency_role
@@ -128,6 +128,31 @@ export async function generateContractPdfBuffer(
           : "—",
       ],
     ], y);
+
+    y += 8;
+    doc.fontSize(11).font(bold).fillColor(COLORS.title).text("Bankdaten", PAGE.margin, y);
+    y += 18;
+    y = appendRows(doc, { regular, bold }, [
+      ["IBAN", formatMasterDataValue(contract.profile_iban)],
+      ["BIC", formatMasterDataValue(contract.profile_bic)],
+      ["Bank", formatMasterDataValue(contract.profile_bank_name)],
+    ], y);
+
+    y += 8;
+    doc.fontSize(11).font(bold).fillColor(COLORS.title).text("Steuer- & HR-Daten", PAGE.margin, y);
+    y += 18;
+    y = appendRows(doc, { regular, bold }, [
+      ["Steuer-ID", formatMasterDataValue(contract.profile_tax_id)],
+      ["Sozialversicherung", formatMasterDataValue(contract.profile_social_security_number)],
+      ["Krankenkasse", formatMasterDataValue(contract.profile_health_insurance)],
+      ["Personalnummer", formatMasterDataValue(contract.profile_employee_number)],
+      [
+        "Geburtsdatum",
+        contract.profile_birth_date
+          ? formatDate(contract.profile_birth_date)
+          : formatMasterDataValue(null),
+      ],
+    ], y);
   } else {
     y += 8;
     doc.fontSize(11).font(bold).fillColor(COLORS.title).text("Freelancer-Konditionen", PAGE.margin, y);
@@ -159,12 +184,12 @@ export async function generateContractPdfBuffer(
     doc.fontSize(11).font(bold).fillColor(COLORS.title).text("Zahlungs- & Steuerdaten", PAGE.margin, y);
     y += 18;
     y = appendRows(doc, { regular, bold }, [
-      ["Firma", contract.profile_business_name ?? "—"],
-      ["IBAN", contract.profile_iban ?? "—"],
-      ["BIC", contract.profile_bic ?? "—"],
-      ["Bank", contract.profile_bank_name ?? "—"],
-      ["Steuernummer", contract.profile_tax_number ?? "—"],
-      ["USt-ID", contract.profile_vat_id ?? "—"],
+      ["Firma", formatMasterDataValue(contract.profile_business_name)],
+      ["IBAN", formatMasterDataValue(contract.profile_iban)],
+      ["BIC", formatMasterDataValue(contract.profile_bic)],
+      ["Bank", formatMasterDataValue(contract.profile_bank_name)],
+      ["Steuernummer", formatMasterDataValue(contract.profile_tax_number)],
+      ["USt-ID", formatMasterDataValue(contract.profile_vat_id)],
     ], y);
   }
 

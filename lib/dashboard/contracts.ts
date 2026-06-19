@@ -22,6 +22,7 @@ import { generateContractPdfBuffer } from "./contract-pdf";
 import { computeTeamContractStats, filterTeamContractsByStatus } from "./team-contract-status";
 import { getMemberCommissionSummary } from "./commission-center";
 import { getTeamMembers } from "./team";
+import { fetchContractProfileMasterData, getTeamMemberMasterData } from "./team-master-data";
 import type {
   ContractWithDetails,
   ContractsDashboardData,
@@ -167,29 +168,11 @@ const CONTRACT_SELECT = `
   )
 `;
 
-async function fetchBillingProfile(profileId: string) {
-  const supabase = await createClient();
-  const { data } = await supabase
-    .from("freelancer_profiles")
-    .select(
-      "id, street, postal_code, city, country, iban, bic, bank_name, tax_number, vat_id, business_name",
-    )
-    .eq("profile_id", profileId)
-    .maybeSingle();
-
-  return {
-    freelancer_profile_id: (data?.id as string | null) ?? null,
-    profile_street: (data?.street as string | null) ?? null,
-    profile_postal_code: (data?.postal_code as string | null) ?? null,
-    profile_city: (data?.city as string | null) ?? null,
-    profile_country: (data?.country as string | null) ?? "Deutschland",
-    profile_iban: (data?.iban as string | null) ?? null,
-    profile_bic: (data?.bic as string | null) ?? null,
-    profile_bank_name: (data?.bank_name as string | null) ?? null,
-    profile_tax_number: (data?.tax_number as string | null) ?? null,
-    profile_vat_id: (data?.vat_id as string | null) ?? null,
-    profile_business_name: (data?.business_name as string | null) ?? null,
-  };
+async function fetchBillingProfile(
+  profileId: string,
+  contractCategory: ContractCategory,
+) {
+  return fetchContractProfileMasterData(profileId, contractCategory);
 }
 
 export async function getContracts(): Promise<TeamContractRecord[]> {
@@ -257,7 +240,7 @@ export async function getContractWithDetails(
 
   const base = mapContractRow(data as Record<string, unknown>);
   const [billing, documents] = await Promise.all([
-    fetchBillingProfile(base.profile_id),
+    fetchBillingProfile(base.profile_id, base.contract_category),
     getContractDocuments(contractId),
   ]);
 
@@ -341,8 +324,31 @@ export async function getTeamMemberDetailData(
 
   const contracts = await getContractsByProfileId(memberId);
   const commissionSummary = await getMemberCommissionSummary(memberId);
+  const masterData =
+    (await getTeamMemberMasterData(memberId)) ?? {
+      profile_id: memberId,
+      employment_type: member.employment_type,
+      is_freelancer: member.employment_type === "freelancer",
+      phone: null,
+      street: null,
+      house_number: null,
+      postal_code: null,
+      city: null,
+      country: "Deutschland",
+      iban: null,
+      bic: null,
+      bank_name: null,
+      tax_id: null,
+      social_security_number: null,
+      health_insurance: null,
+      employee_number: null,
+      birth_date: null,
+      business_name: null,
+      tax_number: null,
+      vat_id: null,
+    };
 
-  return { member, contracts, commissionSummary };
+  return { member, masterData, contracts, commissionSummary };
 }
 
 async function uploadContractPdf(

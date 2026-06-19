@@ -24,9 +24,11 @@ function mapProfileRow(row: Record<string, unknown>): FreelancerProfileRecord {
     bic: (row.bic as string | null) ?? null,
     bank_name: (row.bank_name as string | null) ?? null,
     street: (row.street as string | null) ?? null,
+    house_number: (row.house_number as string | null) ?? null,
     postal_code: (row.postal_code as string | null) ?? null,
     city: (row.city as string | null) ?? null,
     country: (row.country as string | null) ?? "Deutschland",
+    phone: (row.phone as string | null) ?? null,
     tax_number: (row.tax_number as string | null) ?? null,
     vat_id: (row.vat_id as string | null) ?? null,
     business_name: (row.business_name as string | null) ?? null,
@@ -46,9 +48,11 @@ function emptyBillingProfile(profileId: string): FreelancerProfileRecord {
     bic: null,
     bank_name: null,
     street: null,
+    house_number: null,
     postal_code: null,
     city: null,
     country: "Deutschland",
+    phone: null,
     tax_number: null,
     vat_id: null,
     business_name: null,
@@ -157,9 +161,11 @@ export interface FreelancerProfileInput {
   bic?: string | null;
   bank_name?: string | null;
   street?: string | null;
+  house_number?: string | null;
   postal_code?: string | null;
   city?: string | null;
   country?: string | null;
+  phone?: string | null;
   tax_number?: string | null;
   vat_id?: string | null;
   business_name?: string | null;
@@ -191,9 +197,11 @@ export async function updateFreelancerProfileRecord(
       bic: input.bic?.trim() || null,
       bank_name: input.bank_name?.trim() || null,
       street: input.street?.trim() || null,
+      house_number: input.house_number?.trim() || null,
       postal_code: input.postal_code?.trim() || null,
       city: input.city?.trim() || null,
       country: input.country?.trim() || "Deutschland",
+      phone: input.phone?.trim() || null,
       tax_number: input.tax_number?.trim() || null,
       vat_id: input.vat_id?.trim() || null,
       business_name: input.business_name?.trim() || null,

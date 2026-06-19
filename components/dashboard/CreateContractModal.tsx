@@ -187,10 +187,16 @@ export function CreateContractModal({
         </Field>
 
         {selectedMember && (
-          <p className="text-xs text-muted-soft">
-            Rolle: {getAgencyRoleLabel(selectedMember.agency_role)} · Beschäftigung:{" "}
-            {getEmploymentTypeLabel(selectedMember.employment_type)}
-          </p>
+          <div className="space-y-1 text-xs text-muted-soft">
+            <p>
+              Rolle: {getAgencyRoleLabel(selectedMember.agency_role)} · Beschäftigung:{" "}
+              {getEmploymentTypeLabel(selectedMember.employment_type)}
+            </p>
+            <p>
+              Bank-, Adress- und Steuerdaten werden automatisch aus den Team-Stammdaten
+              geladen und im Vertrags-PDF verwendet.
+            </p>
+          </div>
         )}
 
         <div className="grid gap-4 sm:grid-cols-2">

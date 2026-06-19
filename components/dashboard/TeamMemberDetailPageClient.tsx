@@ -14,6 +14,7 @@ import {
   User,
 } from "lucide-react";
 import { createContract } from "@/app/dashboard/contracts/actions";
+import { updateTeamMemberMasterData } from "@/app/dashboard/team/actions";
 import { CreateContractModal } from "@/components/dashboard/CreateContractModal";
 import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
 import { DataTable } from "@/components/dashboard/DataTable";
@@ -30,10 +31,11 @@ import {
 import { COMMISSION_ENTRY_STATUS_LABELS } from "@/lib/dashboard/commission-constants";
 import { formatCents, formatDate, formatPercent } from "@/lib/dashboard/format";
 import { KpiCard } from "@/components/dashboard/KpiCard";
-import type { TeamMemberDetailData } from "@/lib/dashboard/types";
+import type { TeamMemberDetailData, TeamMemberMasterData } from "@/lib/dashboard/types";
 
 const BASE_TABS = [
   { id: "overview", label: "Übersicht", icon: LayoutDashboard },
+  { id: "masterdata", label: "Stammdaten", icon: User },
   { id: "contracts", label: "Verträge", icon: FileText },
 ] as const;
 
@@ -59,7 +61,7 @@ export function TeamMemberDetailPageClient({
   const [createOpen, setCreateOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
-  const { member, contracts, commissionSummary } = data;
+  const { member, masterData, contracts, commissionSummary } = data;
 
   const showCommissionsTab =
     member.agency_role === "setter" ||
@@ -149,7 +151,11 @@ export function TeamMemberDetailPageClient({
         </div>
       )}
 
-      {activeTab === "overview" && <OverviewTab member={member} />}
+      {activeTab === "overview" && <OverviewTab member={member} masterData={masterData} />}
+
+      {activeTab === "masterdata" && (
+        <MasterDataTab member={member} masterData={masterData} />
+      )}
 
       {activeTab === "contracts" && (
         <ContractsTab contracts={contracts} onOpenPdf={openContractPdf} />
@@ -174,12 +180,32 @@ export function TeamMemberDetailPageClient({
   );
 }
 
-function OverviewTab({ member }: { member: TeamMemberDetailData["member"] }) {
+function OverviewTab({
+  member,
+  masterData,
+}: {
+  member: TeamMemberDetailData["member"];
+  masterData: TeamMemberMasterData;
+}) {
+  const address = [masterData.street, masterData.house_number]
+    .filter(Boolean)
+    .join(" ");
+  const cityLine = [masterData.postal_code, masterData.city].filter(Boolean).join(" ");
+
   return (
     <div className="grid gap-4 md:grid-cols-2">
       <InfoCard title="Stammdaten" icon={User}>
         <InfoRow label="E-Mail" value={member.email} />
         <InfoRow label="Name" value={member.full_name?.trim() || "—"} />
+        <InfoRow label="Telefon" value={masterData.phone?.trim() || "—"} />
+        <InfoRow
+          label="Adresse"
+          value={
+            address || cityLine || masterData.country
+              ? [address, cityLine, masterData.country].filter(Boolean).join(", ")
+              : "—"
+          }
+        />
         <InfoRow
           label="Agenturrolle"
           value={AGENCY_ROLE_LABELS[member.agency_role]}
@@ -388,5 +414,138 @@ function InfoRow({ label, value }: { label: string; value: string }) {
       <span className="text-muted">{label}</span>
       <span className="text-right font-medium text-foreground">{value}</span>
     </div>
+  );
+}
+
+function MasterDataTab({
+  member,
+  masterData,
+}: {
+  member: TeamMemberDetailData["member"];
+  masterData: TeamMemberMasterData;
+}) {
+  const router = useRouter();
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
+
+  const handleSubmit = (formData: FormData) => {
+    setError(null);
+    setSuccess(null);
+    startTransition(async () => {
+      try {
+        await updateTeamMemberMasterData(member.id, formData);
+        setSuccess("Stammdaten gespeichert");
+        router.refresh();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Speichern fehlgeschlagen");
+      }
+    });
+  };
+
+  return (
+    <form action={handleSubmit} className="space-y-8">
+      {error && (
+        <div className="rounded-xl bg-red-500/10 px-4 py-3 text-sm text-red-300 ring-1 ring-red-500/20">
+          {error}
+        </div>
+      )}
+      {success && (
+        <div className="rounded-xl bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300 ring-1 ring-emerald-500/20">
+          {success}
+        </div>
+      )}
+
+      <MasterDataSection title="Persönliche Daten">
+        <ReadOnlyField label="Name" value={member.full_name?.trim() || "—"} />
+        <ReadOnlyField label="E-Mail" value={member.email} />
+        <Field label="Telefon" name="phone" defaultValue={masterData.phone ?? ""} />
+        <Field label="Straße" name="street" defaultValue={masterData.street ?? ""} className="sm:col-span-2" />
+        <Field label="Hausnummer" name="house_number" defaultValue={masterData.house_number ?? ""} />
+        <Field label="PLZ" name="postal_code" defaultValue={masterData.postal_code ?? ""} />
+        <Field label="Ort" name="city" defaultValue={masterData.city ?? ""} />
+        <Field label="Land" name="country" defaultValue={masterData.country ?? "Deutschland"} />
+      </MasterDataSection>
+
+      <MasterDataSection title="Bankdaten">
+        <Field label="IBAN" name="iban" defaultValue={masterData.iban ?? ""} />
+        <Field label="BIC" name="bic" defaultValue={masterData.bic ?? ""} />
+        <Field label="Bank" name="bank_name" defaultValue={masterData.bank_name ?? ""} className="sm:col-span-2" />
+      </MasterDataSection>
+
+      {masterData.is_freelancer ? (
+        <MasterDataSection title="Steuerdaten (Freelancer)">
+          <Field label="Firmenname" name="business_name" defaultValue={masterData.business_name ?? ""} className="sm:col-span-2" />
+          <Field label="Steuernummer" name="tax_number" defaultValue={masterData.tax_number ?? ""} />
+          <Field label="USt-ID" name="vat_id" defaultValue={masterData.vat_id ?? ""} />
+        </MasterDataSection>
+      ) : (
+        <MasterDataSection title="Steuerdaten (Mitarbeiter)">
+          <Field label="Steuer-ID" name="tax_id" defaultValue={masterData.tax_id ?? ""} />
+          <Field label="Sozialversicherungsnummer" name="social_security_number" defaultValue={masterData.social_security_number ?? ""} />
+          <Field label="Krankenkasse" name="health_insurance" defaultValue={masterData.health_insurance ?? ""} />
+          <Field label="Personalnummer" name="employee_number" defaultValue={masterData.employee_number ?? ""} />
+          <Field label="Geburtsdatum" name="birth_date" type="date" defaultValue={masterData.birth_date ?? ""} />
+        </MasterDataSection>
+      )}
+
+      <div className="flex justify-end">
+        <button type="submit" disabled={pending} className="dashboard-btn-primary">
+          {pending ? "Speichern…" : "Stammdaten speichern"}
+        </button>
+      </div>
+    </form>
+  );
+}
+
+function MasterDataSection({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="glass-card rounded-2xl p-6">
+      <h2 className="mb-4 text-sm font-medium uppercase tracking-wider text-muted-soft">
+        {title}
+      </h2>
+      <div className="grid gap-4 sm:grid-cols-2">{children}</div>
+    </div>
+  );
+}
+
+function Field({
+  label,
+  name,
+  defaultValue,
+  type = "text",
+  className = "",
+}: {
+  label: string;
+  name: string;
+  defaultValue?: string;
+  type?: string;
+  className?: string;
+}) {
+  return (
+    <label className={`block ${className}`}>
+      <span className="mb-1.5 block text-xs font-medium text-muted">{label}</span>
+      <input
+        type={type}
+        name={name}
+        defaultValue={defaultValue}
+        className="dashboard-input w-full"
+      />
+    </label>
+  );
+}
+
+function ReadOnlyField({ label, value }: { label: string; value: string }) {
+  return (
+    <label className="block sm:col-span-2">
+      <span className="mb-1.5 block text-xs font-medium text-muted">{label}</span>
+      <div className="dashboard-input w-full cursor-default bg-white/5 text-muted">{value}</div>
+    </label>
   );
 }

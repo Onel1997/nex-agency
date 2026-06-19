@@ -10,6 +10,7 @@ export type ActivityAction =
   | "client_deleted"
   | "member_invited"
   | "member_updated"
+  | "member_master_data_updated"
   | "role_changed"
   | "member_deactivated"
   | "member_reactivated"

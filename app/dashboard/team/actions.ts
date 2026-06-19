@@ -19,6 +19,10 @@ import {
 import { SET_PASSWORD_PATH } from "@/lib/auth/password-setup";
 import { requireManagement } from "@/lib/auth/session";
 import { logActivity } from "@/lib/dashboard/activity";
+import {
+  updateEmployeeMasterData,
+  updateFreelancerMasterData,
+} from "@/lib/dashboard/team-master-data";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 function revalidateTeam() {
@@ -27,6 +31,16 @@ function revalidateTeam() {
   revalidatePath("/dashboard/contracts");
   revalidatePath("/dashboard/activities");
   revalidatePath("/dashboard/leads");
+}
+
+function revalidateTeamMember(memberId: string) {
+  revalidateTeam();
+  revalidatePath(`/dashboard/team/${memberId}`);
+}
+
+function readOptionalString(formData: FormData, key: string): string | null {
+  const value = String(formData.get(key) ?? "").trim();
+  return value || null;
 }
 
 async function getSiteOrigin() {
@@ -328,6 +342,65 @@ export async function deleteMember(memberId: string) {
   if (deleteError) throw new Error(deleteError.message);
 
   revalidateTeam();
+}
+
+export async function updateTeamMemberMasterData(
+  memberId: string,
+  formData: FormData,
+) {
+  const admin = await requireManagement();
+  const member = await fetchMemberProfile(memberId);
+  assertMemberManageable(admin, member);
+
+  const employmentType = parseEmploymentType(
+    String(member.employment_type ?? "employee"),
+  );
+
+  if (employmentType === "freelancer") {
+    await updateFreelancerMasterData(memberId, {
+      phone: readOptionalString(formData, "phone"),
+      street: readOptionalString(formData, "street"),
+      house_number: readOptionalString(formData, "house_number"),
+      postal_code: readOptionalString(formData, "postal_code"),
+      city: readOptionalString(formData, "city"),
+      country: readOptionalString(formData, "country"),
+      iban: readOptionalString(formData, "iban"),
+      bic: readOptionalString(formData, "bic"),
+      bank_name: readOptionalString(formData, "bank_name"),
+      business_name: readOptionalString(formData, "business_name"),
+      tax_number: readOptionalString(formData, "tax_number"),
+      vat_id: readOptionalString(formData, "vat_id"),
+    });
+  } else {
+    await updateEmployeeMasterData(memberId, {
+      phone: readOptionalString(formData, "phone"),
+      street: readOptionalString(formData, "street"),
+      house_number: readOptionalString(formData, "house_number"),
+      postal_code: readOptionalString(formData, "postal_code"),
+      city: readOptionalString(formData, "city"),
+      country: readOptionalString(formData, "country"),
+      iban: readOptionalString(formData, "iban"),
+      bic: readOptionalString(formData, "bic"),
+      bank_name: readOptionalString(formData, "bank_name"),
+      tax_id: readOptionalString(formData, "tax_id"),
+      social_security_number: readOptionalString(formData, "social_security_number"),
+      health_insurance: readOptionalString(formData, "health_insurance"),
+      employee_number: readOptionalString(formData, "employee_number"),
+      birth_date: readOptionalString(formData, "birth_date"),
+    });
+  }
+
+  const memberName = member.full_name?.trim() || member.email.split("@")[0];
+  await logActivity({
+    actorId: admin.id,
+    action: "member_master_data_updated",
+    entityType: "profile",
+    entityId: memberId,
+    metadata: { email: member.email, employment_type: employmentType },
+    message: `${formatActorName(admin)} hat Stammdaten von ${memberName} aktualisiert`,
+  });
+
+  revalidateTeamMember(memberId);
 }
 
 function formatActorName(profile: {

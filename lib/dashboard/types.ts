@@ -150,9 +150,11 @@ export interface FreelancerProfileRecord {
   bic: string | null;
   bank_name: string | null;
   street: string | null;
+  house_number: string | null;
   postal_code: string | null;
   city: string | null;
   country: string | null;
+  phone: string | null;
   tax_number: string | null;
   vat_id: string | null;
   business_name: string | null;
@@ -694,20 +696,51 @@ export interface CustomerContractOverviewRecord {
 
 export interface ContractWithDetails extends TeamContractRecord {
   profile_street: string | null;
+  profile_house_number: string | null;
   profile_postal_code: string | null;
   profile_city: string | null;
   profile_country: string | null;
+  profile_phone: string | null;
   profile_iban: string | null;
   profile_bic: string | null;
   profile_bank_name: string | null;
   profile_tax_number: string | null;
   profile_vat_id: string | null;
   profile_business_name: string | null;
+  profile_tax_id: string | null;
+  profile_social_security_number: string | null;
+  profile_health_insurance: string | null;
+  profile_employee_number: string | null;
+  profile_birth_date: string | null;
   documents: ContractDocumentRecord[];
+}
+
+export interface TeamMemberMasterData {
+  profile_id: string;
+  employment_type: EmploymentType;
+  is_freelancer: boolean;
+  phone: string | null;
+  street: string | null;
+  house_number: string | null;
+  postal_code: string | null;
+  city: string | null;
+  country: string | null;
+  iban: string | null;
+  bic: string | null;
+  bank_name: string | null;
+  tax_id: string | null;
+  social_security_number: string | null;
+  health_insurance: string | null;
+  employee_number: string | null;
+  birth_date: string | null;
+  business_name: string | null;
+  tax_number: string | null;
+  vat_id: string | null;
 }
 
 export interface TeamMemberDetailData {
   member: TeamMember;
+  masterData: TeamMemberMasterData;
   contracts: TeamContractRecord[];
   commissionSummary: MemberCommissionSummary | null;
 }

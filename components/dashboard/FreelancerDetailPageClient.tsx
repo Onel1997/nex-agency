@@ -337,9 +337,11 @@ function MasterDataTab({
 
       <Section title="Adresse">
         <Field label="Straße" name="street" defaultValue={billingProfile.street ?? ""} className="sm:col-span-2" />
+        <Field label="Hausnummer" name="house_number" defaultValue={billingProfile.house_number ?? ""} />
         <Field label="PLZ" name="postal_code" defaultValue={billingProfile.postal_code ?? ""} />
         <Field label="Ort" name="city" defaultValue={billingProfile.city ?? ""} />
         <Field label="Land" name="country" defaultValue={billingProfile.country ?? "Deutschland"} />
+        <Field label="Telefon" name="phone" defaultValue={billingProfile.phone ?? ""} />
       </Section>
 
       <Section title="Notizen">

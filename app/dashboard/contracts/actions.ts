@@ -383,7 +383,7 @@ export async function transitionContract(
     ),
   });
 
-  if (action === "sign" || action === "activate" || action === "send") {
+  if (action === "send" || action === "sign" || action === "activate" || action === "terminate" || action === "archive") {
     await generateAndStoreContractPdf(contractId);
   }
 

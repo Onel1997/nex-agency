@@ -6,7 +6,10 @@ import {
   getContractDeleteDialogTitle,
   getContractDetailUiPermissions,
   getContractLifecycleActions,
+  getContractLifecycleConfirmTitle,
   isTeamContractRevenueActive,
+  resolveContractLifecycleStepIndex,
+  resolveContractTimelineTimestamp,
   resolveStatusAfterSignatures,
 } from "./contract-lifecycle";
 
@@ -40,6 +43,16 @@ describe("contract lifecycle", () => {
     expect(buildContractLifecycleUpdate({ status: "signed" }, "activate", now)).toEqual({
       status: "active",
       activated_at: now,
+    });
+
+    expect(buildContractLifecycleUpdate({ status: "active" }, "terminate", now)).toEqual({
+      status: "terminated",
+      terminated_at: now,
+    });
+
+    expect(buildContractLifecycleUpdate({ status: "terminated" }, "archive", now)).toEqual({
+      status: "archived",
+      archived_at: now,
     });
   });
 
@@ -83,10 +96,20 @@ describe("contract lifecycle", () => {
       canEdit: true,
       canDelete: true,
     });
+    expect(getContractDetailUiPermissions("sent")).toEqual({
+      lifecycle: ["sign"],
+      canEdit: false,
+      canDelete: false,
+    });
+    expect(getContractDetailUiPermissions("signed")).toEqual({
+      lifecycle: ["activate"],
+      canEdit: false,
+      canDelete: false,
+    });
     expect(getContractDetailUiPermissions("active")).toEqual({
       lifecycle: ["terminate"],
       canEdit: false,
-      canDelete: true,
+      canDelete: false,
     });
     expect(getContractDetailUiPermissions("archived")).toEqual({
       lifecycle: [],
@@ -96,23 +119,46 @@ describe("contract lifecycle", () => {
     expect(getContractDetailUiPermissions("terminated")).toEqual({
       lifecycle: ["archive"],
       canEdit: false,
-      canDelete: true,
+      canDelete: false,
     });
   });
 
-  it("allows deleting draft, active, terminated and archived contracts", () => {
+  it("allows deleting only draft and archived contracts", () => {
     expect(canDeleteContract("draft")).toBe(true);
-    expect(canDeleteContract("active")).toBe(true);
-    expect(canDeleteContract("terminated")).toBe(true);
     expect(canDeleteContract("archived")).toBe(true);
+    expect(canDeleteContract("active")).toBe(false);
+    expect(canDeleteContract("terminated")).toBe(false);
     expect(canDeleteContract("signed")).toBe(false);
     expect(canDeleteContract("sent")).toBe(false);
   });
 
-  it("uses a stronger delete warning for active contracts", () => {
-    expect(getContractDeleteDialogTitle("active")).toBe(
-      "Aktiven Vertrag wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.",
+  it("uses lifecycle confirmation dialog titles", () => {
+    expect(getContractLifecycleConfirmTitle("send")).toBe("Vertrag wirklich versenden?");
+    expect(getContractLifecycleConfirmTitle("sign")).toBe(
+      "Vertrag als unterschrieben markieren?",
     );
+    expect(getContractLifecycleConfirmTitle("activate")).toBe("Vertrag aktivieren?");
+    expect(getContractLifecycleConfirmTitle("terminate")).toBe("Vertrag kündigen?");
+    expect(getContractLifecycleConfirmTitle("archive")).toBe("Vertrag archivieren?");
     expect(getContractDeleteDialogTitle("draft")).toBe("Vertrag wirklich löschen?");
+  });
+
+  it("resolves timeline timestamps with backward compatibility", () => {
+    const contract = {
+      created_at: "2026-01-01T10:00:00.000Z",
+      sent_at: "2026-01-02T10:00:00.000Z",
+      signed_at: null,
+      agency_signed_at: "2026-01-03T10:00:00.000Z",
+      partner_signed_at: null,
+      activated_at: "2026-01-04T10:00:00.000Z",
+      terminated_at: null,
+      archived_at: null,
+    };
+
+    expect(resolveContractTimelineTimestamp("signed_at", contract)).toBe(
+      "2026-01-03T10:00:00.000Z",
+    );
+    expect(resolveContractLifecycleStepIndex("active")).toBe(3);
+    expect(resolveContractLifecycleStepIndex("expired")).toBe(4);
   });
 });

@@ -41,22 +41,90 @@ export const CONTRACT_LIFECYCLE_SHORT_LABELS: Record<
   archive: "Archivieren",
 };
 
-const DELETABLE_CONTRACT_STATUSES: ContractStatus[] = [
-  "draft",
-  "active",
-  "terminated",
-  "archived",
-];
+const DELETABLE_CONTRACT_STATUSES: ContractStatus[] = ["draft", "archived"];
 
 export function canDeleteContract(status: ContractStatus): boolean {
   return DELETABLE_CONTRACT_STATUSES.includes(status);
 }
 
-export function getContractDeleteDialogTitle(status: ContractStatus): string {
-  if (status === "active") {
-    return "Aktiven Vertrag wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.";
-  }
+export function getContractDeleteDialogTitle(_status: ContractStatus): string {
   return "Vertrag wirklich löschen?";
+}
+
+export function getContractLifecycleConfirmTitle(
+  action: ContractLifecycleAction,
+): string {
+  switch (action) {
+    case "send":
+      return "Vertrag wirklich versenden?";
+    case "sign":
+      return "Vertrag als unterschrieben markieren?";
+    case "activate":
+      return "Vertrag aktivieren?";
+    case "terminate":
+      return "Vertrag kündigen?";
+    case "archive":
+      return "Vertrag archivieren?";
+    default:
+      return "Aktion wirklich ausführen?";
+  }
+}
+
+export const CONTRACT_DETAIL_TIMELINE_STEPS = [
+  { label: "Erstellt am", field: "created_at" as const },
+  { label: "Versendet am", field: "sent_at" as const },
+  { label: "Unterschrieben am", field: "signed_at" as const },
+  { label: "Aktiviert am", field: "activated_at" as const },
+  { label: "Gekündigt am", field: "terminated_at" as const },
+  { label: "Archiviert am", field: "archived_at" as const },
+];
+
+export function resolveContractTimelineTimestamp(
+  field: (typeof CONTRACT_DETAIL_TIMELINE_STEPS)[number]["field"],
+  contract: {
+    created_at: string;
+    sent_at: string | null;
+    signed_at: string | null;
+    agency_signed_at: string | null;
+    partner_signed_at: string | null;
+    activated_at: string | null;
+    terminated_at: string | null;
+    archived_at: string | null;
+  },
+): string | null {
+  switch (field) {
+    case "created_at":
+      return contract.created_at;
+    case "sent_at":
+      return contract.sent_at;
+    case "signed_at":
+      return contract.signed_at ?? contract.agency_signed_at ?? contract.partner_signed_at;
+    case "activated_at":
+      return contract.activated_at;
+    case "terminated_at":
+      return contract.terminated_at;
+    case "archived_at":
+      return contract.archived_at;
+    default:
+      return null;
+  }
+}
+
+const LIFECYCLE_STATUS_ORDER: ContractStatus[] = [
+  "draft",
+  "sent",
+  "signed",
+  "active",
+  "terminated",
+  "archived",
+];
+
+export function resolveContractLifecycleStepIndex(status: ContractStatus): number {
+  if (status === "expired") {
+    return LIFECYCLE_STATUS_ORDER.indexOf("terminated");
+  }
+  const index = LIFECYCLE_STATUS_ORDER.indexOf(status);
+  return index >= 0 ? index : 0;
 }
 
 export function getContractDetailUiPermissions(

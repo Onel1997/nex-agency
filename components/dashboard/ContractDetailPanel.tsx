@@ -8,6 +8,7 @@ import {
   deleteContractDocument,
   getContractDocumentDownloadUrl,
   regenerateContractPdf,
+  transitionContract,
   updateContract,
   uploadContractDocument,
 } from "@/app/dashboard/contracts/actions";
@@ -21,10 +22,11 @@ import {
   CONTRACT_TYPE_LABELS,
 } from "@/lib/dashboard/contract-constants";
 import {
-  CONTRACT_LIFECYCLE_PLACEHOLDER_ACTIONS,
   CONTRACT_LIFECYCLE_SHORT_LABELS,
   getContractDeleteDialogTitle,
   getContractDetailUiPermissions,
+  getContractLifecycleConfirmTitle,
+  type ContractLifecycleAction,
 } from "@/lib/dashboard/contract-lifecycle";
 import { formatCents, formatDate, formatDateTime } from "@/lib/dashboard/format";
 import type { ContractWithDetails, TeamMember } from "@/lib/dashboard/types";
@@ -52,15 +54,12 @@ function DetailRow({
   );
 }
 
-const LIFECYCLE_PLACEHOLDER_STYLES: Record<
-  (typeof CONTRACT_LIFECYCLE_PLACEHOLDER_ACTIONS)[number],
-  string
-> = {
+const LIFECYCLE_ACTION_STYLES: Record<ContractLifecycleAction, string> = {
   send: "dashboard-btn-primary",
   sign: "dashboard-btn-primary",
   activate: "dashboard-btn-primary",
   terminate:
-    "inline-flex items-center gap-2 rounded-xl bg-red-500/10 px-4 py-2 text-sm font-medium text-red-200 ring-1 ring-red-500/25",
+    "inline-flex items-center gap-2 rounded-xl bg-red-500/10 px-4 py-2 text-sm font-medium text-red-200 ring-1 ring-red-500/25 transition-colors hover:bg-red-500/20 disabled:opacity-50",
   archive: "dashboard-btn-secondary",
 };
 
@@ -74,6 +73,7 @@ export function ContractDetailPanel({
   const [error, setError] = useState<string | null>(null);
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [transitionTarget, setTransitionTarget] = useState<ContractLifecycleAction | null>(null);
   const [pending, startTransition] = useTransition();
 
   useEffect(() => {
@@ -81,6 +81,7 @@ export function ContractDetailPanel({
       setError(null);
       setEditOpen(false);
       setDeleteOpen(false);
+      setTransitionTarget(null);
     }
   }, [open, contract?.id]);
 
@@ -88,6 +89,21 @@ export function ContractDetailPanel({
 
   const permissions = getContractDetailUiPermissions(contract.status);
   const isArchived = contract.status === "archived";
+
+  const handleTransitionConfirm = () => {
+    if (!transitionTarget) return;
+
+    setError(null);
+    startTransition(async () => {
+      try {
+        await transitionContract(contract.id, transitionTarget);
+        setTransitionTarget(null);
+        onRefresh();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Aktion fehlgeschlagen");
+      }
+    });
+  };
 
   const handleDeleteConfirm = () => {
     setError(null);
@@ -172,30 +188,31 @@ export function ContractDetailPanel({
           <ContractStatusTimeline
             status={contract.status}
             timestamps={{
+              created_at: contract.created_at,
               sent_at: contract.sent_at,
               signed_at: contract.signed_at,
+              agency_signed_at: contract.agency_signed_at,
+              partner_signed_at: contract.partner_signed_at,
               activated_at: contract.activated_at,
               terminated_at: contract.terminated_at,
               archived_at: contract.archived_at,
             }}
           />
 
-          <div className="flex flex-wrap gap-2 border-b border-border pb-4">
-            {CONTRACT_LIFECYCLE_PLACEHOLDER_ACTIONS.map((action) => (
-              <button
-                key={action}
-                type="button"
-                disabled
-                aria-disabled="true"
-                className={`inline-flex items-center gap-2 px-4 py-2 text-sm opacity-60 ${LIFECYCLE_PLACEHOLDER_STYLES[action]}`}
-              >
-                {CONTRACT_LIFECYCLE_SHORT_LABELS[action]}
-              </button>
-            ))}
-          </div>
-
-          {(permissions.canEdit || permissions.canDelete) && (
+          {(permissions.lifecycle.length > 0 || permissions.canEdit || permissions.canDelete) && (
             <div className="flex flex-wrap gap-2 border-b border-border pb-4">
+              {permissions.lifecycle.map((action) => (
+                <button
+                  key={action}
+                  type="button"
+                  disabled={pending}
+                  onClick={() => setTransitionTarget(action)}
+                  className={`inline-flex items-center gap-2 px-4 py-2 text-sm disabled:opacity-50 ${LIFECYCLE_ACTION_STYLES[action]}`}
+                >
+                  {CONTRACT_LIFECYCLE_SHORT_LABELS[action]}
+                </button>
+              ))}
+
               {permissions.canEdit && (
                 <button
                   type="button"
@@ -421,6 +438,19 @@ export function ContractDetailPanel({
         confirmLabel="Löschen"
         variant="danger"
         onConfirm={handleDeleteConfirm}
+      />
+
+      <ConfirmDialog
+        open={Boolean(transitionTarget)}
+        onClose={() => setTransitionTarget(null)}
+        title={
+          transitionTarget
+            ? getContractLifecycleConfirmTitle(transitionTarget)
+            : "Aktion bestätigen"
+        }
+        confirmLabel="Bestätigen"
+        variant={transitionTarget === "terminate" ? "danger" : "default"}
+        onConfirm={handleTransitionConfirm}
       />
     </>
   );

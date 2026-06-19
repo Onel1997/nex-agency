@@ -8,10 +8,10 @@ import {
   deleteContractDocument,
   getContractDocumentDownloadUrl,
   regenerateContractPdf,
-  transitionContract,
   updateContract,
   uploadContractDocument,
 } from "@/app/dashboard/contracts/actions";
+import { ConfirmDialog } from "@/components/dashboard/ConfirmDialog";
 import { ContractStatusBadge } from "@/components/dashboard/ContractStatusBadge";
 import { ContractStatusTimeline } from "@/components/dashboard/ContractStatusTimeline";
 import { CreateContractModal } from "@/components/dashboard/CreateContractModal";
@@ -21,9 +21,9 @@ import {
   CONTRACT_TYPE_LABELS,
 } from "@/lib/dashboard/contract-constants";
 import {
-  CONTRACT_LIFECYCLE_ACTION_LABELS,
+  CONTRACT_LIFECYCLE_PLACEHOLDER_ACTIONS,
+  CONTRACT_LIFECYCLE_SHORT_LABELS,
   getContractDetailUiPermissions,
-  type ContractLifecycleAction,
 } from "@/lib/dashboard/contract-lifecycle";
 import { formatCents, formatDate, formatDateTime } from "@/lib/dashboard/format";
 import type { ContractWithDetails, TeamMember } from "@/lib/dashboard/types";
@@ -51,12 +51,15 @@ function DetailRow({
   );
 }
 
-const LIFECYCLE_ACTION_STYLES: Record<ContractLifecycleAction, string> = {
+const LIFECYCLE_PLACEHOLDER_STYLES: Record<
+  (typeof CONTRACT_LIFECYCLE_PLACEHOLDER_ACTIONS)[number],
+  string
+> = {
   send: "dashboard-btn-primary",
   sign: "dashboard-btn-primary",
   activate: "dashboard-btn-primary",
   terminate:
-    "inline-flex items-center gap-2 rounded-xl bg-red-500/10 px-4 py-2 text-sm font-medium text-red-200 ring-1 ring-red-500/25 transition-colors hover:bg-red-500/20 disabled:opacity-50",
+    "inline-flex items-center gap-2 rounded-xl bg-red-500/10 px-4 py-2 text-sm font-medium text-red-200 ring-1 ring-red-500/25",
   archive: "dashboard-btn-secondary",
 };
 
@@ -69,39 +72,28 @@ export function ContractDetailPanel({
 }: ContractDetailPanelProps) {
   const [error, setError] = useState<string | null>(null);
   const [editOpen, setEditOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const [pending, startTransition] = useTransition();
 
   useEffect(() => {
     if (open) {
       setError(null);
       setEditOpen(false);
+      setDeleteOpen(false);
     }
   }, [open, contract?.id]);
 
   if (!contract) return null;
 
   const permissions = getContractDetailUiPermissions(contract.status);
-  const isReadOnly = contract.status === "archived";
+  const isArchived = contract.status === "archived";
 
-  const handleTransition = (action: ContractLifecycleAction) => {
-    setError(null);
-    startTransition(async () => {
-      try {
-        await transitionContract(contract.id, action);
-        onRefresh();
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Aktion fehlgeschlagen");
-      }
-    });
-  };
-
-  const handleDelete = () => {
-    if (!window.confirm(`Vertrag ${contract.contract_number} wirklich löschen?`)) return;
-
+  const handleDeleteConfirm = () => {
     setError(null);
     startTransition(async () => {
       try {
         await deleteContract(contract.id);
+        setDeleteOpen(false);
         onClose();
         onRefresh();
       } catch (err) {
@@ -187,7 +179,21 @@ export function ContractDetailPanel({
             }}
           />
 
-          {!isReadOnly && (
+          <div className="flex flex-wrap gap-2 border-b border-border pb-4">
+            {CONTRACT_LIFECYCLE_PLACEHOLDER_ACTIONS.map((action) => (
+              <button
+                key={action}
+                type="button"
+                disabled
+                aria-disabled="true"
+                className={`inline-flex items-center gap-2 px-4 py-2 text-sm opacity-60 ${LIFECYCLE_PLACEHOLDER_STYLES[action]}`}
+              >
+                {CONTRACT_LIFECYCLE_SHORT_LABELS[action]}
+              </button>
+            ))}
+          </div>
+
+          {(permissions.canEdit || permissions.canDelete) && (
             <div className="flex flex-wrap gap-2 border-b border-border pb-4">
               {permissions.canEdit && (
                 <button
@@ -201,23 +207,11 @@ export function ContractDetailPanel({
                 </button>
               )}
 
-              {permissions.lifecycle.map((action) => (
-                <button
-                  key={action}
-                  type="button"
-                  disabled={pending}
-                  onClick={() => handleTransition(action)}
-                  className={`inline-flex items-center gap-2 px-4 py-2 text-sm disabled:opacity-50 ${LIFECYCLE_ACTION_STYLES[action]}`}
-                >
-                  {CONTRACT_LIFECYCLE_ACTION_LABELS[action]}
-                </button>
-              ))}
-
               {permissions.canDelete && (
                 <button
                   type="button"
                   disabled={pending}
-                  onClick={handleDelete}
+                  onClick={() => setDeleteOpen(true)}
                   className="inline-flex items-center gap-2 rounded-xl bg-red-500/10 px-4 py-2 text-sm font-medium text-red-200 ring-1 ring-red-500/25 transition-colors hover:bg-red-500/20 disabled:opacity-50"
                 >
                   <Trash2 className="h-4 w-4" />
@@ -333,7 +327,7 @@ export function ContractDetailPanel({
               <Download className="h-4 w-4" />
               PDF herunterladen
             </a>
-            {!isReadOnly && (
+            {!isArchived && (
               <button
                 type="button"
                 disabled={pending}
@@ -346,7 +340,7 @@ export function ContractDetailPanel({
             )}
           </div>
 
-          {!isReadOnly && (
+          {!isArchived && (
             <div className="space-y-3 border-t border-border pt-4">
               <div className="flex items-center justify-between gap-3">
                 <h3 className="text-sm font-medium text-foreground">Dokumente</h3>
@@ -417,6 +411,15 @@ export function ContractDetailPanel({
         onClose={() => setEditOpen(false)}
         onSubmit={handleEdit}
         pending={pending}
+      />
+
+      <ConfirmDialog
+        open={deleteOpen}
+        onClose={() => setDeleteOpen(false)}
+        title="Vertrag wirklich löschen?"
+        confirmLabel="Löschen"
+        variant="danger"
+        onConfirm={handleDeleteConfirm}
       />
     </>
   );

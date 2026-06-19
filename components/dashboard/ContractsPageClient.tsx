@@ -12,10 +12,12 @@ import {
   Plus,
   Search,
   Send,
+  Trash2,
   UserRound,
   Users,
 } from "lucide-react";
-import { createContract, fetchContractDetails } from "@/app/dashboard/contracts/actions";
+import { createContract, deleteContract, fetchContractDetails } from "@/app/dashboard/contracts/actions";
+import { ConfirmDialog } from "@/components/dashboard/ConfirmDialog";
 import { ContractDetailPanel } from "@/components/dashboard/ContractDetailPanel";
 import { ContractStatusBadge } from "@/components/dashboard/ContractStatusBadge";
 import { CreateContractModal } from "@/components/dashboard/CreateContractModal";
@@ -29,6 +31,7 @@ import {
   CONTRACT_TYPE_LABELS,
   type ContractOverviewTab,
 } from "@/lib/dashboard/contract-constants";
+import { canDeleteContract } from "@/lib/dashboard/contract-lifecycle";
 import { formatCents, formatDate } from "@/lib/dashboard/format";
 import type {
   ContractWithDetails,
@@ -68,6 +71,7 @@ export function ContractsPageClient({
   const [selectedContract, setSelectedContract] = useState<ContractWithDetails | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<TeamContractRecord | null>(null);
   const [pending, startTransition] = useTransition();
 
   const activeTab = data.activeTab;
@@ -151,6 +155,25 @@ export function ContractsPageClient({
         router.refresh();
       } catch {
         router.refresh();
+      }
+    });
+  };
+
+  const handleDeleteConfirm = () => {
+    if (!deleteTarget) return;
+
+    setError(null);
+    startTransition(async () => {
+      try {
+        await deleteContract(deleteTarget.id);
+        if (selectedContract?.id === deleteTarget.id) {
+          setDetailOpen(false);
+          setSelectedContract(null);
+        }
+        setDeleteTarget(null);
+        router.refresh();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Löschen fehlgeschlagen");
       }
     });
   };
@@ -275,6 +298,7 @@ export function ContractsPageClient({
           contracts={data.contracts}
           tab={activeTab}
           onOpen={openContractDetail}
+          onDelete={setDeleteTarget}
         />
       )}
 
@@ -298,6 +322,15 @@ export function ContractsPageClient({
         }}
         onRefresh={refreshDetail}
       />
+
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        onClose={() => setDeleteTarget(null)}
+        title="Vertrag wirklich löschen?"
+        confirmLabel="Löschen"
+        variant="danger"
+        onConfirm={handleDeleteConfirm}
+      />
     </div>
   );
 }
@@ -306,10 +339,12 @@ function TeamContractsTable({
   contracts,
   tab,
   onOpen,
+  onDelete,
 }: {
   contracts: TeamContractRecord[];
   tab: ContractOverviewTab;
   onOpen: (contractId: string) => void;
+  onDelete: (contract: TeamContractRecord) => void;
 }) {
   return (
     <DataTable
@@ -392,6 +427,26 @@ function TeamContractsTable({
               >
                 Download
               </a>
+            ) : (
+              "—"
+            ),
+        },
+        {
+          key: "actions",
+          header: "Aktionen",
+          render: (contract) =>
+            canDeleteContract(contract.status) ? (
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onDelete(contract);
+                }}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-red-500/10 px-2.5 py-1.5 text-xs font-medium text-red-200 ring-1 ring-red-500/25 transition-colors hover:bg-red-500/20"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                Löschen
+              </button>
             ) : (
               "—"
             ),

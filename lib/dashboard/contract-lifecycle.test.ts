@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildContractLifecycleUpdate,
+  canDeleteContract,
   canPerformContractLifecycleAction,
   getContractDetailUiPermissions,
   getContractLifecycleActions,
@@ -89,7 +90,15 @@ describe("contract lifecycle", () => {
     expect(getContractDetailUiPermissions("archived")).toEqual({
       lifecycle: [],
       canEdit: false,
-      canDelete: false,
+      canDelete: true,
     });
+  });
+
+  it("allows deleting only draft and archived contracts", () => {
+    expect(canDeleteContract("draft")).toBe(true);
+    expect(canDeleteContract("archived")).toBe(true);
+    expect(canDeleteContract("active")).toBe(false);
+    expect(canDeleteContract("signed")).toBe(false);
+    expect(canDeleteContract("sent")).toBe(false);
   });
 });

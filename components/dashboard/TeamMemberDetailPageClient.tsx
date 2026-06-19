@@ -11,10 +11,12 @@ import {
   FileText,
   LayoutDashboard,
   Plus,
+  Trash2,
   User,
 } from "lucide-react";
-import { createContract } from "@/app/dashboard/contracts/actions";
+import { createContract, deleteContract } from "@/app/dashboard/contracts/actions";
 import { updateTeamMemberMasterData } from "@/app/dashboard/team/actions";
+import { ConfirmDialog } from "@/components/dashboard/ConfirmDialog";
 import { CreateContractModal } from "@/components/dashboard/CreateContractModal";
 import { ContractStatusBadge } from "@/components/dashboard/ContractStatusBadge";
 import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
@@ -28,6 +30,7 @@ import {
 import {
   CONTRACT_TYPE_LABELS,
 } from "@/lib/dashboard/contract-constants";
+import { canDeleteContract } from "@/lib/dashboard/contract-lifecycle";
 import { COMMISSION_ENTRY_STATUS_LABELS } from "@/lib/dashboard/commission-constants";
 import { formatCents, formatDate, formatPercent } from "@/lib/dashboard/format";
 import { KpiCard } from "@/components/dashboard/KpiCard";
@@ -242,73 +245,120 @@ function ContractsTab({
   contracts: TeamMemberDetailData["contracts"];
   onOpenPdf: (contractId: string) => void;
 }) {
-  return (
-    <DataTable
-      data={contracts}
-      rowKey={(contract) => contract.id}
-      emptyState={
-        <EmptyState
-          icon={FileText}
-          title="Keine Verträge"
-          description="Für diese Person wurden noch keine Verträge angelegt."
-        />
+  const router = useRouter();
+  const [deleteTarget, setDeleteTarget] = useState<TeamMemberDetailData["contracts"][number] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
+
+  const handleDeleteConfirm = () => {
+    if (!deleteTarget) return;
+
+    setError(null);
+    startTransition(async () => {
+      try {
+        await deleteContract(deleteTarget.id);
+        setDeleteTarget(null);
+        router.refresh();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Löschen fehlgeschlagen");
       }
-      columns={[
-        {
-          key: "number",
-          header: "Vertragsnummer",
-          render: (contract) => (
-            <span className="font-medium">{contract.contract_number}</span>
-          ),
-        },
-        {
-          key: "type",
-          header: "Typ",
-          render: (contract) => CONTRACT_TYPE_LABELS[contract.contract_type],
-        },
-        {
-          key: "status",
-          header: "Status",
-          render: (contract) => <ContractStatusBadge status={contract.status} />,
-        },
-        {
-          key: "start",
-          header: "Beginn",
-          render: (contract) =>
-            contract.start_date ? formatDate(contract.start_date) : "—",
-        },
-        {
-          key: "end",
-          header: "Ende",
-          render: (contract) =>
-            contract.end_date ? formatDate(contract.end_date) : "—",
-        },
-        {
-          key: "actions",
-          header: "Aktionen",
-          render: (contract) => (
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => onOpenPdf(contract.id)}
-                className="dashboard-btn-secondary inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs"
-              >
-                <Eye className="h-3.5 w-3.5" />
-                Öffnen
-              </button>
-              <a
-                href={`/api/contracts/${contract.id}/pdf`}
-                download={`${contract.contract_number}.pdf`}
-                className="dashboard-btn-secondary inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs"
-              >
-                <Download className="h-3.5 w-3.5" />
-                Download
-              </a>
-            </div>
-          ),
-        },
-      ]}
-    />
+    });
+  };
+
+  return (
+    <>
+      {error && (
+        <div className="mb-4 rounded-xl bg-red-500/10 px-4 py-3 text-sm text-red-300 ring-1 ring-red-500/20">
+          {error}
+        </div>
+      )}
+
+      <DataTable
+        data={contracts}
+        rowKey={(contract) => contract.id}
+        emptyState={
+          <EmptyState
+            icon={FileText}
+            title="Keine Verträge"
+            description="Für diese Person wurden noch keine Verträge angelegt."
+          />
+        }
+        columns={[
+          {
+            key: "number",
+            header: "Vertragsnummer",
+            render: (contract) => (
+              <span className="font-medium">{contract.contract_number}</span>
+            ),
+          },
+          {
+            key: "type",
+            header: "Typ",
+            render: (contract) => CONTRACT_TYPE_LABELS[contract.contract_type],
+          },
+          {
+            key: "status",
+            header: "Status",
+            render: (contract) => <ContractStatusBadge status={contract.status} />,
+          },
+          {
+            key: "start",
+            header: "Beginn",
+            render: (contract) =>
+              contract.start_date ? formatDate(contract.start_date) : "—",
+          },
+          {
+            key: "end",
+            header: "Ende",
+            render: (contract) =>
+              contract.end_date ? formatDate(contract.end_date) : "—",
+          },
+          {
+            key: "actions",
+            header: "Aktionen",
+            render: (contract) => (
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => onOpenPdf(contract.id)}
+                  className="dashboard-btn-secondary inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs"
+                >
+                  <Eye className="h-3.5 w-3.5" />
+                  Öffnen
+                </button>
+                <a
+                  href={`/api/contracts/${contract.id}/pdf`}
+                  download={`${contract.contract_number}.pdf`}
+                  className="dashboard-btn-secondary inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs"
+                >
+                  <Download className="h-3.5 w-3.5" />
+                  Download
+                </a>
+                {canDeleteContract(contract.status) && (
+                  <button
+                    type="button"
+                    onClick={() => setDeleteTarget(contract)}
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-red-500/10 px-2.5 py-1.5 text-xs font-medium text-red-200 ring-1 ring-red-500/25 transition-colors hover:bg-red-500/20"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    Löschen
+                  </button>
+                )}
+              </div>
+            ),
+          },
+        ]}
+      />
+
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        onClose={() => setDeleteTarget(null)}
+        title="Vertrag wirklich löschen?"
+        confirmLabel="Löschen"
+        variant="danger"
+        onConfirm={handleDeleteConfirm}
+      />
+    </>
   );
 }
 

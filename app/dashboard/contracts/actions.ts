@@ -143,9 +143,42 @@ export async function deleteContract(contractId: string) {
 
   if (fetchError) throw new Error(fetchError.message);
 
-  if ((contract.status as ContractStatus) !== "draft") {
-    throw new Error("Nur Entwürfe können gelöscht werden. Bitte archivieren.");
+  const status = contract.status as ContractStatus;
+  if (status !== "draft" && status !== "archived") {
+    throw new Error(
+      "Nur Entwürfe und archivierte Verträge können gelöscht werden.",
+    );
   }
+
+  const { data: documents, error: documentsError } = await supabase
+    .from("contract_documents")
+    .select("storage_path")
+    .eq("contract_id", contractId);
+
+  if (documentsError) throw new Error(documentsError.message);
+
+  const documentPaths = (documents ?? [])
+    .map((document) => document.storage_path as string)
+    .filter(Boolean);
+
+  if (documentPaths.length > 0) {
+    await supabase.storage.from(CONTRACT_DOCUMENTS_BUCKET).remove(documentPaths);
+  }
+
+  const { error: deleteDocumentsError } = await supabase
+    .from("contract_documents")
+    .delete()
+    .eq("contract_id", contractId);
+
+  if (deleteDocumentsError) throw new Error(deleteDocumentsError.message);
+
+  const { error: deleteActivityError } = await supabase
+    .from("activity_logs")
+    .delete()
+    .eq("entity_type", "contract")
+    .eq("entity_id", contractId);
+
+  if (deleteActivityError) throw new Error(deleteActivityError.message);
 
   if (contract.pdf_url && !String(contract.pdf_url).startsWith("/api/")) {
     await supabase.storage.from("contract-pdfs").remove([contract.pdf_url as string]);

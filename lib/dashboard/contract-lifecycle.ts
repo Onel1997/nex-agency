@@ -27,13 +27,31 @@ export interface ContractDetailUiPermissions {
   canDelete: boolean;
 }
 
+export const CONTRACT_LIFECYCLE_PLACEHOLDER_ACTIONS: readonly ContractLifecycleAction[] =
+  ["send", "sign", "activate", "terminate", "archive"];
+
+export const CONTRACT_LIFECYCLE_SHORT_LABELS: Record<
+  ContractLifecycleAction,
+  string
+> = {
+  send: "Versenden",
+  sign: "Unterschreiben",
+  activate: "Aktivieren",
+  terminate: "Kündigen",
+  archive: "Archivieren",
+};
+
+export function canDeleteContract(status: ContractStatus): boolean {
+  return status === "draft" || status === "archived";
+}
+
 export function getContractDetailUiPermissions(
   status: ContractStatus,
 ): ContractDetailUiPermissions {
   return {
     lifecycle: getContractLifecycleActions(status),
     canEdit: status === "draft",
-    canDelete: status === "draft",
+    canDelete: canDeleteContract(status),
   };
 }
 

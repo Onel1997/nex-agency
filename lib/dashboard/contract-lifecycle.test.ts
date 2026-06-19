@@ -3,6 +3,7 @@ import {
   buildContractLifecycleUpdate,
   canDeleteContract,
   canPerformContractLifecycleAction,
+  getContractDeleteDialogTitle,
   getContractDetailUiPermissions,
   getContractLifecycleActions,
   isTeamContractRevenueActive,
@@ -85,20 +86,33 @@ describe("contract lifecycle", () => {
     expect(getContractDetailUiPermissions("active")).toEqual({
       lifecycle: ["terminate"],
       canEdit: false,
-      canDelete: false,
+      canDelete: true,
     });
     expect(getContractDetailUiPermissions("archived")).toEqual({
       lifecycle: [],
       canEdit: false,
       canDelete: true,
     });
+    expect(getContractDetailUiPermissions("terminated")).toEqual({
+      lifecycle: ["archive"],
+      canEdit: false,
+      canDelete: true,
+    });
   });
 
-  it("allows deleting only draft and archived contracts", () => {
+  it("allows deleting draft, active, terminated and archived contracts", () => {
     expect(canDeleteContract("draft")).toBe(true);
+    expect(canDeleteContract("active")).toBe(true);
+    expect(canDeleteContract("terminated")).toBe(true);
     expect(canDeleteContract("archived")).toBe(true);
-    expect(canDeleteContract("active")).toBe(false);
     expect(canDeleteContract("signed")).toBe(false);
     expect(canDeleteContract("sent")).toBe(false);
+  });
+
+  it("uses a stronger delete warning for active contracts", () => {
+    expect(getContractDeleteDialogTitle("active")).toBe(
+      "Aktiven Vertrag wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.",
+    );
+    expect(getContractDeleteDialogTitle("draft")).toBe("Vertrag wirklich löschen?");
   });
 });

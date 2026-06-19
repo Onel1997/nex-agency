@@ -18,8 +18,10 @@ import type { ContractWithDetails } from "./types";
 
 const PAGE = { margin: 50 } as const;
 const CONTENT_WIDTH = 495;
-const LABEL_HEIGHT = 12;
-const ROW_GAP = 6;
+const LABEL_HEIGHT = 10;
+const ROW_GAP = 3;
+const SECTION_GAP = 5;
+const SECTION_TITLE_HEIGHT = 14;
 
 const COLORS = {
   title: "#111827",
@@ -27,6 +29,8 @@ const COLORS = {
   muted: "#6b7280",
   accent: "#7c3aed",
 } as const;
+
+type PdfFonts = { regular: string; bold: string };
 
 function pdfToBuffer(doc: InstanceType<typeof PDFDocument>): Promise<Buffer> {
   return new Promise((resolve, reject) => {
@@ -38,77 +42,205 @@ function pdfToBuffer(doc: InstanceType<typeof PDFDocument>): Promise<Buffer> {
   });
 }
 
+function pageBottom(doc: InstanceType<typeof PDFDocument>): number {
+  return doc.page.height - PAGE.margin;
+}
+
+function measureTextHeight(
+  doc: InstanceType<typeof PDFDocument>,
+  text: string,
+  fontSize: number,
+  font: string,
+  width: number = CONTENT_WIDTH,
+): number {
+  doc.fontSize(fontSize).font(font);
+  return doc.heightOfString(text, { width });
+}
+
 function measureRowHeight(
   doc: InstanceType<typeof PDFDocument>,
-  fonts: { regular: string; bold: string },
+  fonts: PdfFonts,
   value: string,
 ): number {
-  doc.fontSize(10).font(fonts.bold);
-  return LABEL_HEIGHT + doc.heightOfString(value, { width: CONTENT_WIDTH }) + ROW_GAP;
+  return LABEL_HEIGHT + measureTextHeight(doc, value, 10, fonts.bold) + ROW_GAP;
+}
+
+function ensureSpace(
+  doc: InstanceType<typeof PDFDocument>,
+  y: number,
+  neededHeight: number,
+): number {
+  if (y + neededHeight > pageBottom(doc)) {
+    doc.addPage();
+    return PAGE.margin;
+  }
+  return y;
 }
 
 function appendRows(
   doc: InstanceType<typeof PDFDocument>,
-  fonts: { regular: string; bold: string },
+  fonts: PdfFonts,
   rows: [string, string][],
   startY: number,
 ): number {
   let y = startY;
   for (const [label, value] of rows) {
+    const rowHeight = measureRowHeight(doc, fonts, value);
+    y = ensureSpace(doc, y, rowHeight);
     doc.fontSize(8).font(fonts.regular).fillColor(COLORS.muted).text(`${label}:`, PAGE.margin, y);
     y += LABEL_HEIGHT;
     doc.fontSize(10).font(fonts.bold).fillColor(COLORS.body);
-    const valueHeight = doc.heightOfString(value, { width: CONTENT_WIDTH });
+    const valueHeight = measureTextHeight(doc, value, 10, fonts.bold);
     doc.text(value, PAGE.margin, y, { width: CONTENT_WIDTH });
     y += valueHeight + ROW_GAP;
   }
   return y;
 }
 
-function estimateSectionHeight(
+function estimateRowsHeight(
   doc: InstanceType<typeof PDFDocument>,
-  fonts: { regular: string; bold: string },
-  rows: [string, string][],
-  hasTitle: boolean,
-): number {
-  const titleHeight = hasTitle ? 26 : 0;
-  const rowsHeight = rows.reduce(
-    (total, [, value]) => total + measureRowHeight(doc, fonts, value),
-    0,
-  );
-  return titleHeight + rowsHeight + 8;
-}
-
-function ensureSectionFits(
-  doc: InstanceType<typeof PDFDocument>,
-  fonts: { regular: string; bold: string },
-  y: number,
-  title: string,
+  fonts: PdfFonts,
   rows: [string, string][],
 ): number {
-  const neededHeight = estimateSectionHeight(doc, fonts, rows, true);
-  const pageBottom = doc.page.height - PAGE.margin;
-
-  if (y + neededHeight > pageBottom) {
-    doc.addPage();
-    return PAGE.margin;
-  }
-
-  return y;
+  return rows.reduce((total, [, value]) => total + measureRowHeight(doc, fonts, value), 0);
 }
 
 function appendSection(
   doc: InstanceType<typeof PDFDocument>,
-  fonts: { regular: string; bold: string },
+  fonts: PdfFonts,
   title: string,
   rows: [string, string][],
   startY: number,
+  options: { gapBefore?: number } = {},
 ): number {
-  let y = ensureSectionFits(doc, fonts, startY, title, rows);
-  y += 8;
-  doc.fontSize(11).font(fonts.bold).fillColor(COLORS.title).text(title, PAGE.margin, y);
-  y += 18;
+  const gapBefore = options.gapBefore ?? SECTION_GAP;
+  const sectionHeight =
+    gapBefore + SECTION_TITLE_HEIGHT + estimateRowsHeight(doc, fonts, rows);
+  let y = ensureSpace(doc, startY + gapBefore, sectionHeight - gapBefore);
+  y += gapBefore;
+  doc.fontSize(10).font(fonts.bold).fillColor(COLORS.title).text(title, PAGE.margin, y);
+  y += SECTION_TITLE_HEIGHT;
   return appendRows(doc, fonts, rows, y);
+}
+
+function estimateSignatureBlockHeight(
+  doc: InstanceType<typeof PDFDocument>,
+  fonts: PdfFonts,
+  contract: ContractWithDetails,
+): number {
+  const titleHeight = SECTION_TITLE_HEIGHT + SECTION_GAP;
+  const agencyNote =
+    contract.signed_by_agency && contract.agency_signed_at
+      ? measureTextHeight(
+          doc,
+          `Digital bestätigt am ${formatDate(contract.agency_signed_at)}`,
+          8,
+          fonts.regular,
+        )
+      : 0;
+  const partnerNote =
+    contract.signed_by_partner && contract.partner_signed_at
+      ? measureTextHeight(
+          doc,
+          `Digital bestätigt am ${formatDate(contract.partner_signed_at)}`,
+          8,
+          fonts.regular,
+        )
+      : contract.signed_at
+        ? measureTextHeight(
+            doc,
+            `Unterzeichnet am ${formatDate(contract.signed_at)}`,
+            8,
+            fonts.regular,
+          )
+        : 0;
+
+  return titleHeight + 12 + 10 + agencyNote + 18 + 12 + 10 + partnerNote + 20;
+}
+
+function appendSignatures(
+  doc: InstanceType<typeof PDFDocument>,
+  fonts: PdfFonts,
+  contract: ContractWithDetails,
+  startY: number,
+): number {
+  const blockHeight = estimateSignatureBlockHeight(doc, fonts, contract);
+  let y = ensureSpace(doc, startY + SECTION_GAP, blockHeight);
+  y += SECTION_GAP;
+
+  doc.fontSize(10).font(fonts.bold).fillColor(COLORS.title).text("Unterschriften", PAGE.margin, y);
+  y += SECTION_TITLE_HEIGHT;
+
+  const signatureLineWidth = 220;
+
+  doc.fontSize(9).font(fonts.regular).fillColor(COLORS.body).text("NexAgency:", PAGE.margin, y);
+  y += 12;
+  doc
+    .moveTo(PAGE.margin, y)
+    .lineTo(PAGE.margin + signatureLineWidth, y)
+    .strokeColor(COLORS.muted)
+    .stroke();
+  y += 6;
+
+  if (contract.signed_by_agency && contract.agency_signed_at) {
+    doc
+      .fontSize(8)
+      .font(fonts.regular)
+      .fillColor(COLORS.muted)
+      .text(
+        `Digital bestätigt am ${formatDate(contract.agency_signed_at)}`,
+        PAGE.margin,
+        y,
+      );
+    y += measureTextHeight(
+      doc,
+      `Digital bestätigt am ${formatDate(contract.agency_signed_at)}`,
+      8,
+      fonts.regular,
+    ) + 4;
+  }
+
+  y += 14;
+  doc.fontSize(9).font(fonts.regular).fillColor(COLORS.body).text("Vertragspartner:", PAGE.margin, y);
+  y += 12;
+  doc
+    .moveTo(PAGE.margin, y)
+    .lineTo(PAGE.margin + signatureLineWidth, y)
+    .strokeColor(COLORS.muted)
+    .stroke();
+  y += 6;
+
+  if (contract.signed_by_partner && contract.partner_signed_at) {
+    doc
+      .fontSize(8)
+      .font(fonts.regular)
+      .fillColor(COLORS.muted)
+      .text(
+        `Digital bestätigt am ${formatDate(contract.partner_signed_at)}`,
+        PAGE.margin,
+        y,
+      );
+    y += measureTextHeight(
+      doc,
+      `Digital bestätigt am ${formatDate(contract.partner_signed_at)}`,
+      8,
+      fonts.regular,
+    );
+  } else if (contract.signed_at) {
+    doc
+      .fontSize(8)
+      .font(fonts.regular)
+      .fillColor(COLORS.muted)
+      .text(`Unterzeichnet am ${formatDate(contract.signed_at)}`, PAGE.margin, y);
+    y += measureTextHeight(
+      doc,
+      `Unterzeichnet am ${formatDate(contract.signed_at)}`,
+      8,
+      fonts.regular,
+    );
+  }
+
+  return y + 12;
 }
 
 export async function generateContractPdfBuffer(
@@ -118,21 +250,22 @@ export async function generateContractPdfBuffer(
   const fonts = registerInvoicePdfFonts(doc);
   const regular = fonts?.regular ?? "Helvetica";
   const bold = fonts?.bold ?? "Helvetica-Bold";
+  const pdfFonts: PdfFonts = { regular, bold };
 
   let y: number = PAGE.margin;
 
-  doc.fillColor(COLORS.accent).fontSize(22).font(bold).text(INVOICE_COMPANY.name, PAGE.margin, y);
-  y += 28;
-  doc.fontSize(9).font(regular).fillColor(COLORS.muted).text(INVOICE_COMPANY.street, PAGE.margin, y);
-  y += 14;
+  doc.fillColor(COLORS.accent).fontSize(18).font(bold).text(INVOICE_COMPANY.name, PAGE.margin, y);
+  y += 22;
+  doc.fontSize(8).font(regular).fillColor(COLORS.muted).text(INVOICE_COMPANY.street, PAGE.margin, y);
+  y += 11;
   doc.text(`${INVOICE_COMPANY.postalCode} ${INVOICE_COMPANY.city}`, PAGE.margin, y);
-  y += 14;
+  y += 11;
   doc.text(INVOICE_COMPANY.email, PAGE.margin, y);
-  y += 28;
+  y += 16;
 
   const categoryLabel = CONTRACT_CATEGORY_LABELS[contract.contract_category];
-  doc.fontSize(16).font(bold).fillColor(COLORS.title).text(categoryLabel, PAGE.margin, y);
-  y += 24;
+  doc.fontSize(14).font(bold).fillColor(COLORS.title).text(categoryLabel, PAGE.margin, y);
+  y += 18;
 
   const commonRows: [string, string][] = [
     ["Vertragsnummer", contract.contract_number],
@@ -159,10 +292,10 @@ export async function generateContractPdfBuffer(
     ["Ende", contract.end_date ? formatDate(contract.end_date) : "—"],
   ];
 
-  y = appendRows(doc, { regular, bold }, commonRows, y);
+  y = appendRows(doc, pdfFonts, commonRows, y);
 
   if (contract.contract_category === "employee") {
-    y = appendSection(doc, { regular, bold }, "Mitarbeiter-Konditionen", [
+    y = appendSection(doc, pdfFonts, "Mitarbeiter-Konditionen", [
       [
         "Monatsgehalt",
         contract.monthly_salary_cents != null
@@ -181,9 +314,9 @@ export async function generateContractPdfBuffer(
           ? `${contract.vacation_days_per_year} Tage/Jahr`
           : "—",
       ],
-    ], y);
+    ], y, { gapBefore: SECTION_GAP });
 
-    y = appendSection(doc, { regular, bold }, "Zahlungs- & Steuerdaten", [
+    y = appendSection(doc, pdfFonts, "Zahlungs- & Steuerdaten", [
       ["IBAN", formatMasterDataValue(contract.profile_iban)],
       ["BIC", formatMasterDataValue(contract.profile_bic)],
       ["Bank", formatMasterDataValue(contract.profile_bank_name)],
@@ -197,9 +330,9 @@ export async function generateContractPdfBuffer(
           ? formatDate(contract.profile_birth_date)
           : formatMasterDataValue(null),
       ],
-    ], y);
+    ], y, { gapBefore: 2 });
   } else {
-    y = appendSection(doc, { regular, bold }, "Freelancer-Konditionen", [
+    y = appendSection(doc, pdfFonts, "Freelancer-Konditionen", [
       [
         "Setup-Provision",
         contract.setup_commission_rate != null
@@ -220,107 +353,43 @@ export async function generateContractPdfBuffer(
           ? String(contract.retainer_commission_months)
           : "—",
       ],
-    ], y);
+    ], y, { gapBefore: SECTION_GAP });
 
-    y = appendSection(doc, { regular, bold }, "Zahlungs- & Steuerdaten", [
+    y = appendSection(doc, pdfFonts, "Zahlungs- & Steuerdaten", [
       ["Firma", formatMasterDataValue(contract.profile_business_name)],
       ["IBAN", formatMasterDataValue(contract.profile_iban)],
       ["BIC", formatMasterDataValue(contract.profile_bic)],
       ["Bank", formatMasterDataValue(contract.profile_bank_name)],
       ["Steuernummer", formatMasterDataValue(contract.profile_tax_number)],
       ["USt-ID", formatMasterDataValue(contract.profile_vat_id)],
-    ], y);
+    ], y, { gapBefore: 2 });
   }
 
   if (contract.notes?.trim()) {
-    y += 8;
+    const notes = contract.notes.trim();
+    const notesBlockHeight =
+      SECTION_GAP + LABEL_HEIGHT + measureTextHeight(doc, notes, 9, regular) + ROW_GAP;
+    y = ensureSpace(doc, y + SECTION_GAP, notesBlockHeight - SECTION_GAP);
+    y += SECTION_GAP;
     doc.fontSize(8).font(regular).fillColor(COLORS.muted).text("Notizen:", PAGE.margin, y);
     y += LABEL_HEIGHT;
     doc.fontSize(9).font(regular).fillColor(COLORS.body);
-    const notesHeight = doc.heightOfString(contract.notes.trim(), { width: CONTENT_WIDTH });
-    if (y + notesHeight > doc.page.height - PAGE.margin) {
-      doc.addPage();
-      y = PAGE.margin;
-    }
-    doc.text(contract.notes.trim(), PAGE.margin, y, { width: CONTENT_WIDTH });
-    y += notesHeight + 12;
+    const notesHeight = measureTextHeight(doc, notes, 9, regular);
+    doc.text(notes, PAGE.margin, y, { width: CONTENT_WIDTH });
+    y += notesHeight + ROW_GAP;
   }
 
-  if (y > 620) {
-    doc.addPage();
-    y = PAGE.margin;
-  }
+  y = appendSignatures(doc, pdfFonts, contract, y);
 
+  const footerText = "Dieses Dokument wurde automatisch von NexAgency erstellt.";
+  const footerHeight = measureTextHeight(doc, footerText, 8, regular) + 8;
+  y = ensureSpace(doc, y + 8, footerHeight);
   y += 8;
-  doc.fontSize(11).font(bold).fillColor(COLORS.title).text("Unterschriften", PAGE.margin, y);
-  y += 20;
-
-  const signatureLineWidth = 220;
-  const signatureGap = 35;
-
-  doc.fontSize(9).font(regular).fillColor(COLORS.body).text("NexAgency:", PAGE.margin, y);
-  y += 14;
-  doc
-    .moveTo(PAGE.margin, y)
-    .lineTo(PAGE.margin + signatureLineWidth, y)
-    .strokeColor(COLORS.muted)
-    .stroke();
-  y += 8;
-
-  if (contract.signed_by_agency && contract.agency_signed_at) {
-    doc
-      .fontSize(8)
-      .font(regular)
-      .fillColor(COLORS.muted)
-      .text(
-        `Digital bestätigt am ${formatDate(contract.agency_signed_at)}`,
-        PAGE.margin,
-        y,
-      );
-    y += 14;
-  } else {
-    y += 14;
-  }
-
-  y += signatureGap;
-  doc.fontSize(9).font(regular).fillColor(COLORS.body).text("Vertragspartner:", PAGE.margin, y);
-  y += 14;
-  doc
-    .moveTo(PAGE.margin, y)
-    .lineTo(PAGE.margin + signatureLineWidth, y)
-    .strokeColor(COLORS.muted)
-    .stroke();
-  y += 8;
-
-  if (contract.signed_by_partner && contract.partner_signed_at) {
-    doc
-      .fontSize(8)
-      .font(regular)
-      .fillColor(COLORS.muted)
-      .text(
-        `Digital bestätigt am ${formatDate(contract.partner_signed_at)}`,
-        PAGE.margin,
-        y,
-      );
-  } else if (contract.signed_at) {
-    doc
-      .fontSize(8)
-      .font(regular)
-      .fillColor(COLORS.muted)
-      .text(`Unterzeichnet am ${formatDate(contract.signed_at)}`, PAGE.margin, y);
-  }
-
-  y = 760;
   doc
     .fontSize(8)
     .font(regular)
     .fillColor(COLORS.muted)
-    .text(
-      "Dieses Dokument wurde automatisch von NexAgency erstellt.",
-      PAGE.margin,
-      y,
-      { align: "center", width: CONTENT_WIDTH },
-    );
+    .text(footerText, PAGE.margin, y, { align: "center", width: CONTENT_WIDTH });
 
   return pdfToBuffer(doc);
 }

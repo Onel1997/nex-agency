@@ -30,7 +30,7 @@ import {
 import {
   CONTRACT_TYPE_LABELS,
 } from "@/lib/dashboard/contract-constants";
-import { canDeleteContract } from "@/lib/dashboard/contract-lifecycle";
+import { canDeleteContract, getContractDeleteDialogTitle } from "@/lib/dashboard/contract-lifecycle";
 import { COMMISSION_ENTRY_STATUS_LABELS } from "@/lib/dashboard/commission-constants";
 import { formatCents, formatDate, formatPercent } from "@/lib/dashboard/format";
 import { KpiCard } from "@/components/dashboard/KpiCard";
@@ -353,7 +353,11 @@ function ContractsTab({
       <ConfirmDialog
         open={Boolean(deleteTarget)}
         onClose={() => setDeleteTarget(null)}
-        title="Vertrag wirklich löschen?"
+        title={
+          deleteTarget
+            ? getContractDeleteDialogTitle(deleteTarget.status)
+            : "Vertrag wirklich löschen?"
+        }
         confirmLabel="Löschen"
         variant="danger"
         onConfirm={handleDeleteConfirm}

@@ -31,7 +31,7 @@ import {
   CONTRACT_TYPE_LABELS,
   type ContractOverviewTab,
 } from "@/lib/dashboard/contract-constants";
-import { canDeleteContract } from "@/lib/dashboard/contract-lifecycle";
+import { canDeleteContract, getContractDeleteDialogTitle } from "@/lib/dashboard/contract-lifecycle";
 import { formatCents, formatDate } from "@/lib/dashboard/format";
 import type {
   ContractWithDetails,
@@ -326,7 +326,11 @@ export function ContractsPageClient({
       <ConfirmDialog
         open={Boolean(deleteTarget)}
         onClose={() => setDeleteTarget(null)}
-        title="Vertrag wirklich löschen?"
+        title={
+          deleteTarget
+            ? getContractDeleteDialogTitle(deleteTarget.status)
+            : "Vertrag wirklich löschen?"
+        }
         confirmLabel="Löschen"
         variant="danger"
         onConfirm={handleDeleteConfirm}

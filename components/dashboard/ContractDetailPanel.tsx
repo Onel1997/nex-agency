@@ -23,6 +23,7 @@ import {
 import {
   CONTRACT_LIFECYCLE_PLACEHOLDER_ACTIONS,
   CONTRACT_LIFECYCLE_SHORT_LABELS,
+  getContractDeleteDialogTitle,
   getContractDetailUiPermissions,
 } from "@/lib/dashboard/contract-lifecycle";
 import { formatCents, formatDate, formatDateTime } from "@/lib/dashboard/format";
@@ -416,7 +417,7 @@ export function ContractDetailPanel({
       <ConfirmDialog
         open={deleteOpen}
         onClose={() => setDeleteOpen(false)}
-        title="Vertrag wirklich löschen?"
+        title={getContractDeleteDialogTitle(contract.status)}
         confirmLabel="Löschen"
         variant="danger"
         onConfirm={handleDeleteConfirm}

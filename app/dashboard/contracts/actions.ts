@@ -9,6 +9,7 @@ import {
 } from "@/lib/dashboard/contract-documents";
 import {
   buildContractLifecycleUpdate,
+  canDeleteContract,
   canPerformContractLifecycleAction,
   getContractLifecycleActivityAction,
   getContractLifecycleActivityMessage,
@@ -144,10 +145,8 @@ export async function deleteContract(contractId: string) {
   if (fetchError) throw new Error(fetchError.message);
 
   const status = contract.status as ContractStatus;
-  if (status !== "draft" && status !== "archived") {
-    throw new Error(
-      "Nur Entwürfe und archivierte Verträge können gelöscht werden.",
-    );
+  if (!canDeleteContract(status)) {
+    throw new Error("Dieser Vertrag kann im aktuellen Status nicht gelöscht werden.");
   }
 
   const { data: documents, error: documentsError } = await supabase

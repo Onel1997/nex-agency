@@ -41,8 +41,22 @@ export const CONTRACT_LIFECYCLE_SHORT_LABELS: Record<
   archive: "Archivieren",
 };
 
+const DELETABLE_CONTRACT_STATUSES: ContractStatus[] = [
+  "draft",
+  "active",
+  "terminated",
+  "archived",
+];
+
 export function canDeleteContract(status: ContractStatus): boolean {
-  return status === "draft" || status === "archived";
+  return DELETABLE_CONTRACT_STATUSES.includes(status);
+}
+
+export function getContractDeleteDialogTitle(status: ContractStatus): string {
+  if (status === "active") {
+    return "Aktiven Vertrag wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.";
+  }
+  return "Vertrag wirklich löschen?";
 }
 
 export function getContractDetailUiPermissions(

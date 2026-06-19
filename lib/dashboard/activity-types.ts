@@ -19,7 +19,13 @@ export type ActivityAction =
   | "appointment_updated"
   | "appointment_deleted"
   | "appointment_status_changed"
-  | "maintenance_reset_test_data";
+  | "maintenance_reset_test_data"
+  | "contract_sent"
+  | "contract_signed"
+  | "contract_activated"
+  | "contract_terminated"
+  | "contract_archived"
+  | "contract_deleted";
 
 export type ActivityEntityType =
   | "lead"
@@ -27,6 +33,7 @@ export type ActivityEntityType =
   | "client"
   | "team"
   | "appointment"
+  | "contract"
   | "system";
 
 export interface ActivityLog {

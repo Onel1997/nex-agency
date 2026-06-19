@@ -2,10 +2,15 @@ import {
   CONTRACT_EXPIRING_DAYS,
   type ContractStatus as TeamContractStatus,
 } from "./contract-constants";
+import { isTeamContractRevenueActive } from "./contract-lifecycle";
+
+export { isTeamContractRevenueActive };
 
 export interface TeamContractStats {
   active: number;
   draft: number;
+  sent: number;
+  signed: number;
   terminated: number;
   expiring: number;
 }
@@ -50,15 +55,17 @@ export function computeTeamContractStats<
 >(contracts: T[], referenceDate: Date = new Date()): TeamContractStats {
   return contracts.reduce(
     (stats, contract) => {
-      if (contract.status === "active") stats.active += 1;
+      if (isTeamContractRevenueActive(contract.status)) stats.active += 1;
       if (contract.status === "draft") stats.draft += 1;
+      if (contract.status === "sent") stats.sent += 1;
+      if (contract.status === "signed") stats.signed += 1;
       if (contract.status === "terminated") stats.terminated += 1;
       if (isTeamContractExpiring(contract.status, contract.end_date, referenceDate)) {
         stats.expiring += 1;
       }
       return stats;
     },
-    { active: 0, draft: 0, terminated: 0, expiring: 0 },
+    { active: 0, draft: 0, sent: 0, signed: 0, terminated: 0, expiring: 0 },
   );
 }
 

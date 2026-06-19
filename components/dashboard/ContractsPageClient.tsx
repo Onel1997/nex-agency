@@ -4,18 +4,20 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useState, useTransition } from "react";
 import {
-  AlertTriangle,
   Building2,
   CheckCircle2,
   FileText,
   FileX2,
+  PenLine,
   Plus,
   Search,
+  Send,
   UserRound,
   Users,
 } from "lucide-react";
 import { createContract, fetchContractDetails } from "@/app/dashboard/contracts/actions";
 import { ContractDetailPanel } from "@/components/dashboard/ContractDetailPanel";
+import { ContractStatusBadge } from "@/components/dashboard/ContractStatusBadge";
 import { CreateContractModal } from "@/components/dashboard/CreateContractModal";
 import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
 import { DataTable } from "@/components/dashboard/DataTable";
@@ -24,7 +26,6 @@ import { KpiCard } from "@/components/dashboard/KpiCard";
 import {
   CONTRACT_OVERVIEW_TABS,
   CONTRACT_OVERVIEW_TAB_LABELS,
-  CONTRACT_STATUS_LABELS,
   CONTRACT_TYPE_LABELS,
   type ContractOverviewTab,
 } from "@/lib/dashboard/contract-constants";
@@ -173,11 +174,12 @@ export function ContractsPageClient({
         }
       />
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <KpiCard label="Aktive Verträge" value={data.stats.active} icon={CheckCircle2} />
-        <KpiCard label="Entwürfe" value={data.stats.draft} icon={FileText} />
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+        <KpiCard label="Aktiv" value={data.stats.active} icon={CheckCircle2} />
+        <KpiCard label="Entwurf" value={data.stats.draft} icon={FileText} />
+        <KpiCard label="Versendet" value={data.stats.sent} icon={Send} />
+        <KpiCard label="Unterschrieben" value={data.stats.signed} icon={PenLine} />
         <KpiCard label="Gekündigt" value={data.stats.terminated} icon={FileX2} />
-        <KpiCard label="Auslaufend" value={data.stats.expiring} icon={AlertTriangle} />
       </div>
 
       <div className="flex flex-wrap gap-2">
@@ -222,10 +224,13 @@ export function ContractsPageClient({
               onChange={(value) => updateFilters({ status: value })}
               options={[
                 { value: "all", label: "Alle Status" },
-                { value: "active", label: "Aktiv" },
                 { value: "draft", label: "Entwurf" },
+                { value: "sent", label: "Versendet" },
+                { value: "signed", label: "Unterschrieben" },
+                { value: "active", label: "Aktiv" },
                 { value: "terminated", label: "Gekündigt" },
                 { value: "expired", label: "Ausgelaufen" },
+                { value: "archived", label: "Archiviert" },
                 { value: "expiring", label: "Auslaufend" },
               ]}
             />
@@ -285,6 +290,7 @@ export function ContractsPageClient({
 
       <ContractDetailPanel
         contract={selectedContract}
+        members={data.members}
         open={detailOpen}
         onClose={() => {
           setDetailOpen(false);
@@ -362,9 +368,7 @@ function TeamContractsTable({
         {
           key: "status",
           header: "Status",
-          render: (contract) => (
-            <span className="text-sm">{CONTRACT_STATUS_LABELS[contract.status]}</span>
-          ),
+          render: (contract) => <ContractStatusBadge status={contract.status} />,
         },
         {
           key: "start",

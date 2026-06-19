@@ -36,5 +36,13 @@ export function nextContractNumberFromSequence(
 }
 
 export function isContractStatus(value: string): value is ContractStatus {
-  return ["draft", "active", "terminated", "expired"].includes(value);
+  return [
+    "draft",
+    "sent",
+    "signed",
+    "active",
+    "terminated",
+    "expired",
+    "archived",
+  ].includes(value);
 }

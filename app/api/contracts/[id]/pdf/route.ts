@@ -1,10 +1,8 @@
 import { NextResponse } from "next/server";
 import { canAccessContractsRoutes } from "@/lib/auth/permissions";
 import { getProfile } from "@/lib/auth/session";
-import { CONTRACT_PDFS_BUCKET } from "@/lib/dashboard/contracts";
 import { generateContractPdfBuffer } from "@/lib/dashboard/contract-pdf";
 import { getContractWithDetails } from "@/lib/dashboard/contracts";
-import { createClient } from "@/lib/supabase/server";
 
 interface RouteContext {
   params: Promise<{ id: string }>;
@@ -27,22 +25,7 @@ export async function GET(_request: Request, context: RouteContext) {
     return NextResponse.json({ error: "Vertrag nicht gefunden" }, { status: 404 });
   }
 
-  let pdfBuffer: Buffer;
-
-  if (contract.pdf_url && !contract.pdf_url.startsWith("/api/")) {
-    const supabase = await createClient();
-    const { data, error } = await supabase.storage
-      .from(CONTRACT_PDFS_BUCKET)
-      .download(contract.pdf_url);
-
-    if (!error && data) {
-      pdfBuffer = Buffer.from(await data.arrayBuffer());
-    } else {
-      pdfBuffer = await generateContractPdfBuffer(contract);
-    }
-  } else {
-    pdfBuffer = await generateContractPdfBuffer(contract);
-  }
+  const pdfBuffer = await generateContractPdfBuffer(contract);
 
   const filename = `${contract.contract_number}.pdf`;
 

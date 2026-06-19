@@ -183,12 +183,15 @@ export function defaultContractTitle(profile: {
   return `Vertrag ${name} (${roleLabel} / ${employmentLabel})`;
 }
 
-export function contractInputToDbPayload(input: CreateContractInput) {
+export function contractInputToDbPayload(
+  input: CreateContractInput,
+  options?: { preserveStatus?: ContractStatus },
+) {
   return {
     profile_id: input.profileId,
     contract_type: input.contractType,
     contract_category: input.contractCategory,
-    status: input.status,
+    status: options?.preserveStatus ?? "draft",
     title: input.title,
     start_date: input.startDate,
     end_date: input.endDate,

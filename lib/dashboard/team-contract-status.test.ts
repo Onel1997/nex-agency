@@ -34,6 +34,8 @@ describe("team contract status logic", () => {
         { status: "active", end_date: "2026-07-01" },
         { status: "active", end_date: "2027-01-01" },
         { status: "draft", end_date: null },
+        { status: "sent", end_date: null },
+        { status: "signed", end_date: null },
         { status: "terminated", end_date: null },
       ],
       referenceDate,
@@ -42,6 +44,8 @@ describe("team contract status logic", () => {
     expect(stats).toEqual({
       active: 2,
       draft: 1,
+      sent: 1,
+      signed: 1,
       terminated: 1,
       expiring: 1,
     });

@@ -203,7 +203,63 @@ export async function generateContractPdfBuffer(
     y += LINE + 12;
   }
 
-  if (contract.signed_at) {
+  if (y > 620) {
+    doc.addPage();
+    y = PAGE.margin;
+  }
+
+  y += 8;
+  doc.fontSize(11).font(bold).fillColor(COLORS.title).text("Unterschriften", PAGE.margin, y);
+  y += 20;
+
+  const signatureLineWidth = 220;
+  const signatureGap = 35;
+
+  doc.fontSize(9).font(regular).fillColor(COLORS.body).text("NexAgency:", PAGE.margin, y);
+  y += 14;
+  doc
+    .moveTo(PAGE.margin, y)
+    .lineTo(PAGE.margin + signatureLineWidth, y)
+    .strokeColor(COLORS.muted)
+    .stroke();
+  y += 8;
+
+  if (contract.signed_by_agency && contract.agency_signed_at) {
+    doc
+      .fontSize(8)
+      .font(regular)
+      .fillColor(COLORS.muted)
+      .text(
+        `Digital bestätigt am ${formatDate(contract.agency_signed_at)}`,
+        PAGE.margin,
+        y,
+      );
+    y += LINE;
+  } else {
+    y += LINE;
+  }
+
+  y += signatureGap;
+  doc.fontSize(9).font(regular).fillColor(COLORS.body).text("Vertragspartner:", PAGE.margin, y);
+  y += 14;
+  doc
+    .moveTo(PAGE.margin, y)
+    .lineTo(PAGE.margin + signatureLineWidth, y)
+    .strokeColor(COLORS.muted)
+    .stroke();
+  y += 8;
+
+  if (contract.signed_by_partner && contract.partner_signed_at) {
+    doc
+      .fontSize(8)
+      .font(regular)
+      .fillColor(COLORS.muted)
+      .text(
+        `Digital bestätigt am ${formatDate(contract.partner_signed_at)}`,
+        PAGE.margin,
+        y,
+      );
+  } else if (contract.signed_at) {
     doc
       .fontSize(8)
       .font(regular)

@@ -657,6 +657,14 @@ export interface TeamContractRecord {
   notes: string | null;
   pdf_url: string | null;
   signed_at: string | null;
+  sent_at: string | null;
+  activated_at: string | null;
+  terminated_at: string | null;
+  archived_at: string | null;
+  signed_by_agency: boolean;
+  signed_by_partner: boolean;
+  agency_signed_at: string | null;
+  partner_signed_at: string | null;
   created_at: string;
   updated_at: string;
   profile_name: string;
@@ -749,12 +757,7 @@ export interface ContractsDashboardData {
   contracts: TeamContractRecord[];
   customerContracts: CustomerContractOverviewRecord[];
   activeTab: import("./contract-constants").ContractOverviewTab;
-  stats: {
-    active: number;
-    draft: number;
-    terminated: number;
-    expiring: number;
-  };
+  stats: import("./team-contract-status").TeamContractStats;
   members: TeamMember[];
 }
 

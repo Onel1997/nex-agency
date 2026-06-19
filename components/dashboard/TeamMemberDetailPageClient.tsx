@@ -16,6 +16,7 @@ import {
 import { createContract } from "@/app/dashboard/contracts/actions";
 import { updateTeamMemberMasterData } from "@/app/dashboard/team/actions";
 import { CreateContractModal } from "@/components/dashboard/CreateContractModal";
+import { ContractStatusBadge } from "@/components/dashboard/ContractStatusBadge";
 import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
 import { DataTable } from "@/components/dashboard/DataTable";
 import { EmptyState } from "@/components/dashboard/EmptyState";
@@ -25,7 +26,6 @@ import {
   STATUS_LABELS,
 } from "@/lib/auth/types";
 import {
-  CONTRACT_STATUS_LABELS,
   CONTRACT_TYPE_LABELS,
 } from "@/lib/dashboard/contract-constants";
 import { COMMISSION_ENTRY_STATUS_LABELS } from "@/lib/dashboard/commission-constants";
@@ -269,7 +269,7 @@ function ContractsTab({
         {
           key: "status",
           header: "Status",
-          render: (contract) => CONTRACT_STATUS_LABELS[contract.status],
+          render: (contract) => <ContractStatusBadge status={contract.status} />,
         },
         {
           key: "start",

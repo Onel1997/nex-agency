@@ -4,6 +4,47 @@ import {
   defaultContractTypeForProfile,
   validateContractInput,
 } from "./contract-form";
+import {
+  isContractLifecycleColumnsMissingError,
+  isContractsTableMissingError,
+  isContractV2ColumnsMissingError,
+} from "./contracts";
+
+describe("contract schema error detection", () => {
+  it("detects missing contracts table", () => {
+    expect(
+      isContractsTableMissingError(
+        'relation "public.contracts" does not exist',
+      ),
+    ).toBe(true);
+    expect(
+      isContractsTableMissingError(
+        'column contracts.sent_at does not exist',
+      ),
+    ).toBe(false);
+  });
+
+  it("detects missing lifecycle columns", () => {
+    expect(
+      isContractLifecycleColumnsMissingError(
+        'column contracts.sent_at does not exist',
+      ),
+    ).toBe(true);
+    expect(
+      isContractLifecycleColumnsMissingError(
+        'Could not find the "signed_by_agency" column of "contracts" in the schema cache',
+      ),
+    ).toBe(true);
+  });
+
+  it("detects missing v2 columns", () => {
+    expect(
+      isContractV2ColumnsMissingError(
+        'column contracts.contract_category does not exist',
+      ),
+    ).toBe(true);
+  });
+});
 
 describe("contract creation helpers", () => {
   it("supports freelancer setter and employee setter combinations", () => {

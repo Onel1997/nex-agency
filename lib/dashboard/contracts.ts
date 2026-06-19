@@ -42,13 +42,56 @@ export {
   contractInputToDbPayload,
 } from "./contract-form";
 
-export function isContractsSchemaMissingError(message: string): boolean {
+export function isContractsTableMissingError(message: string): boolean {
   const normalized = message.toLowerCase();
   return (
-    normalized.includes("contracts") ||
+    (normalized.includes("relation") &&
+      normalized.includes("contracts") &&
+      normalized.includes("does not exist")) ||
     normalized.includes("contract_number_counters") ||
     normalized.includes("next_contract_number")
   );
+}
+
+/** @deprecated Use isContractsTableMissingError — kept for callers during transition */
+export function isContractsSchemaMissingError(message: string): boolean {
+  return isContractsTableMissingError(message);
+}
+
+export function isContractLifecycleColumnsMissingError(message: string): boolean {
+  const normalized = message.toLowerCase();
+  if (!normalized.includes("does not exist") && !normalized.includes("could not find")) {
+    return false;
+  }
+
+  return [
+    "sent_at",
+    "activated_at",
+    "terminated_at",
+    "archived_at",
+    "signed_by_agency",
+    "signed_by_partner",
+    "agency_signed_at",
+    "partner_signed_at",
+  ].some((column) => normalized.includes(column));
+}
+
+export function isContractV2ColumnsMissingError(message: string): boolean {
+  const normalized = message.toLowerCase();
+  if (!normalized.includes("does not exist") && !normalized.includes("could not find")) {
+    return false;
+  }
+
+  return [
+    "contract_category",
+    "agency_role",
+    "working_hours_per_week",
+    "vacation_days_per_year",
+    "setup_commission_rate",
+    "retainer_commission_rate",
+    "retainer_commission_months",
+    "freelancer_profile_id",
+  ].some((column) => normalized.includes(column));
 }
 
 function formatProfileName(profile: {
@@ -122,6 +165,14 @@ function mapContractRow(row: Record<string, unknown>): TeamContractRecord {
     notes: (row.notes as string | null) ?? null,
     pdf_url: (row.pdf_url as string | null) ?? null,
     signed_at: (row.signed_at as string | null) ?? null,
+    sent_at: (row.sent_at as string | null) ?? null,
+    activated_at: (row.activated_at as string | null) ?? null,
+    terminated_at: (row.terminated_at as string | null) ?? null,
+    archived_at: (row.archived_at as string | null) ?? null,
+    signed_by_agency: Boolean(row.signed_by_agency),
+    signed_by_partner: Boolean(row.signed_by_partner),
+    agency_signed_at: (row.agency_signed_at as string | null) ?? null,
+    partner_signed_at: (row.partner_signed_at as string | null) ?? null,
     created_at: row.created_at as string,
     updated_at: row.updated_at as string,
     profile_name: formatProfileName(
@@ -135,7 +186,36 @@ function mapContractRow(row: Record<string, unknown>): TeamContractRecord {
   };
 }
 
-const CONTRACT_SELECT = `
+const CONTRACT_PROFILE_SELECT = `
+  profile:profiles!contracts_profile_id_fkey(
+    full_name,
+    email,
+    agency_role,
+    employment_type,
+    role
+  )
+`;
+
+const CONTRACT_SELECT_LEGACY = `
+  id,
+  profile_id,
+  contract_type,
+  status,
+  title,
+  contract_number,
+  start_date,
+  end_date,
+  monthly_salary_cents,
+  commission_rate,
+  notes,
+  pdf_url,
+  signed_at,
+  created_at,
+  updated_at,
+  ${CONTRACT_PROFILE_SELECT}
+`;
+
+const CONTRACT_SELECT_V2 = `
   id,
   profile_id,
   contract_type,
@@ -159,14 +239,120 @@ const CONTRACT_SELECT = `
   signed_at,
   created_at,
   updated_at,
-  profile:profiles!contracts_profile_id_fkey(
-    full_name,
-    email,
-    agency_role,
-    employment_type,
-    role
-  )
+  ${CONTRACT_PROFILE_SELECT}
 `;
+
+const CONTRACT_SELECT = `
+  id,
+  profile_id,
+  contract_type,
+  contract_category,
+  status,
+  title,
+  contract_number,
+  start_date,
+  end_date,
+  monthly_salary_cents,
+  commission_rate,
+  agency_role,
+  working_hours_per_week,
+  vacation_days_per_year,
+  setup_commission_rate,
+  retainer_commission_rate,
+  retainer_commission_months,
+  freelancer_profile_id,
+  notes,
+  pdf_url,
+  signed_at,
+  sent_at,
+  activated_at,
+  terminated_at,
+  archived_at,
+  signed_by_agency,
+  signed_by_partner,
+  agency_signed_at,
+  partner_signed_at,
+  created_at,
+  updated_at,
+  ${CONTRACT_PROFILE_SELECT}
+`;
+
+async function queryContracts(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  options: { profileId?: string; contractId?: string; single: true },
+): Promise<
+  | { data: Record<string, unknown> | null; error: null }
+  | { data: null; error: { message: string } }
+>;
+async function queryContracts(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  options?: { profileId?: string; contractId?: string; single?: false },
+): Promise<
+  | { data: Record<string, unknown>[]; error: null }
+  | { data: null; error: { message: string } }
+>;
+async function queryContracts(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  options: {
+    profileId?: string;
+    contractId?: string;
+    single?: boolean;
+  } = {},
+): Promise<
+  | { data: Record<string, unknown> | Record<string, unknown>[] | null; error: null }
+  | { data: null; error: { message: string } }
+> {
+  const selects = [CONTRACT_SELECT, CONTRACT_SELECT_V2, CONTRACT_SELECT_LEGACY];
+
+  for (let index = 0; index < selects.length; index += 1) {
+    const select = selects[index];
+    let query = supabase.from("contracts").select(select);
+
+    if (options.profileId) {
+      query = query.eq("profile_id", options.profileId);
+    }
+    if (options.contractId) {
+      query = query.eq("id", options.contractId);
+    }
+    if (!options.single) {
+      query = query.order("created_at", { ascending: false });
+    }
+
+    const result = options.single ? await query.maybeSingle() : await query;
+
+    if (!result.error) {
+      if (options.single) {
+        return {
+          data: (result.data as Record<string, unknown> | null) ?? null,
+          error: null,
+        };
+      }
+      return {
+        data: (result.data as Record<string, unknown>[] | null) ?? [],
+        error: null,
+      };
+    }
+
+    const message = result.error.message;
+    if (isContractsTableMissingError(message)) {
+      return options.single
+        ? { data: null, error: null }
+        : { data: [], error: null };
+    }
+
+    const hasFallback = index < selects.length - 1;
+    const lifecycleMissing = isContractLifecycleColumnsMissingError(message);
+    const v2Missing = isContractV2ColumnsMissingError(message);
+
+    if (hasFallback && (lifecycleMissing || v2Missing)) {
+      continue;
+    }
+
+    return { data: null, error: { message } };
+  }
+
+  return options.single ? { data: null, error: null } : { data: [], error: null };
+}
 
 async function fetchBillingProfile(
   profileId: string,
@@ -182,15 +368,9 @@ export async function getContracts(): Promise<TeamContractRecord[]> {
   }
 
   const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("contracts")
-    .select(CONTRACT_SELECT)
-    .order("created_at", { ascending: false });
+  const { data, error } = await queryContracts(supabase);
 
-  if (error) {
-    if (isContractsSchemaMissingError(error.message)) return [];
-    throw new Error(error.message);
-  }
+  if (error) throw new Error(error.message);
 
   return (data ?? []).map((row) => mapContractRow(row as Record<string, unknown>));
 }
@@ -204,16 +384,9 @@ export async function getContractsByProfileId(
   }
 
   const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("contracts")
-    .select(CONTRACT_SELECT)
-    .eq("profile_id", profileId)
-    .order("created_at", { ascending: false });
+  const { data, error } = await queryContracts(supabase, { profileId });
 
-  if (error) {
-    if (isContractsSchemaMissingError(error.message)) return [];
-    throw new Error(error.message);
-  }
+  if (error) throw new Error(error.message);
 
   return (data ?? []).map((row) => mapContractRow(row as Record<string, unknown>));
 }
@@ -225,20 +398,15 @@ export async function getContractWithDetails(
   if (!profile || !isManagement(profile)) return null;
 
   const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("contracts")
-    .select(CONTRACT_SELECT)
-    .eq("id", contractId)
-    .maybeSingle();
+  const { data, error } = await queryContracts(supabase, {
+    contractId,
+    single: true,
+  });
 
-  if (error) {
-    if (isContractsSchemaMissingError(error.message)) return null;
-    throw new Error(error.message);
-  }
-
+  if (error) throw new Error(error.message);
   if (!data) return null;
 
-  const base = mapContractRow(data as Record<string, unknown>);
+  const base = mapContractRow(data);
   const [billing, documents] = await Promise.all([
     fetchBillingProfile(base.profile_id, base.contract_category),
     getContractDocuments(contractId),

@@ -1,18 +1,26 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireContractsAccess } from "@/lib/auth/session";
-import { getProfile } from "@/lib/auth/session";
+import { requireContractsAccess, getProfile } from "@/lib/auth/session";
+import { logActivity } from "@/lib/dashboard/activity";
 import {
   CONTRACT_DOCUMENTS_BUCKET,
   validateContractDocumentFile,
 } from "@/lib/dashboard/contract-documents";
+import {
+  buildContractLifecycleUpdate,
+  canPerformContractLifecycleAction,
+  getContractLifecycleActivityAction,
+  getContractLifecycleActivityMessage,
+  type ContractLifecycleAction,
+} from "@/lib/dashboard/contract-lifecycle";
 import {
   contractInputToDbPayload,
   generateAndStoreContractPdf,
   parseContractFormData,
   validateContractInput,
 } from "@/lib/dashboard/contracts";
+import type { ContractStatus } from "@/lib/dashboard/contract-constants";
 import { createClient } from "@/lib/supabase/server";
 
 function revalidateContracts(profileId?: string) {
@@ -70,7 +78,6 @@ export async function createContract(formData: FormData) {
       ...payload,
       contract_number: contractNumber as string,
       freelancer_profile_id: freelancerProfileId,
-      signed_at: input.status === "active" ? new Date().toISOString() : null,
     })
     .select("id")
     .single();
@@ -89,7 +96,21 @@ export async function updateContract(contractId: string, formData: FormData) {
   if (validationError) throw new Error(validationError);
 
   const supabase = await createClient();
-  const payload = contractInputToDbPayload(input);
+  const { data: existing, error: fetchError } = await supabase
+    .from("contracts")
+    .select("status")
+    .eq("id", contractId)
+    .single();
+
+  if (fetchError) throw new Error(fetchError.message);
+
+  if ((existing.status as ContractStatus) !== "draft") {
+    throw new Error("Nur Entwürfe können bearbeitet werden");
+  }
+
+  const payload = contractInputToDbPayload(input, {
+    preserveStatus: existing.status as ContractStatus,
+  });
   const freelancerProfileId =
     input.contractCategory === "freelancer"
       ? await resolveFreelancerProfileId(supabase, input.profileId)
@@ -111,16 +132,20 @@ export async function updateContract(contractId: string, formData: FormData) {
 }
 
 export async function deleteContract(contractId: string) {
-  await requireContractsAccess();
+  const actor = await requireContractsAccess();
 
   const supabase = await createClient();
   const { data: contract, error: fetchError } = await supabase
     .from("contracts")
-    .select("profile_id, pdf_url, contract_number")
+    .select("profile_id, pdf_url, contract_number, status")
     .eq("id", contractId)
     .single();
 
   if (fetchError) throw new Error(fetchError.message);
+
+  if ((contract.status as ContractStatus) !== "draft") {
+    throw new Error("Nur Entwürfe können gelöscht werden. Bitte archivieren.");
+  }
 
   if (contract.pdf_url && !String(contract.pdf_url).startsWith("/api/")) {
     await supabase.storage.from("contract-pdfs").remove([contract.pdf_url as string]);
@@ -128,6 +153,18 @@ export async function deleteContract(contractId: string) {
 
   const { error } = await supabase.from("contracts").delete().eq("id", contractId);
   if (error) throw new Error(error.message);
+
+  await logActivity({
+    actorId: actor.id,
+    action: "contract_deleted",
+    entityType: "contract",
+    entityId: contractId,
+    metadata: {
+      contract_number: contract.contract_number,
+      status: contract.status,
+    },
+    message: `Vertrag ${contract.contract_number as string} wurde gelöscht`,
+  });
 
   revalidateContracts(contract.profile_id as string);
 }
@@ -254,4 +291,70 @@ export async function fetchContractDetails(contractId: string) {
   const contract = await getContractWithDetails(contractId);
   if (!contract) throw new Error("Vertrag nicht gefunden");
   return contract;
+}
+
+export async function transitionContract(
+  contractId: string,
+  action: ContractLifecycleAction,
+) {
+  const actor = await requireContractsAccess();
+  const supabase = await createClient();
+
+  const { data: contract, error: fetchError } = await supabase
+    .from("contracts")
+    .select(
+      "id, profile_id, contract_number, status, signed_by_agency, signed_by_partner",
+    )
+    .eq("id", contractId)
+    .single();
+
+  if (fetchError) throw new Error(fetchError.message);
+
+  const currentStatus = contract.status as ContractStatus;
+  const lifecycleState = {
+    status: currentStatus,
+    signed_by_agency: Boolean(contract.signed_by_agency),
+    signed_by_partner: Boolean(contract.signed_by_partner),
+  };
+
+  if (!canPerformContractLifecycleAction(lifecycleState, action)) {
+    throw new Error("Diese Aktion ist im aktuellen Status nicht möglich");
+  }
+
+  const now = new Date().toISOString();
+  const update = buildContractLifecycleUpdate(lifecycleState, action, now);
+
+  const { error: updateError } = await supabase
+    .from("contracts")
+    .update({
+      ...update,
+      updated_at: now,
+    })
+    .eq("id", contractId);
+
+  if (updateError) throw new Error(updateError.message);
+
+  await logActivity({
+    actorId: actor.id,
+    action: getContractLifecycleActivityAction(action),
+    entityType: "contract",
+    entityId: contractId,
+    metadata: {
+      contract_number: contract.contract_number,
+      previous_status: currentStatus,
+      new_status: update.status,
+      action,
+    },
+    message: getContractLifecycleActivityMessage(
+      action,
+      contract.contract_number as string,
+    ),
+  });
+
+  if (action === "sign" || action === "activate" || action === "send") {
+    await generateAndStoreContractPdf(contractId);
+  }
+
+  revalidateContracts(contract.profile_id as string);
+  return update.status;
 }

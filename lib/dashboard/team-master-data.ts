@@ -304,6 +304,24 @@ export async function updateFreelancerMasterData(
   };
 }
 
+async function fetchProfileMasterFields(
+  profileId: string,
+): Promise<Record<string, unknown> | null> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("profiles")
+    .select(EMPLOYEE_MASTER_SELECT)
+    .eq("id", profileId)
+    .maybeSingle();
+
+  if (error) {
+    if (isTeamMasterDataSchemaMissingError(error.message)) return null;
+    throw new Error(error.message);
+  }
+
+  return (data as Record<string, unknown> | null) ?? null;
+}
+
 export async function fetchContractProfileMasterData(
   profileId: string,
   contractCategory: import("./contract-constants").ContractCategory,
@@ -348,44 +366,50 @@ export async function fetchContractProfileMasterData(
     profile_birth_date: null as string | null,
   };
 
-  const masterData = await getTeamMemberMasterData(profileId);
-  if (!masterData) return empty;
+  const profileRow = await fetchProfileMasterFields(profileId);
 
   if (contractCategory === "freelancer") {
     const billing = await fetchFreelancerProfileRow(profileId);
     return {
       ...empty,
       freelancer_profile_id: billing?.id ?? null,
-      profile_street: masterData.street,
-      profile_house_number: masterData.house_number,
-      profile_postal_code: masterData.postal_code,
-      profile_city: masterData.city,
-      profile_country: masterData.country,
-      profile_phone: masterData.phone,
-      profile_iban: masterData.iban,
-      profile_bic: masterData.bic,
-      profile_bank_name: masterData.bank_name,
-      profile_tax_number: masterData.tax_number,
-      profile_vat_id: masterData.vat_id,
-      profile_business_name: masterData.business_name,
+      profile_street: billing?.street ?? (profileRow?.street as string | null) ?? null,
+      profile_house_number:
+        billing?.house_number ?? (profileRow?.house_number as string | null) ?? null,
+      profile_postal_code:
+        billing?.postal_code ?? (profileRow?.postal_code as string | null) ?? null,
+      profile_city: billing?.city ?? (profileRow?.city as string | null) ?? null,
+      profile_country:
+        billing?.country ?? (profileRow?.country as string | null) ?? "Deutschland",
+      profile_phone: billing?.phone ?? (profileRow?.phone as string | null) ?? null,
+      profile_iban: billing?.iban ?? (profileRow?.iban as string | null) ?? null,
+      profile_bic: billing?.bic ?? (profileRow?.bic as string | null) ?? null,
+      profile_bank_name:
+        billing?.bank_name ?? (profileRow?.bank_name as string | null) ?? null,
+      profile_tax_number: billing?.tax_number ?? null,
+      profile_vat_id: billing?.vat_id ?? null,
+      profile_business_name: billing?.business_name ?? null,
     };
   }
 
+  if (!profileRow) return empty;
+
   return {
     ...empty,
-    profile_street: masterData.street,
-    profile_house_number: masterData.house_number,
-    profile_postal_code: masterData.postal_code,
-    profile_city: masterData.city,
-    profile_country: masterData.country,
-    profile_phone: masterData.phone,
-    profile_iban: masterData.iban,
-    profile_bic: masterData.bic,
-    profile_bank_name: masterData.bank_name,
-    profile_tax_id: masterData.tax_id,
-    profile_social_security_number: masterData.social_security_number,
-    profile_health_insurance: masterData.health_insurance,
-    profile_employee_number: masterData.employee_number,
-    profile_birth_date: masterData.birth_date,
+    profile_street: (profileRow.street as string | null) ?? null,
+    profile_house_number: (profileRow.house_number as string | null) ?? null,
+    profile_postal_code: (profileRow.postal_code as string | null) ?? null,
+    profile_city: (profileRow.city as string | null) ?? null,
+    profile_country: (profileRow.country as string | null) ?? "Deutschland",
+    profile_phone: (profileRow.phone as string | null) ?? null,
+    profile_iban: (profileRow.iban as string | null) ?? null,
+    profile_bic: (profileRow.bic as string | null) ?? null,
+    profile_bank_name: (profileRow.bank_name as string | null) ?? null,
+    profile_tax_id: (profileRow.tax_id as string | null) ?? null,
+    profile_social_security_number:
+      (profileRow.social_security_number as string | null) ?? null,
+    profile_health_insurance: (profileRow.health_insurance as string | null) ?? null,
+    profile_employee_number: (profileRow.employee_number as string | null) ?? null,
+    profile_birth_date: (profileRow.birth_date as string | null) ?? null,
   };
 }

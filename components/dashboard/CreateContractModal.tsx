@@ -5,13 +5,10 @@ import { Modal } from "./Modal";
 import {
   CONTRACT_CATEGORIES,
   CONTRACT_CATEGORY_LABELS,
-  CONTRACT_STATUSES,
-  CONTRACT_STATUS_LABELS,
   CONTRACT_TYPES,
   CONTRACT_TYPE_LABELS,
   FREELANCER_CONTRACT_TYPES,
   type ContractCategory,
-  type ContractStatus,
   type ContractType,
 } from "@/lib/dashboard/contract-constants";
 import {
@@ -19,7 +16,8 @@ import {
   defaultContractTitle,
   defaultContractTypeForProfile,
 } from "@/lib/dashboard/contract-form";
-import type { TeamMember } from "@/lib/dashboard/types";
+import type { ContractWithDetails, TeamMember } from "@/lib/dashboard/types";
+import { centsToEuroInput } from "@/lib/dashboard/format";
 import { getAgencyRoleLabel, getEmploymentTypeLabel } from "@/lib/auth/roles";
 
 interface CreateContractModalProps {
@@ -27,6 +25,7 @@ interface CreateContractModalProps {
   members: TeamMember[];
   preselectedProfileId?: string | null;
   defaultCategory?: ContractCategory;
+  editContract?: ContractWithDetails | null;
   onClose: () => void;
   onSubmit: (formData: FormData) => Promise<void>;
   pending?: boolean;
@@ -39,14 +38,15 @@ export function CreateContractModal({
   members,
   preselectedProfileId,
   defaultCategory = "freelancer",
+  editContract = null,
   onClose,
   onSubmit,
   pending = false,
 }: CreateContractModalProps) {
+  const isEditMode = Boolean(editContract);
   const [profileId, setProfileId] = useState(preselectedProfileId ?? members[0]?.id ?? "");
   const [contractCategory, setContractCategory] = useState<ContractCategory>(defaultCategory);
   const [contractType, setContractType] = useState<ContractType>("freelancer");
-  const [status, setStatus] = useState<ContractStatus>("draft");
   const [title, setTitle] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
@@ -75,10 +75,51 @@ export function CreateContractModal({
 
   useEffect(() => {
     if (!open) return;
+
+    if (editContract) {
+      setProfileId(editContract.profile_id);
+      setContractCategory(editContract.contract_category);
+      setContractType(editContract.contract_type);
+      setTitle(editContract.title);
+      setStartDate(editContract.start_date ?? "");
+      setEndDate(editContract.end_date ?? "");
+      setMonthlySalary(centsToEuroInput(editContract.monthly_salary_cents));
+      setWorkingHoursPerWeek(
+        editContract.working_hours_per_week != null
+          ? String(editContract.working_hours_per_week)
+          : "",
+      );
+      setVacationDaysPerYear(
+        editContract.vacation_days_per_year != null
+          ? String(editContract.vacation_days_per_year)
+          : "",
+      );
+      setSetupCommissionRate(
+        editContract.setup_commission_rate != null
+          ? String(editContract.setup_commission_rate)
+          : "",
+      );
+      setRetainerCommissionRate(
+        editContract.retainer_commission_rate != null
+          ? String(editContract.retainer_commission_rate)
+          : "",
+      );
+      setRetainerCommissionMonths(
+        editContract.retainer_commission_months != null
+          ? String(editContract.retainer_commission_months)
+          : "",
+      );
+      setCommissionRate(
+        editContract.commission_rate != null ? String(editContract.commission_rate) : "",
+      );
+      setNotes(editContract.notes ?? "");
+      setError(null);
+      return;
+    }
+
     const nextProfileId = preselectedProfileId ?? members[0]?.id ?? "";
     setProfileId(nextProfileId);
     setContractCategory(defaultCategory);
-    setStatus("draft");
     setStartDate("");
     setEndDate("");
     setMonthlySalary("");
@@ -90,10 +131,10 @@ export function CreateContractModal({
     setCommissionRate("");
     setNotes("");
     setError(null);
-  }, [open, members, preselectedProfileId, defaultCategory]);
+  }, [open, members, preselectedProfileId, defaultCategory, editContract]);
 
   useEffect(() => {
-    if (!selectedMember) return;
+    if (!selectedMember || editContract) return;
     const category = defaultCategory || defaultContractCategoryForProfile(selectedMember);
     setContractCategory(category);
     const nextType = defaultContractTypeForProfile(selectedMember);
@@ -109,7 +150,7 @@ export function CreateContractModal({
           "",
       ),
     );
-  }, [selectedMember, defaultCategory]);
+  }, [selectedMember, defaultCategory, editContract]);
 
   useEffect(() => {
     if (contractCategory === "employee") {
@@ -127,7 +168,7 @@ export function CreateContractModal({
     formData.set("profileId", profileId);
     formData.set("contractCategory", contractCategory);
     formData.set("contractType", contractType);
-    formData.set("status", status);
+    formData.set("status", "draft");
     formData.set("title", title);
     formData.set("startDate", startDate);
     formData.set("endDate", endDate);
@@ -149,7 +190,12 @@ export function CreateContractModal({
   };
 
   return (
-    <Modal open={open} onClose={onClose} title="Vertrag erstellen" size="lg">
+    <Modal
+      open={open}
+      onClose={onClose}
+      title={isEditMode ? "Vertrag bearbeiten" : "Vertrag erstellen"}
+      size="lg"
+    >
       {error && (
         <p className="mb-4 rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-300 ring-1 ring-red-500/20">
           {error}
@@ -161,7 +207,8 @@ export function CreateContractModal({
           <select
             value={contractCategory}
             onChange={(e) => setContractCategory(e.target.value as ContractCategory)}
-            className="dashboard-input w-full rounded-xl px-3 py-2 text-sm"
+            disabled={isEditMode}
+            className="dashboard-input w-full rounded-xl px-3 py-2 text-sm disabled:opacity-60"
           >
             {CONTRACT_CATEGORIES.map((category) => (
               <option key={category} value={category}>
@@ -176,7 +223,8 @@ export function CreateContractModal({
             value={profileId}
             onChange={(e) => setProfileId(e.target.value)}
             required
-            className="dashboard-input w-full rounded-xl px-3 py-2 text-sm"
+            disabled={isEditMode}
+            className="dashboard-input w-full rounded-xl px-3 py-2 text-sm disabled:opacity-60"
           >
             {members.map((member) => (
               <option key={member.id} value={member.id}>
@@ -209,20 +257,6 @@ export function CreateContractModal({
               {availableTypes.map((type) => (
                 <option key={type} value={type}>
                   {CONTRACT_TYPE_LABELS[type]}
-                </option>
-              ))}
-            </select>
-          </Field>
-
-          <Field label="Status">
-            <select
-              value={status}
-              onChange={(e) => setStatus(e.target.value as ContractStatus)}
-              className="dashboard-input w-full rounded-xl px-3 py-2 text-sm"
-            >
-              {CONTRACT_STATUSES.map((value) => (
-                <option key={value} value={value}>
-                  {CONTRACT_STATUS_LABELS[value]}
                 </option>
               ))}
             </select>
@@ -344,7 +378,13 @@ export function CreateContractModal({
             disabled={pending}
             className="dashboard-btn-primary px-4 py-2 text-sm disabled:opacity-50"
           >
-            {pending ? "Wird erstellt…" : "Vertrag erstellen"}
+            {pending
+              ? isEditMode
+                ? "Wird gespeichert…"
+                : "Wird erstellt…"
+              : isEditMode
+                ? "Änderungen speichern"
+                : "Vertrag erstellen"}
           </button>
         </div>
       </form>
